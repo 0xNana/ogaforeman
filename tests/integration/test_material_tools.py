@@ -18,10 +18,13 @@ from app.repositories.interfaces import VersionConflictError
 from app.services.materials import MaterialQuantityCommand, MaterialService
 
 
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("FIRESTORE_EMULATOR_HOST"),
-    reason="FIRESTORE_EMULATOR_HOST is required for material integration",
-)
+pytestmark = [
+    pytest.mark.backing_services,
+    pytest.mark.skipif(
+        not os.environ.get("FIRESTORE_EMULATOR_HOST"),
+        reason="FIRESTORE_EMULATOR_HOST is required for material integration",
+    ),
+]
 
 
 def test_firestore_material_concurrency_is_atomic_and_append_only() -> None:

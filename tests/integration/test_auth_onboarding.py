@@ -26,10 +26,13 @@ from app.repositories.membership import FirestoreIdentityRepository, MembershipR
 from app.services.projects import FirestoreProjectService
 
 
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("FIRESTORE_EMULATOR_HOST"),
-    reason="FIRESTORE_EMULATOR_HOST is required for auth onboarding integration",
-)
+pytestmark = [
+    pytest.mark.backing_services,
+    pytest.mark.skipif(
+        not os.environ.get("FIRESTORE_EMULATOR_HOST"),
+        reason="FIRESTORE_EMULATOR_HOST is required for auth onboarding integration",
+    ),
+]
 
 
 @dataclass(frozen=True)

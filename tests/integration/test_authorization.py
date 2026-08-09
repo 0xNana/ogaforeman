@@ -278,6 +278,7 @@ def test_authorized_repository_transaction_keeps_project_scope_and_role_checks()
         repository.run_transaction(lambda transaction: transaction.get("prj_other", "tsk_other"))
 
 
+@pytest.mark.backing_services
 @pytest.mark.skipif(
     not os.environ.get("FIRESTORE_EMULATOR_HOST"),
     reason="FIRESTORE_EMULATOR_HOST is required for Firestore authorization integration",

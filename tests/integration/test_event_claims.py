@@ -167,6 +167,7 @@ def test_repeated_abandoned_leases_are_bounded_and_dead_lettered() -> None:
     assert terminal.dead_letter_reason == "CLAIM_ATTEMPTS_EXHAUSTED: claim lease expired"
 
 
+@pytest.mark.backing_services
 @pytest.mark.skipif(
     not os.environ.get("FIRESTORE_EMULATOR_HOST"),
     reason="FIRESTORE_EMULATOR_HOST is required for Firestore claim integration",

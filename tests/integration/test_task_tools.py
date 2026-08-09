@@ -14,10 +14,13 @@ from app.repositories.firestore import FirestoreRepositoryStore
 from app.services.tasks import TaskService, UpdateTaskCommand
 
 
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("FIRESTORE_EMULATOR_HOST"),
-    reason="FIRESTORE_EMULATOR_HOST is required for Firestore task integration",
-)
+pytestmark = [
+    pytest.mark.backing_services,
+    pytest.mark.skipif(
+        not os.environ.get("FIRESTORE_EMULATOR_HOST"),
+        reason="FIRESTORE_EMULATOR_HOST is required for Firestore task integration",
+    ),
+]
 
 
 def test_firestore_task_update_and_activity_survive_new_client() -> None:

@@ -6,6 +6,9 @@
       "indexes": "firebase/firestore.indexes.json"
     }
   ],
+  "storage": {
+    "rules": "firebase/storage.rules"
+  },
   "hosting": {
     "public": "firebase/hosting",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
@@ -27,6 +30,10 @@
     "firestore": {
       "host": "127.0.0.1",
       "port": 8085
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9199
     },
     "ui": {
       "enabled": false

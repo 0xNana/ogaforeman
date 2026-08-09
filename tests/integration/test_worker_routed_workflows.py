@@ -405,6 +405,7 @@ def test_daily_brief_event_upserts_source_linked_report_and_notification_once() 
     assert run.status is AgentRunStatus.COMPLETED
 
 
+@pytest.mark.backing_services
 @pytest.mark.skipif(
     not os.getenv("FIRESTORE_EMULATOR_HOST"),
     reason="FIRESTORE_EMULATOR_HOST is required for routed workflow persistence",
@@ -485,6 +486,7 @@ def test_routed_material_and_brief_state_survives_firestore_client_restart() -> 
     )
 
 
+@pytest.mark.backing_services
 @pytest.mark.skipif(
     not os.getenv("FIRESTORE_EMULATOR_HOST"),
     reason="FIRESTORE_EMULATOR_HOST is required for approval continuation persistence",

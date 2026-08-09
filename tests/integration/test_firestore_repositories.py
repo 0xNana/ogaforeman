@@ -22,10 +22,13 @@ from app.workflows.resume import ResumeWorkflow
 from scripts.reset_demo import reset_demo
 
 
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("FIRESTORE_EMULATOR_HOST"),
-    reason="FIRESTORE_EMULATOR_HOST is required for Firestore integration tests",
-)
+pytestmark = [
+    pytest.mark.backing_services,
+    pytest.mark.skipif(
+        not os.environ.get("FIRESTORE_EMULATOR_HOST"),
+        reason="FIRESTORE_EMULATOR_HOST is required for Firestore integration tests",
+    ),
+]
 
 
 def make_task(project_id: str, task_id: str = "tsk_blockwork") -> Task:

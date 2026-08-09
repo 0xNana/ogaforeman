@@ -17,12 +17,34 @@ jobs:
         with:
           version: 0.11.32
           enable-cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
       - run: uv sync --all-extras --locked
         working-directory: .
+      - run: npm ci --prefix frontend
       - run: .venv/bin/ruff check .
       - run: .venv/bin/ruff format --check .
       - run: .venv/bin/mypy app
-      - run: .venv/bin/python -m pytest -q
+      - name: Backend tests without backing services
+        run: .venv/bin/python -m pytest -q -m "not backing_services"
+      - name: Backend tests with durable backing services
+        run: >-
+          frontend/node_modules/.bin/firebase emulators:exec
+          --only firestore,storage
+          --project demo-oga-foreman-ci
+          --config firebase.json
+          ".venv/bin/python -m pytest -q -m backing_services"
       - run: .venv/bin/python scripts/run_evals.py --adapter fixture
       - run: .venv/bin/python scripts/run_capacity_baseline.py
       - run: bash -n infra/deploy.sh infra/rollback.sh infra/monitoring/apply.sh

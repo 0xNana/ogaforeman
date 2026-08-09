@@ -159,6 +159,23 @@ def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes()
     ]
 
 
+def test_ci_runs_backend_suite_with_durable_backing_service_emulators() -> None:
+    manifest = json.loads((ROOT / "firebase.json").read_text(encoding="utf-8"))
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    storage_rules = (ROOT / "firebase" / "storage.rules").read_text(encoding="utf-8")
+
+    assert manifest["storage"]["rules"] == "firebase/storage.rules"
+    assert manifest["emulators"]["storage"] == {"host": "127.0.0.1", "port": 9199}
+    assert "allow read, write: if false;" in storage_rules
+    assert "actions/setup-java@v4" in workflow
+    assert "actions/setup-node@v4" in workflow
+    assert "firebase emulators:exec" in workflow
+    assert "--only firestore,storage" in workflow
+    assert "--project demo-oga-foreman-ci" in workflow
+    assert 'pytest -q -m "not backing_services"' in workflow
+    assert "pytest -q -m backing_services" in workflow
+
+
 def test_frontend_container_is_standalone_and_non_root() -> None:
     dockerfile = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
     config = (ROOT / "frontend" / "next.config.mjs").read_text(encoding="utf-8")
