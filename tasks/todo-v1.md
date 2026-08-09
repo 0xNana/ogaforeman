@@ -31,6 +31,11 @@ real cloud environment, live model credential/billing, or human release gate.
 - [x] G-07 New projects expose authorized, idempotent task and material setup
   APIs and UI forms, so safe agent entity resolution no longer depends on demo
   seed data; every setup mutation atomically emits an activity.
+- [x] P0.1 Real multimodal intake retrieves checksum-verified durable audio/photo
+  bytes in the claimed worker. Audio transcription persists atomically on the
+  existing `SiteUpdate`; images plus authorized project context reach the Gemini
+  request; retries reuse the update/transcript; visual-only completion waits for
+  clarification; Firestore restart and replay coverage passes.
 
 ## Contracts and foundation
 
@@ -108,6 +113,9 @@ Vertical slice gate:
 - [x] Mixed text/voice/photo payloads prove durable task, issue, material,
   request, approval, report, activity, attachment, and run state through
   `/api/v1` and Firestore restart.
+- [x] Voice/photo attachments are consumed as actual durable bytes by the
+  application worker; this gate no longer relies on a client-supplied transcript
+  or attachment metadata alone.
 - [x] Duplicate replay and Firestore client restart are covered through the
   wired site-update worker path.
 
@@ -172,7 +180,11 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend: 252 passed, 18 emulator-dependent skipped.
+- [x] Backend: 280 passed, 18 emulator-dependent skipped.
+- [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
+  the Firestore restart case also passing separately against `127.0.0.1:8085`.
+- [!] P0.1 live Gemini audio smoke reached the configured API but returned
+  `429 RESOURCE_EXHAUSTED` because AI Studio prepayment credits are depleted.
 - [x] Production readiness: 13 passed, no xfails.
 - [x] Firestore repository contract: 8 passed.
 - [x] Routed workflow regression: memory scenarios plus Firestore client restart

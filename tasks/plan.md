@@ -4,6 +4,36 @@
 
 Work top to bottom. A task is one focused session and should normally touch no more than five files. Keep the repository runnable after every task. Mark the matching item in `tasks/todo-v1.md`, update `docs/STATUS.md`, and record contract changes before starting dependent work.
 
+## P0 Winning Vertical Slice Recovery
+
+### P0.1: Real multimodal intake
+
+Acceptance: the claimed site-update worker retrieves verified audio and image bytes
+from durable private storage. Audio is transcribed by the configured Gemini adapter,
+the transcript and source attachment IDs persist on `SiteUpdate`, and normal
+interpretation consumes the transcript. Images and authorized project context reach
+Gemini as one structured request; visual-only completion claims remain clarification
+candidates until corroborated. Processing failures persist a retryable failed run,
+and replay reuses the same update and any already-persisted transcript.
+
+Verify: API-to-worker tests for voice success/replay, retry after transcription,
+retry after later interpretation failure, photo byte/context delivery, and ambiguous
+visual completion; Gemini SDK request-shape tests; private Storage byte-read tests;
+Firestore restart/replay test for a mixed audio/photo update.
+
+Dependencies: F-07, A-02, A-03, A-04, W-01, W-02.
+
+Files: `app/agents/interpreter.py`, `app/agents/site_update_execution.py`,
+`app/infrastructure/gemini.py`, `app/infrastructure/storage.py`,
+`app/services/site_update_lifecycle.py`, `app/services/site_updates.py`,
+`tests/integration/test_site_update_api.py`,
+`tests/integration/test_worker_site_update_firestore.py`,
+`tests/unit/test_gemini.py`.
+
+Status: complete locally on 2026-08-09. Exact inline Gemini media construction is
+covered. A live audio request reached Gemini but was blocked by depleted AI Studio
+prepayment credits (`429 RESOURCE_EXHAUSTED`).
+
 ## Dependency Graph
 
 ```text

@@ -9,7 +9,11 @@
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed
 mutation services, Firestore, source-linked reports, approvals, and activity
-projection. The repository also includes release tooling, a Next.js product UI,
+projection. Verified audio and image attachments are now read from durable
+private storage by the claimed worker: Gemini transcription is persisted on the
+source `SiteUpdate`, and image bytes plus project context enter structured
+interpretation before existing policy and mutation routing. The repository also
+includes release tooling, a Next.js product UI,
 Firebase Auth emulator browser journeys, deployment scripts, observability
 controls, and recovery utilities.
 
@@ -21,12 +25,14 @@ resolved; remaining gates require deployed auth/operations evidence, a
 configured model, or human release review. The canonical evidence checklist is
 [tasks/todo-v1.md](../tasks/todo-v1.md).
 
-## Locally verified on 2026-08-08
+## Locally verified on 2026-08-09
 
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend pytest: 252 passed, 18 emulator-dependent skipped
+- Backend pytest: 280 passed, 18 emulator-dependent skipped
+- P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
+  clean run and then passed separately against `127.0.0.1:8085`
 - Full Firestore emulator integration: 92 passed
 - Firestore repository contract: 8 passed
 - Routed workflow Firestore restart: passed
@@ -56,6 +62,18 @@ projects had no supported way to establish the canonical task and material
 context required by safe entity resolution. Authorized, idempotent task and
 material setup APIs and UI forms now cover that path locally and await redeploy.
 
+P0.1 now connects those durable browser uploads to the production worker path.
+Voice bytes are checksum/size validated, sent to the configured Gemini audio
+request, and persisted as one audited transcript enrichment before fact
+extraction. Photo bytes and bounded authorized task/material context are included
+in the structured Gemini request. A deterministic policy backstop prevents a
+photo-only claim from completing work without corroboration and persists a
+clarification wait instead. Failure/retry tests prove the same site update is
+reused and an already-persisted transcript is not regenerated. SDK request tests
+verify exact inline media bytes and MIME types; a live billable Gemini request was
+attempted and reached Gemini, but the configured AI Studio project returned
+`429 RESOURCE_EXHAUSTED` because its prepayment credits are depleted.
+
 ## Confirmed implementation
 
 - Production code has no _PROJECT_DB or datetime.utcnow() dependency.
@@ -63,6 +81,12 @@ material setup APIs and UI forms now cover that path locally and await redeploy.
   cached read versions for cross-collection mutation sets.
 - Task, issue, material, request, report, attachment, approval, run, and activity
   state are durably projected by the canonical Daily Site Update path.
+- Audio transcription is a durable, idempotent `SiteUpdate` enrichment with an
+  atomic `site_update.transcribed` activity; the original attachment remains
+  linked and replay skips already-transcribed audio.
+- Image evidence reaches the configured interpreter with authorized project
+  context and remains subject to confidence, clarification, entity-resolution,
+  and typed-mutation policy.
 - Task-completed, material-low/requested, blocker, overdue, delivery-delay, and
   daily-brief events now create deterministic runs and typed replay-safe domain
   mutations before the worker completes their event claims.

@@ -150,6 +150,29 @@ Requirements:
 
 ## Engineering Boundaries
 
+### Multimodal Site-Update Contract
+
+- The API persists and links verified attachment metadata before publishing a
+  site-update event. The worker must reload both the `SiteUpdate` and private
+  object bytes; frontend memory, blob URLs, and client-supplied transcripts are
+  not processing dependencies.
+- Audio transcription is derived state. Its text and source attachment IDs are
+  saved on the existing `SiteUpdate` in the same transaction as a redacted
+  `site_update.transcribed` activity before structured fact extraction starts.
+- Retries retain the immutable submitted event payload, reuse the same
+  deterministic update/run IDs, and skip audio IDs with a persisted transcript.
+  A media/model failure transitions the update and run to recoverable failed
+  state for the event claim retry.
+- Images are sent to the configured Gemini adapter as inline bytes with their
+  verified MIME types and bounded authorized project context. Model output still
+  passes through fact validation, entity resolution, policy, and typed mutation
+  services.
+- A photo without corroborating text or transcript cannot by itself create a
+  high-confidence completion mutation. Visual uncertainty must produce an
+  observation/clarification and a durable waiting state.
+- The aggregate inline-media limit is configurable below Gemini's request cap;
+  Storage reads enforce size and SHA-256 again at consumption time.
+
 ### Always Do
 
 - read `PRODUCT.md`, `SECURITY_SAFETY.md`, and the active task before coding;
