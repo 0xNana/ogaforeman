@@ -14,8 +14,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type AgentRunState, type SiteUpdateInput } from '@/lib/api';
+import { WorkflowReceipt } from '@/components/workflow-receipt';
 
-type IntakeState = 'idle' | 'recording' | 'recorded' | 'uploading' | 'processing' | 'clarification' | 'success' | 'error';
+type IntakeState = 'idle' | 'recording' | 'recorded' | 'uploading' | 'processing' | 'approval' | 'clarification' | 'success' | 'error';
 
 export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
   const [text, setText] = useState('');
@@ -108,6 +109,8 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
       const run = await waitForRun(projectId, result.agent_run_id);
       if (run.status === 'completed') {
         setState('success');
+      } else if (run.status === 'waiting_for_approval') {
+        setState('approval');
       } else if (run.status === 'waiting_for_clarification') {
         setState('clarification');
       } else {
@@ -161,12 +164,13 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
 
         {state === 'error' && <div className="status-banner error" role="alert"><AlertTriangle size={16} /> {error}</div>}
         {state === 'clarification' && <div className="status-banner info" role="status"><AlertTriangle size={16} /> Oga needs a clearer detail before changing the project. Add the task, quantity or timing and send again.</div>}
-        {state === 'success' && <div className="oga-result" role="status"><div className="oga-result-head"><span className="avatar oga-avatar">O</span><div><strong>Oga handled it.</strong><span>Your update is now part of the project.</span></div></div><div className="oga-result-grid"><span><CheckCircle2 size={15} /> Progress checked</span><span><CheckCircle2 size={15} /> Blockers checked</span><span><CheckCircle2 size={15} /> Materials checked</span><span><CheckCircle2 size={15} /> Report updated</span></div></div>}
+        {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} />}
+        {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} />}
         {(state === 'uploading' || state === 'processing') && <div className="process-state" role="status"><div className={`process-state-row${state === 'uploading' ? ' current' : ''}`}>{state === 'uploading' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Adding your site photos...</div><div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>{state === 'processing' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Checking the project...</div><div className="process-state-row"><CheckCircle2 size={17} /> Updating the site...</div></div>}
 
         <div className="composer-bottom">
           <label className="attachment-button" htmlFor="site-attachment"><ImageIcon size={16} /> {file ? 'Change attachment' : 'Add photos or file'}</label>
-          {state === 'success' ? <button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button> : <button className="btn btn-accent" type="button" onClick={submit} disabled={busy}><Send size={16} /> {busy ? 'Oga is working...' : 'Send to Oga'}</button>}
+          {state === 'success' || state === 'approval' ? <button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button> : <button className="btn btn-accent" type="button" onClick={submit} disabled={busy}><Send size={16} /> {busy ? 'Oga is working...' : 'Send to Oga'}</button>}
         </div>
       </section>
     </div>
@@ -184,7 +188,7 @@ function inputTypeFor(text: string, file: File | null): SiteUpdateInput['inputTy
 async function waitForRun(projectId: string, runId: string): Promise<AgentRunState> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const run = await api.getAgentRun(projectId, runId);
-    if (['completed', 'failed', 'dead_lettered', 'waiting_for_clarification'].includes(run.status)) {
+    if (['completed', 'failed', 'dead_lettered', 'waiting_for_approval', 'waiting_for_clarification'].includes(run.status)) {
       return run;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 250));

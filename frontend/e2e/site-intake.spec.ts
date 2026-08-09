@@ -31,6 +31,36 @@ test('submits a text update through processing to durable completion', async ({ 
   expect(browserErrors).toEqual([]);
 });
 
+test('hands an approval-waiting update to the manager without reporting a timeout', async ({ page }) => {
+  const browserErrors = captureBrowserErrors(page);
+  await page.route('**/agent-runs/**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'run_waiting_for_approval',
+        status: 'waiting_for_approval',
+        step: 'material_request_approval',
+        error_code: null,
+        error_summary: null,
+        completed_at: null,
+      }),
+    });
+  });
+
+  await page.getByLabel('Type a site update').fill(
+    'We have ten bags of cement left and plastering starts tomorrow.',
+  );
+  await page.getByRole('button', { name: 'Send to Oga' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Oga understood the update.' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('One decision is waiting for a manager');
+  await expect(page.getByRole('link', { name: 'Review approval' })).toHaveAttribute(
+    'href',
+    `/projects/${projectId}/approvals`,
+  );
+  expect(browserErrors).toEqual([]);
+});
+
 test('uploads and submits a photo using the signed attachment contract', async ({ page }) => {
   const browserErrors = captureBrowserErrors(page);
   await page.locator('#site-attachment').setInputFiles({

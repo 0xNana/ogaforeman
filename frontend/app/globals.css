@@ -517,6 +517,25 @@ p { font-size: 1.05rem; }
 .oga-result-head span { color: var(--green); font-size: 0.77rem; }
 .oga-result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
 .oga-result-grid span { display: flex; align-items: center; gap: 7px; color: var(--green); font-size: 0.76rem; font-weight: 700; }
+.workflow-receipt { margin-top: 18px; padding: 20px; background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 24%, transparent); border-radius: 14px; }
+.workflow-receipt.waiting { background: var(--amber-soft); border-color: color-mix(in srgb, var(--amber) 28%, transparent); }
+.workflow-receipt-heading { display: flex; align-items: flex-start; gap: 13px; }
+.workflow-receipt-mark { display: inline-flex; width: 38px; height: 38px; flex: 0 0 38px; align-items: center; justify-content: center; color: var(--white); background: var(--green); border-radius: 11px 11px 11px 4px; }
+.workflow-receipt.waiting .workflow-receipt-mark { background: var(--amber); }
+.workflow-receipt-kicker { color: var(--green); font-size: 0.67rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.workflow-receipt.waiting .workflow-receipt-kicker { color: var(--amber); }
+.workflow-receipt h2 { margin-top: 5px; font-size: 1.25rem; letter-spacing: -0.025em; }
+.workflow-receipt-heading p { margin-top: 6px; color: var(--ink-soft); font-size: 0.8rem; }
+.workflow-receipt-steps { display: grid; gap: 0; margin: 18px 0 0; padding: 0; list-style: none; }
+.workflow-receipt-steps li { position: relative; display: grid; grid-template-columns: 23px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 33px; color: var(--ink-soft); font-size: 0.77rem; font-weight: 650; }
+.workflow-receipt-steps li:not(:last-child)::after { position: absolute; top: 23px; bottom: -10px; left: 7px; width: 1px; content: ''; background: color-mix(in srgb, var(--green) 28%, transparent); }
+.workflow-receipt.waiting .workflow-receipt-steps li:not(:last-child)::after { background: color-mix(in srgb, var(--amber) 28%, transparent); }
+.workflow-step-marker { position: relative; z-index: 1; display: inline-flex; width: 15px; height: 15px; align-items: center; justify-content: center; color: var(--white); background: var(--green); border-radius: 50%; }
+.workflow-receipt-steps .current { color: var(--ink); font-weight: 800; }
+.workflow-receipt-steps .current .workflow-step-marker { color: var(--amber); background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 22%, transparent); }
+.workflow-receipt-steps .upcoming { color: var(--ink-faint); }
+.workflow-receipt-steps .upcoming .workflow-step-marker { color: var(--line-strong); background: transparent; }
+.workflow-receipt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 19px; padding-top: 15px; border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); }
 .loading-stack { display: grid; gap: 18px; }
 .loading-block { min-height: 84px; background: linear-gradient(90deg, var(--surface-muted), var(--surface), var(--surface-muted)); background-size: 220% 100%; border: 1px solid var(--line); border-radius: var(--radius-md); animation: loading-shimmer 1.4s ease infinite; }
 .loading-heading { width: min(440px, 80%); min-height: 96px; }
