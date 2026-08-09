@@ -1,4 +1,5 @@
 from app.config.settings import Settings
+from google.api_core.exceptions import NotFound
 from app.observability.probes import (
     configuration_probe,
     firestore_probe,
@@ -29,22 +30,17 @@ class FakeFirestoreClient:
         return FakeQuery(failure=self.failure)
 
 
-class FakeBucket:
-    def __init__(self, exists: bool) -> None:
-        self._exists = exists
-
-    def exists(self, *, timeout: float) -> bool:
-        assert timeout == 5.0
-        return self._exists
-
-
 class FakeStorageClient:
-    def __init__(self, exists: bool) -> None:
-        self._exists = exists
+    def __init__(self, *, failure: Exception | None = None) -> None:
+        self.failure = failure
 
-    def bucket(self, name: str) -> FakeBucket:
+    def list_blobs(self, name: str, *, max_results: int, timeout: float):
         assert name == "oga-media"
-        return FakeBucket(self._exists)
+        assert max_results == 1
+        assert timeout == 5.0
+        if self.failure:
+            raise self.failure
+        return iter(())
 
 
 def test_firestore_probe_reports_bounded_dependency_state() -> None:
@@ -55,12 +51,17 @@ def test_firestore_probe_reports_bounded_dependency_state() -> None:
     )
 
 
-def test_storage_probe_checks_bucket_existence_without_leaking_details() -> None:
-    assert storage_probe(FakeStorageClient(True), "oga-media")() == (True, "reachable")
-    assert storage_probe(FakeStorageClient(False), "oga-media")() == (
+def test_storage_probe_checks_object_data_plane_without_leaking_details() -> None:
+    assert storage_probe(FakeStorageClient(), "oga-media")() == (True, "reachable")
+    assert storage_probe(
+        FakeStorageClient(failure=NotFound("missing")), "oga-media"
+    )() == (
         False,
         "bucket_not_found",
     )
+    assert storage_probe(
+        FakeStorageClient(failure=RuntimeError("secret")), "oga-media"
+    )() == (False, "RuntimeError")
 
 
 def test_configuration_probe_reports_local_and_deployed_contracts() -> None:

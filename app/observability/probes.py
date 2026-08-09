@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from typing import Protocol
 
+from google.api_core.exceptions import NotFound
+
 from app.config.settings import Settings
 
 
@@ -21,12 +23,14 @@ class FirestoreClient(Protocol):
     def collection(self, name: str) -> FirestoreQuery: ...
 
 
-class StorageBucket(Protocol):
-    def exists(self, *, timeout: float) -> bool: ...
-
-
 class StorageClient(Protocol):
-    def bucket(self, name: str) -> StorageBucket: ...
+    def list_blobs(
+        self,
+        bucket_or_name: str,
+        *,
+        max_results: int,
+        timeout: float,
+    ) -> Iterator[object]: ...
 
 
 def configuration_probe(settings: Settings) -> Probe:
@@ -55,10 +59,18 @@ def storage_probe(
 ) -> Probe:
     def check() -> tuple[bool, str]:
         try:
-            exists = client.bucket(bucket_name).exists(timeout=timeout_seconds)
+            list(
+                client.list_blobs(
+                    bucket_name,
+                    max_results=1,
+                    timeout=timeout_seconds,
+                )
+            )
+        except NotFound:
+            return False, "bucket_not_found"
         except Exception as exc:  # readiness reports the class only, never raw dependency data
             return False, type(exc).__name__
-        return (True, "reachable") if exists else (False, "bucket_not_found")
+        return True, "reachable"
 
     return check
 
