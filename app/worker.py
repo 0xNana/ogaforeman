@@ -40,6 +40,8 @@ class WorkerResult:
     status: str
     route: str | None = None
     result_ref: str | None = None
+    summary: str | None = None
+    pending_actions: tuple[str, ...] = ()
 
 
 async def process_event_async(
@@ -123,6 +125,8 @@ async def process_event_async(
             result = event_coordinator.process_event(event)
             route = str(result["route_decision"])
             result_ref = f"route:{route}:event:{event.event_id}"
+            summary: str | None = None
+            pending_actions: tuple[str, ...] = ()
             if event.event_type is EventType.SITE_UPDATE_RECEIVED:
                 interpreter = site_interpreter or GeminiSiteInterpreter(runtime)
                 execution = await SiteUpdateEventExecutor(
@@ -135,6 +139,14 @@ async def process_event_async(
                     claim_attempt=claim.attempts,
                 )
                 result_ref = f"run:{execution['run_id']}"
+                execution_summary = execution.get("summary")
+                if isinstance(execution_summary, str):
+                    summary = execution_summary
+                execution_actions = execution.get("pending_actions", ())
+                if isinstance(execution_actions, list) and all(
+                    isinstance(action, str) for action in execution_actions
+                ):
+                    pending_actions = tuple(execution_actions)
             elif event.event_type is EventType.APPROVAL_GRANTED:
                 continuation = ResumeWorkflow(store).handle_approval_granted(
                     event.project_id,
@@ -214,6 +226,8 @@ async def process_event_async(
             status="completed",
             route=route,
             result_ref=result_ref,
+            summary=summary,
+            pending_actions=pending_actions,
         )
 
 

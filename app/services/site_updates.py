@@ -19,6 +19,7 @@ from app.domain.enums import (
     IssueType,
     MaterialRequestStatus,
     Severity,
+    TaskStatus,
 )
 from app.domain.facts import (
     ConfidenceLevel,
@@ -36,6 +37,7 @@ from app.services.fact_router import route_facts
 from app.services.issues import CreateIssueCommand, IssueService
 from app.services.material_requests import MaterialRequestService, MaterialShortageCommand
 from app.services.reports import ReportService
+from app.services.schedule_impact import calculate_impact
 from app.tools.materials import MaterialQuantityCommand, MaterialTools
 from app.tools.tasks import TaskTools, UpdateTaskCommand
 
@@ -120,6 +122,7 @@ class SiteUpdateService:
         approvals_requested = 0
         has_pending_approvals = False
         pending_actions: list[str] = []
+        schedule_risk_summaries: list[str] = []
 
         resolved_focus, focus_needs_clarification = _resolve_next_focus(
             routed.actionable_next_focus,
@@ -226,6 +229,62 @@ class SiteUpdateService:
                 issue = issue_change.issue
                 issues_created += int(not issue_change.duplicate)
                 active_blockers.append(_issue_report_fact(site_update, issue))
+
+                if issue_fact.issue_type is not IssueType.BLOCKER or not task_ids:
+                    continue
+                blocked_task = _task_by_id(project_context.active_tasks, task_ids[0])
+                if blocked_task.status in {TaskStatus.PLANNED, TaskStatus.IN_PROGRESS}:
+                    task_change = self._task_tools.update_task_progress(
+                        UpdateTaskCommand(
+                            project_id=access.project_id,
+                            task_id=blocked_task.id,
+                            expected_version=blocked_task.version,
+                            target_status=TaskStatus.BLOCKED,
+                            evidence=issue_fact.evidence,
+                            occurred_at=site_update.submitted_at,
+                        ),
+                        _mutation_context(
+                            access,
+                            site_update,
+                            causal_event_id,
+                            run_id,
+                            f"task:{blocked_task.id}:blocked",
+                        ),
+                    )
+                    tasks_updated += int(not task_change.duplicate)
+
+                impacted_ids = sorted(
+                    calculate_impact(project_context.active_tasks, task_ids) - set(task_ids)
+                )
+                if not impacted_ids:
+                    continue
+                impacted_tasks = [
+                    _task_by_id(project_context.active_tasks, task_id) for task_id in impacted_ids
+                ]
+                risk_description = _schedule_risk_description(blocked_task, impacted_tasks)
+                risk_change = self._issues.create_issue(
+                    access,
+                    CreateIssueCommand(
+                        project_id=access.project_id,
+                        issue_type=IssueType.DELAY_RISK,
+                        severity=issue_fact.severity,
+                        description=risk_description,
+                        evidence_refs=_evidence_refs(site_update),
+                        task_ids=impacted_ids,
+                        occurred_at=site_update.submitted_at,
+                    ),
+                    _mutation_context(
+                        access,
+                        site_update,
+                        causal_event_id,
+                        run_id,
+                        f"issue:blocker-impact:{index}:{blocked_task.id}",
+                    ),
+                )
+                issues_created += int(not risk_change.duplicate)
+                active_blockers.append(_issue_report_fact(site_update, risk_change.issue))
+                schedule_risk_summaries.append(risk_description)
+                pending_actions.append(_schedule_review_action(blocked_task, impacted_tasks))
 
             seen_material_ids: set[str] = set()
             for material_fact in routed.actionable_materials:
@@ -366,6 +425,8 @@ class SiteUpdateService:
             f"Processed site update: {tasks_updated} task update, {issues_created} issues, "
             f"{materials_updated} material update, and report {report.id}."
         )
+        if schedule_risk_summaries:
+            summary = f"{summary} Schedule risk: {' '.join(schedule_risk_summaries)}"
         return SiteUpdateResult(
             site_update_id=site_update.id,
             report_id=report.id,
@@ -451,6 +512,31 @@ def _required_material_quantity(material: Material) -> Decimal | None:
     return material.upcoming_requirement_quantity or (
         material.minimum_required_quantity if material.minimum_required_quantity > 0 else None
     )
+
+
+def _task_by_id(tasks: Sequence[Task], task_id: str) -> Task:
+    for task in tasks:
+        if task.id == task_id:
+            return task
+    raise RuntimeError("resolved task disappeared from authorized project context")
+
+
+def _schedule_risk_description(blocked_task: Task, impacted_tasks: Sequence[Task]) -> str:
+    titles = _bounded_task_titles(impacted_tasks)
+    return f"{blocked_task.title} is blocked, putting dependent work at risk: {titles}."
+
+
+def _schedule_review_action(blocked_task: Task, impacted_tasks: Sequence[Task]) -> str:
+    titles = _bounded_task_titles(impacted_tasks)
+    return f"Review schedule impact on {titles} due to the {blocked_task.title} blocker."
+
+
+def _bounded_task_titles(tasks: Sequence[Task], *, limit: int = 20) -> str:
+    visible = [task.title for task in tasks[:limit]]
+    remaining = len(tasks) - len(visible)
+    if remaining:
+        visible.append(f"{remaining} more dependent task{'s' if remaining != 1 else ''}")
+    return ", ".join(visible)
 
 
 def _earliest_focus_date(

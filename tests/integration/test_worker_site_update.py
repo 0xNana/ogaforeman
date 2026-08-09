@@ -9,20 +9,24 @@ from app.agents.interpreter import FakeSiteInterpreter
 from app.config.settings import Settings
 from app.domain.enums import (
     AgentRunStatus,
+    IssueType,
     MemberRole,
     MemberStatus,
     ProcessingStatus,
+    Severity,
     SiteUpdateInputType,
     TaskSource,
     TaskStatus,
     WorkflowName,
 )
 from app.domain.events import EventActor, EventActorType, EventSource, EventType, ProjectEvent
-from app.domain.facts import ExtractedFactSet, MaterialQuantityFact, TaskCompletionFact
+from app.domain.facts import ExtractedFactSet, IssueFact, MaterialQuantityFact, TaskCompletionFact
 from app.domain.materials import MaterialLedgerEntry
 from app.domain.models import (
     ActivityEvent,
     AgentRun,
+    DailyReport,
+    Issue,
     Material,
     ProcessedEvent,
     ProjectMember,
@@ -62,7 +66,12 @@ def _event(*, text: str = UPDATE_TEXT) -> ProjectEvent:
     )
 
 
-def _seed(store: InMemoryRepositoryStore, *, role: MemberRole = MemberRole.FOREMAN) -> None:
+def _seed(
+    store: InMemoryRepositoryStore,
+    *,
+    role: MemberRole = MemberRole.FOREMAN,
+    raw_text: str = UPDATE_TEXT,
+) -> None:
     store.repository(ProjectMember).create(
         ProjectMember(
             project_id=PROJECT_ID,
@@ -79,7 +88,7 @@ def _seed(store: InMemoryRepositoryStore, *, role: MemberRole = MemberRole.FOREM
             project_id=PROJECT_ID,
             submitted_by=USER_ID,
             input_type=SiteUpdateInputType.TEXT,
-            raw_text=UPDATE_TEXT,
+            raw_text=raw_text,
             client_event_id="browser-event-123",
             submitted_at=NOW,
             created_at=NOW,
@@ -139,6 +148,89 @@ def _facts() -> ExtractedFactSet:
             )
         ],
     )
+
+
+@pytest.mark.asyncio
+async def test_natural_language_blocker_uses_project_dependencies_for_schedule_risk() -> None:
+    blocker_text = "The assigned subcontractor was absent today."
+    store = InMemoryRepositoryStore()
+    _seed(store, raw_text=blocker_text)
+    for task in (
+        Task(
+            id="tsk_electrical123",
+            project_id=PROJECT_ID,
+            title="Electrical rough-in",
+            status=TaskStatus.IN_PROGRESS,
+        ),
+        Task(
+            id="tsk_ceiling123",
+            project_id=PROJECT_ID,
+            title="Ceiling closure",
+            status=TaskStatus.PLANNED,
+            dependency_ids=["tsk_electrical123"],
+        ),
+        Task(
+            id="tsk_plastering123",
+            project_id=PROJECT_ID,
+            title="First-floor plastering",
+            status=TaskStatus.PLANNED,
+            dependency_ids=["tsk_ceiling123"],
+        ),
+        Task(
+            id="tsk_landscaping123",
+            project_id=PROJECT_ID,
+            title="Landscaping",
+            status=TaskStatus.PLANNED,
+        ),
+    ):
+        store.repository(Task).create(task)
+    interpreter = FakeSiteInterpreter(
+        responses={
+            blocker_text: ExtractedFactSet(
+                issues=[
+                    IssueFact(
+                        issue_type=IssueType.BLOCKER,
+                        task_name="Electrical rough-in",
+                        description="The assigned subcontractor was absent today.",
+                        severity=Severity.HIGH,
+                        evidence=blocker_text,
+                        confidence="high",
+                    )
+                ]
+            )
+        }
+    )
+
+    result = await process_event_async(
+        _event(text=blocker_text).model_dump_json().encode(),
+        store=store,
+        settings=Settings(_env_file=None),
+        site_interpreter=interpreter,
+    )
+
+    tasks = {task.id: task for task in store.repository(Task).list(PROJECT_ID)}
+    issues = store.repository(Issue).list(PROJECT_ID)
+    report = store.repository(DailyReport).list(PROJECT_ID)[0]
+    blocker = next(issue for issue in issues if issue.type is IssueType.BLOCKER)
+    schedule_risk = next(issue for issue in issues if issue.type is IssueType.DELAY_RISK)
+
+    assert tasks["tsk_electrical123"].status is TaskStatus.BLOCKED
+    assert tasks["tsk_ceiling123"].status is TaskStatus.PLANNED
+    assert tasks["tsk_plastering123"].status is TaskStatus.PLANNED
+    assert tasks["tsk_landscaping123"].status is TaskStatus.PLANNED
+    assert blocker.task_ids == ["tsk_electrical123"]
+    assert schedule_risk.task_ids == ["tsk_ceiling123", "tsk_plastering123"]
+    assert "Ceiling closure" in schedule_risk.description
+    assert "First-floor plastering" in schedule_risk.description
+    assert "Landscaping" not in schedule_risk.description
+    assert [fact.metadata["issue_id"] for fact in report.active_blockers] == [
+        blocker.id,
+        schedule_risk.id,
+    ]
+    assert result.summary is not None
+    assert "Ceiling closure" in result.summary
+    assert "First-floor plastering" in result.summary
+    assert any("schedule impact" in action.casefold() for action in result.pending_actions)
 
 
 @pytest.mark.asyncio
