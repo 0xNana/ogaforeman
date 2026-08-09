@@ -9,7 +9,7 @@ from hashlib import sha256
 from secrets import token_hex
 from time import monotonic
 from types import TracebackType
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from .context import bind_context, current_context
 from .logging import log_event
@@ -79,7 +79,7 @@ class CloudTraceExporter:
         if self._trace_client is None:
             from google.cloud import trace_v2
 
-            self._trace_client = trace_v2.TraceServiceClient()
+            self._trace_client = cast(TraceClient, trace_v2.TraceServiceClient())
         return self._trace_client
 
 
