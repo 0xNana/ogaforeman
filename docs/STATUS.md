@@ -76,7 +76,7 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend without backing services: 290 passed, 22 deselected
+- Backend without backing services: 292 passed, 22 deselected
 - Firestore/Storage backing-service gate: 22 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
@@ -104,8 +104,11 @@ configured model, or human release review. The canonical evidence checklist is
 - Isolated clean-checkout command matrix: passed
 
 Firestore auth bootstrap now converges through atomic document creation rather
-than a contended read/write transaction. A 32-call concurrency race, three
-additional isolated repeats, and the complete emulator integration suite pass.
+than a contended read/write transaction. Its bounded create retry includes
+Firestore's retryable `ABORTED` lock-timeout response, while `AlreadyExists`
+still converges on the canonical user. The 32-call concurrency race and complete
+backing-service suite pass. Frontend CI now installs Java 21 before Playwright
+starts the Firestore emulator, matching the backend durability job.
 
 The Playwright stack is self-contained and starts Firebase Auth emulator plus a
 local API. Deployed Firebase sign-up and API bootstrap are now confirmed. The

@@ -210,7 +210,7 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend without backing services: 290 passed, 22 explicitly deselected.
+- [x] Backend without backing services: 292 passed, 22 explicitly deselected.
 - [x] Durable backing services: 22 passed against Firestore and Storage emulators,
   with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
@@ -222,7 +222,9 @@ Vertical slice gate:
 - [x] Routed workflow regression: memory scenarios plus Firestore client restart
   persistence pass, including terminal approved-material continuation.
 - [x] Firestore emulator integration: 92 passed; the atomic auth bootstrap's
-  32-call race also passed three additional isolated repeats.
+  32-call race also passes with bounded retry of transient emulator lock aborts.
+- [x] Playwright CI installs Java 21 before launching its Firestore emulator;
+  the full desktop/mobile suite passes with 17 tests and 13 device skips.
 - [x] Fixture eval: 8/8 cases and mutation-diff thresholds passed.
 - [x] Deliberate regression eval: the forbidden negated-task mutation is
   detected and recorded in `artifacts/evals/deliberate-regression.json`.
