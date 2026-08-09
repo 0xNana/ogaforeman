@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
-import time
+import os
+from collections.abc import Mapping, Sequence
+from contextvars import ContextVar
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
@@ -9,6 +11,7 @@ import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agents.interpreter import MediaEvidence
 from app.api.errors import ApiError, install_error_handlers, install_request_id_middleware
 from app.api.uploads import router as upload_router
 from app.api.v1.router import api_router
@@ -17,26 +20,44 @@ from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, Pr
 from app.domain.enums import (
     ActorType,
     ApprovalActionType,
+    IssueType,
     MemberRole,
+    MemberStatus,
+    OutboxStatus,
     ProjectStatus,
     ReportStatus,
+    Severity,
     TaskStatus,
+)
+from app.domain.facts import (
+    ExtractedFactSet,
+    IssueFact,
+    MaterialQuantityFact,
+    NextFocusFact,
+    TaskCompletionFact,
 )
 from app.domain.models import (
     ActivityEvent,
     Approval,
     DailyReport,
     Material,
+    OutboxMessage,
     Project,
+    ProjectMember,
     ReportFact,
     Task,
 )
-from app.domain.events import ProjectEvent
+from app.domain.events import EventType, ProjectEvent
+from app.infrastructure.firestore import create_firestore_client, encode_firestore_value
 from app.infrastructure.storage import SignedUpload, StoredObject
+from app.repositories.firestore import FirestoreRepositoryStore
+from app.repositories.interfaces import RepositoryStore
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.attachments import AttachmentService
+from app.services.outbox import OutboxService
+from app.services.projects import FirestoreProjectService
 from app.services.site_update_intake import SiteUpdateIntakeService
-from app.services.site_update_lifecycle import SiteUpdateExecutionStateService
+from app.worker import WorkerResult, process_event
 
 
 PROJECT_ID = "prj_playwright123"
@@ -94,63 +115,146 @@ class LocalE2EStorage:
             required_headers={},
         )
 
+    def read_bytes(
+        self,
+        *,
+        object_path: str,
+        expected_sha256: str,
+        max_bytes: int,
+    ) -> bytes:
+        body, _content_type = self._objects[object_path]
+        if len(body) > max_bytes:
+            raise ValueError("stored object exceeds the model input limit")
+        if hashlib.sha256(body).hexdigest() != expected_sha256:
+            raise ValueError("stored object checksum changed after verification")
+        return body
 
-class LocalE2EPublisher:
-    def __init__(self, store: InMemoryRepositoryStore) -> None:
+
+class DeterministicE2ESiteInterpreter:
+    """Deterministic substitute for Gemini at the external model boundary only."""
+
+    voice_transcript = (
+        "First-floor blockwork is complete. The electrician did not come today. "
+        "We have 10 bags of cement left. Plastering starts tomorrow."
+    )
+
+    def __init__(self) -> None:
+        self.transcription_calls: list[MediaEvidence] = []
+        self.fact_calls: list[tuple[str, tuple[MediaEvidence, ...], str]] = []
+        self._audio_input: ContextVar[bool] = ContextVar("e2e_audio_input", default=False)
+
+    async def transcribe_audio(self, media: MediaEvidence) -> str:
+        if not media.data:
+            raise RuntimeError("the deterministic model received empty audio")
+        self.transcription_calls.append(media)
+        self._audio_input.set(True)
+        return self.voice_transcript
+
+    async def extract_facts(
+        self,
+        text: str,
+        *,
+        images: Sequence[MediaEvidence] = (),
+        project_context: str = "",
+    ) -> ExtractedFactSet:
+        self.fact_calls.append((text, tuple(images), project_context))
+        if images:
+            return ExtractedFactSet(
+                tasks=[
+                    TaskCompletionFact(
+                        task_name="First-floor blockwork",
+                        is_completed=True,
+                        evidence="The blockwork appears complete in the photo.",
+                        confidence="high",
+                    )
+                ]
+            )
+        if self._audio_input.get():
+            self._audio_input.set(False)
+            return ExtractedFactSet(
+                next_focus=[
+                    NextFocusFact(
+                        task_name="First-floor plastering",
+                        description="First-floor plastering starts tomorrow.",
+                        evidence="Plastering starts tomorrow",
+                        confidence="high",
+                    )
+                ]
+            )
+        if not text.strip():
+            raise RuntimeError("the deterministic model received no interpretable evidence")
+        return ExtractedFactSet(
+            tasks=[
+                TaskCompletionFact(
+                    task_name="First-floor blockwork",
+                    is_completed=True,
+                    evidence="First-floor blockwork is complete",
+                    confidence="high",
+                )
+            ],
+            issues=[
+                IssueFact(
+                    issue_type=IssueType.BLOCKER,
+                    task_name="Electrical rough-in",
+                    description="The electrician did not come today.",
+                    severity=Severity.HIGH,
+                    evidence="The electrician did not come today",
+                    confidence="high",
+                )
+            ],
+            materials=[
+                MaterialQuantityFact(
+                    material_name="Cement",
+                    quantity=10,
+                    unit="bags",
+                    evidence="We have 10 bags of cement left",
+                    confidence="high",
+                )
+            ],
+            next_focus=[
+                NextFocusFact(
+                    task_name="First-floor plastering",
+                    description="First-floor plastering starts tomorrow.",
+                    evidence="Plastering starts tomorrow",
+                    confidence="high",
+                )
+            ],
+        )
+
+
+class LocalE2EEventTransport:
+    """In-process delivery adapter around the production event worker."""
+
+    def __init__(
+        self,
+        store: RepositoryStore,
+        storage: LocalE2EStorage,
+        interpreter: DeterministicE2ESiteInterpreter,
+        settings: Settings,
+    ) -> None:
         self._store = store
+        self._storage = storage
+        self._interpreter = interpreter
+        self._settings = settings
+        self.worker_results: list[WorkerResult] = []
 
-    def publish(self, topic, data: bytes, *, attributes=None) -> str:
+    def publish(
+        self,
+        topic: str | None,
+        data: bytes,
+        *,
+        attributes: Mapping[str, str] | None = None,
+    ) -> str:
         del topic, attributes
-        event = ProjectEvent.model_validate_json(data)
-        access = ProjectAccessContext(
-            actor=AuthenticatedUser(user_id=ACTOR_ID, subject="firebase-auth-emulator-user"),
-            project_id=event.project_id,
-            role=MemberRole.MANAGER,
+        result = process_event(
+            data,
+            store=self._store,
+            settings=self._settings,
+            site_interpreter=self._interpreter,
+            storage_adapter=self._storage,
         )
-        state = SiteUpdateExecutionStateService(self._store)
-        update_id = str(event.payload["site_update_id"])
-        run_id = f"run_{hashlib.sha256(event.event_id.encode('utf-8')).hexdigest()[:32]}"
-        state.start_attempt(
-            access,
-            update_id,
-            source_event_id=event.event_id,
-            run_id=run_id,
-            trace_id=event.event_id,
-            attempt=1,
-        )
-        time.sleep(0.2)
-        text = str(event.payload.get("text") or "").lower()
-        if "nearly done" in text:
-            state.wait_for_clarification(
-                access,
-                update_id,
-                source_event_id=event.event_id,
-                run_id=run_id,
-                trace_id=event.event_id,
-                attempt=1,
-                step="clarification_needed",
-            )
-        elif "processing error" in text:
-            state.fail(
-                access,
-                update_id,
-                source_event_id=event.event_id,
-                run_id=run_id,
-                trace_id=event.event_id,
-                attempt=1,
-                error_code="E2E_PROCESSING_FAILURE",
-                error_summary="The site update could not be processed.",
-            )
-        else:
-            state.complete(
-                access,
-                update_id,
-                source_event_id=event.event_id,
-                run_id=run_id,
-                trace_id=event.event_id,
-                attempt=1,
-            )
-        return f"msg_{event.event_id}"
+        self.worker_results.append(result)
+        return f"msg_{result.event_id}"
 
 
 class SeededProjectService:
@@ -165,21 +269,70 @@ class SeededProjectService:
 
 class LocalE2ERuntime:
     def __init__(self) -> None:
-        self.store = InMemoryRepositoryStore()
         self.storage = LocalE2EStorage()
-        self.projects = SeededProjectService(
-            Project(
-                id=PROJECT_ID,
-                name="Ridge House",
-                location="East Legon, Accra",
-                timezone="Africa/Accra",
-                status=ProjectStatus.ACTIVE,
-                created_by=ACTOR_ID,
-                created_at=NOW,
-                updated_at=NOW,
-            )
+        self.settings = Settings(
+            _env_file=None,
+            oga_env=RuntimeEnvironment.TEST,
+            demo_mode=True,
+            max_upload_bytes=10 * 1024 * 1024,
+            firestore_emulator_host=os.getenv("FIRESTORE_EMULATOR_HOST"),
+            google_cloud_project="oga-foreman-playwright",
+        )
+        project = Project(
+            id=PROJECT_ID,
+            name="Ridge House",
+            location="East Legon, Accra",
+            timezone="Africa/Accra",
+            status=ProjectStatus.ACTIVE,
+            created_by=ACTOR_ID,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+        if self.settings.firestore_emulator_host:
+            client = create_firestore_client(self.settings)
+            project_reference = client.document("projects", project.id)
+            client.recursive_delete(project_reference)
+            project_reference.set(encode_firestore_value(project))
+            self.store: RepositoryStore = FirestoreRepositoryStore(client)
+            self.projects = FirestoreProjectService(client)
+        else:
+            self.store = InMemoryRepositoryStore()
+            self.projects = SeededProjectService(project)
+        self.interpreter = DeterministicE2ESiteInterpreter()
+        self.event_transport = LocalE2EEventTransport(
+            self.store,
+            self.storage,
+            self.interpreter,
+            self.settings,
         )
         self._seed()
+
+    def deliver_pending_continuations(self) -> None:
+        outbox = OutboxService(self.store)
+        for message in self.store.repository(OutboxMessage).list(PROJECT_ID):
+            if message.status not in {OutboxStatus.PENDING, OutboxStatus.FAILED}:
+                continue
+            if message.message_type not in {
+                EventType.APPROVAL_GRANTED.value,
+                EventType.APPROVAL_REJECTED.value,
+            }:
+                continue
+            event = ProjectEvent.model_validate(message.payload)
+            approval = self.store.repository(Approval).require(
+                PROJECT_ID,
+                str(event.payload["approval_id"]),
+            )
+            if approval.action_type is not ApprovalActionType.PURCHASE:
+                continue
+            outbox.process(
+                PROJECT_ID,
+                message.id,
+                lambda claimed: self.event_transport.publish(
+                    None,
+                    ProjectEvent.model_validate(claimed.payload).model_dump_json().encode(),
+                    attributes={"event_type": claimed.message_type},
+                ),
+            )
 
     def authenticate(
         self,
@@ -215,15 +368,24 @@ class LocalE2ERuntime:
         return ProjectAccessContext(actor=actor, project_id=project_id, role=role)
 
     def _seed(self) -> None:
+        self.store.repository(ProjectMember).create(
+            ProjectMember(
+                project_id=PROJECT_ID,
+                user_id=ACTOR_ID,
+                role=MemberRole.MANAGER,
+                status=MemberStatus.ACTIVE,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
         for task in (
             Task(
                 id="tsk_blockwork123",
                 project_id=PROJECT_ID,
                 title="First-floor blockwork",
-                status=TaskStatus.COMPLETED,
-                completion_percent=Decimal("100"),
+                status=TaskStatus.IN_PROGRESS,
+                completion_percent=Decimal("80"),
                 assigned_to="usr_kwame123",
-                actual_completion=NOW,
                 created_at=NOW,
                 updated_at=NOW,
             ),
@@ -239,6 +401,18 @@ class LocalE2ERuntime:
                 created_at=NOW,
                 updated_at=NOW,
             ),
+            Task(
+                id="tsk_plastering123",
+                project_id=PROJECT_ID,
+                title="First-floor plastering",
+                status=TaskStatus.PLANNED,
+                assigned_to="usr_ama123",
+                planned_start=NOW + timedelta(days=1),
+                planned_end=NOW + timedelta(days=3),
+                dependency_ids=["tsk_blockwork123"],
+                created_at=NOW,
+                updated_at=NOW,
+            ),
         ):
             self.store.repository(Task).create(task)
         self.store.repository(Material).create(
@@ -248,7 +422,7 @@ class LocalE2ERuntime:
                 name="Cement",
                 normalized_name="cement",
                 unit="bags",
-                available_quantity=Decimal("10"),
+                available_quantity=Decimal("50"),
                 minimum_required_quantity=Decimal("20"),
                 upcoming_requirement_quantity=Decimal("40"),
                 updated_at=NOW,
@@ -338,14 +512,14 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Oga Foreman local E2E API")
     app.state.auth_runtime = runtime
     app.state.project_access_provider = runtime.project_access
-    settings = Settings(
-        oga_env=RuntimeEnvironment.TEST,
-        max_upload_bytes=10 * 1024 * 1024,
+    app.state.attachment_service = AttachmentService(
+        runtime.store,
+        runtime.storage,
+        runtime.settings,
     )
-    app.state.attachment_service = AttachmentService(runtime.store, runtime.storage, settings)
     app.state.site_update_intake = SiteUpdateIntakeService(
         runtime.store,
-        LocalE2EPublisher(runtime.store),
+        runtime.event_transport,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -358,6 +532,13 @@ def create_app() -> FastAPI:
     install_error_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
     app.include_router(upload_router)
+
+    @app.middleware("http")
+    async def deliver_continuations(request: Request, call_next):
+        response = await call_next(request)
+        if response.status_code < 400:
+            runtime.deliver_pending_continuations()
+        return response
 
     @app.put("/e2e-storage/{token}", status_code=204)
     async def upload(token: str, request: Request) -> Response:

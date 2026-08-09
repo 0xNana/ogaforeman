@@ -19,6 +19,6 @@ export async function signInToProject(page: Page, testInfo: TestInfo): Promise<v
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('local-e2e-password');
   await page.getByRole('button', { name: /Create account/ }).click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
-  await expect(page.getByRole('heading', { name: 'Ridge House' })).toBeVisible();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(`/projects/${projectId}`);
+  await expect(page.getByRole('heading', { name: 'Ridge House' })).toBeVisible({ timeout: 15_000 });
 }

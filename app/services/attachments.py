@@ -267,7 +267,6 @@ class AttachmentService:
     def _create_with_activity(
         session, attachment: Attachment, access: ProjectAccessContext
     ) -> Attachment:
-        created = session.repository(Attachment).create(attachment)
         _create_activity(
             session,
             access,
@@ -275,7 +274,7 @@ class AttachmentService:
             action="attachment.upload_requested",
             summary="Attachment upload URL issued",
         )
-        return created
+        return session.repository(Attachment).create(attachment)
 
     @staticmethod
     def _save_with_activity(
@@ -285,11 +284,12 @@ class AttachmentService:
         *,
         action: str,
     ) -> Attachment:
-        saved = session.repository(Attachment).save(updated, expected_version=0)
+        attachment_repository = session.repository(Attachment)
+        attachment_repository.require(updated.project_id, updated.id)
         _create_activity(
             session,
             access,
-            saved,
+            updated,
             action=action,
             summary=(
                 "Attachment upload verified"
@@ -297,7 +297,7 @@ class AttachmentService:
                 else "Attachment upload rejected"
             ),
         )
-        return saved
+        return attachment_repository.save(updated, expected_version=0)
 
 
 def _create_activity(

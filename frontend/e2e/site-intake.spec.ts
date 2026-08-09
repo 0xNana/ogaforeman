@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
 import { captureBrowserErrors, projectId, signInToProject } from './support';
+
+test.describe.configure({ mode: 'serial' });
 
 test.beforeEach(async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Site intake evidence runs on mobile.');
@@ -9,57 +12,50 @@ test.beforeEach(async ({ page }, testInfo) => {
   await expect(page.getByRole('heading', { name: 'Tell Oga what happened.' })).toBeVisible();
 });
 
-test('submits a text update through processing to durable completion', async ({ page, request }) => {
+test('runs a site update through real approval and same-run continuation', async ({ page, request }) => {
   const browserErrors = captureBrowserErrors(page);
   const siteRequest = page.waitForRequest((candidate) => (
     candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
   ));
 
-  await page.getByLabel('Type a site update').fill('First-floor plastering is complete.');
+  await page.getByLabel('Type a site update').fill(
+    'First-floor blockwork is complete. The electrician did not come today. '
+      + 'We have 10 bags of cement left. Plastering starts tomorrow.',
+  );
   await page.getByRole('button', { name: 'Send to Oga' }).click();
   await expect(page.getByRole('status')).toContainText('Checking the project');
   const acceptedRequest = await siteRequest;
   const acceptedResponse = await acceptedRequest.response();
   const accepted = await acceptedResponse?.json();
 
-  await expect(page.getByText('Oga handled it.')).toBeVisible();
-  const run = await request.get(`http://127.0.0.1:8001${accepted.status_url}`, {
-    headers: { Authorization: 'Bearer local-e2e-token' },
-  });
-  expect(run.ok()).toBe(true);
-  expect((await run.json()).status).toBe('completed');
-  expect(browserErrors).toEqual([]);
-});
-
-test('hands an approval-waiting update to the manager without reporting a timeout', async ({ page }) => {
-  const browserErrors = captureBrowserErrors(page);
-  await page.route('**/agent-runs/**', async (route) => {
-    await route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: 'run_waiting_for_approval',
-        status: 'waiting_for_approval',
-        step: 'material_request_approval',
-        error_code: null,
-        error_summary: null,
-        completed_at: null,
-      }),
-    });
-  });
-
-  await page.getByLabel('Type a site update').fill(
-    'We have ten bags of cement left and plastering starts tomorrow.',
-  );
-  await page.getByRole('button', { name: 'Send to Oga' }).click();
-
+  expect(accepted).toBeTruthy();
   await expect(page.getByRole('heading', { name: 'Oga understood the update.' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('One decision is waiting for a manager');
-  await expect(page.getByRole('link', { name: 'Review approval' })).toHaveAttribute(
-    'href',
-    `/projects/${projectId}/approvals`,
+  const pausedRun = await request.get(`http://127.0.0.1:8001${accepted.status_url}`, {
+    headers: { Authorization: 'Bearer local-e2e-token' },
+  });
+  expect(pausedRun.ok()).toBe(true);
+  expect((await pausedRun.json()).status).toBe('waiting_for_approval');
+
+  await page.getByRole('link', { name: 'Review approval' }).click();
+  const purchaseCard = page.getByRole('article').filter({ hasText: /30(?:\.0)? bags/ });
+  await expect(purchaseCard.getByText('PENDING')).toBeVisible();
+  await purchaseCard.getByRole('button', { name: 'Approve' }).click();
+  await expect(purchaseCard.getByText('APPROVED')).toBeVisible();
+  await expect(purchaseCard.getByRole('status')).toContainText(
+    'Oga is resuming from the saved checkpoint.',
   );
-  await expect(page.getByText('Add photos or file')).toBeHidden();
-  await expect(page.getByLabel('Type a site update')).toBeDisabled();
+
+  await expect.poll(async () => {
+    const response = await request.get(`http://127.0.0.1:8001${accepted.status_url}`, {
+      headers: { Authorization: 'Bearer local-e2e-token' },
+    });
+    return (await response.json()).status;
+  }).toBe('completed');
+  await purchaseCard.getByRole('link', { name: 'Follow in activity' }).click();
+  await expect(page.getByRole('heading', {
+    name: 'Submitted an approved material request to the supplier simulator.',
+  })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
 
@@ -81,7 +77,7 @@ test('uploads and submits a photo using the signed attachment contract', async (
 
   expect(payload.input_type).toBe('photo');
   expect(payload.attachment_ids).toHaveLength(1);
-  await expect(page.getByText('Oga handled it.')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('needs a clearer detail');
   expect(browserErrors).toEqual([]);
 });
 
@@ -142,15 +138,34 @@ test('rejects an invalid attachment before creating a site update', async ({ pag
   expect(browserErrors).toEqual([]);
 });
 
-test('renders durable clarification and processing failure states', async ({ page }) => {
+test('persists a recoverable processing failure without a phrase trigger', async ({ page, request }) => {
   const browserErrors = captureBrowserErrors(page);
-
-  await page.getByLabel('Type a site update').fill('It is nearly done.');
+  await page.locator('#site-attachment').setInputFiles({
+    name: 'site-note.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n%%EOF\n'),
+  });
+  const siteRequest = page.waitForRequest((candidate) => (
+    candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
+  ));
   await page.getByRole('button', { name: 'Send to Oga' }).click();
-  await expect(page.getByRole('status')).toContainText('needs a clearer detail');
+  const submitted = await siteRequest;
+  const response = await submitted.response();
+  expect(response?.status()).toBe(503);
+  await expect(page.locator('.status-banner[role="alert"]')).toContainText('Retry safely');
 
-  await page.getByLabel('Type a site update').fill('Trigger a processing error.');
-  await page.getByRole('button', { name: 'Send to Oga' }).click();
-  await expect(page.locator('.status-banner[role="alert"]')).toContainText('could not be processed');
-  expect(browserErrors).toEqual([]);
+  const idempotencyKey = submitted.headers()['idempotency-key'];
+  const updateDigest = createHash('sha256')
+    .update(`${projectId}\0usr_playwright123\0${idempotencyKey}`)
+    .digest('hex')
+    .slice(0, 32);
+  const eventId = `evt_${updateDigest}`;
+  const runId = `run_${createHash('sha256').update(eventId).digest('hex').slice(0, 32)}`;
+  const run = await request.get(
+    `http://127.0.0.1:8001/api/v1/projects/${projectId}/agent-runs/${runId}`,
+    { headers: { Authorization: 'Bearer local-e2e-token' } },
+  );
+  expect(run.ok()).toBe(true);
+  expect((await run.json()).status).toBe('failed');
+  expect(browserErrors.filter((message) => !message.includes('503 (Service Unavailable)'))).toEqual([]);
 });

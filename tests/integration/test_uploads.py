@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -8,6 +9,7 @@ from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI
+from google.cloud import firestore
 
 from app.api.uploads import create_upload_router
 from app.config.settings import RuntimeEnvironment, Settings
@@ -27,6 +29,7 @@ from app.infrastructure.storage import (
     StoredObject,
 )
 from app.repositories.memory import InMemoryRepositoryStore
+from app.repositories.firestore import FirestoreRepositoryStore
 from app.services.attachments import (
     AttachmentConflictError,
     AttachmentError,
@@ -139,6 +142,42 @@ def test_valid_upload_is_project_scoped_short_lived_verified_and_audited() -> No
     assert verified.attachment.upload_status is AttachmentUploadStatus.VERIFIED
     assert verified.signed_read is not None
     assert len(store.repository(ActivityEvent).list("prj_ridge")) == 2
+
+
+@pytest.mark.skipif(
+    not os.getenv("FIRESTORE_EMULATOR_HOST"),
+    reason="FIRESTORE_EMULATOR_HOST is required for Firestore upload integration",
+)
+def test_firestore_upload_sign_and_verify_are_atomic_and_audited() -> None:
+    project_id = "prj_upload_firestore123"
+    client = firestore.Client(project="oga-foreman-upload-test")
+    client.recursive_delete(client.document("projects", project_id))
+    store = FirestoreRepositoryStore(client)
+    storage = FakeStorage()
+    settings = Settings(
+        _env_file=None,
+        oga_env=RuntimeEnvironment.TEST,
+        firestore_emulator_host=os.environ["FIRESTORE_EMULATOR_HOST"],
+        google_cloud_project="oga-foreman-upload-test",
+        max_upload_bytes=1_024,
+        signed_upload_ttl_seconds=60,
+    )
+    service = AttachmentService(store, storage, settings)
+    access = make_access(project_id=project_id)
+
+    grant = service.sign_upload(access, upload_input())
+    storage.objects[grant.attachment.object_path] = StoredObject(
+        name=grant.attachment.object_path,
+        content_type="image/jpeg",
+        byte_size=512,
+        sha256=JPEG_SHA256,
+        generation="7",
+    )
+    verified = service.verify_upload(access, grant.attachment.id)
+
+    assert verified.attachment.upload_status is AttachmentUploadStatus.VERIFIED
+    assert len(store.repository(Attachment).list(project_id)) == 1
+    assert len(store.repository(ActivityEvent).list(project_id)) == 2
 
 
 def test_retrying_the_same_signed_contract_does_not_duplicate_attachment_or_activity() -> None:

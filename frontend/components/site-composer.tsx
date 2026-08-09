@@ -13,12 +13,14 @@ import {
   Square,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { api, type AgentRunState, type SiteUpdateInput } from '@/lib/api';
+import { ApiRequestError, api, type AgentRunState, type SiteUpdateInput } from '@/lib/api';
+import { useProject } from '@/components/project-context';
 import { WorkflowReceipt } from '@/components/workflow-receipt';
 
 type IntakeState = 'idle' | 'recording' | 'recorded' | 'uploading' | 'processing' | 'approval' | 'clarification' | 'success' | 'error';
 
 export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
+  const { refresh } = useProject();
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<IntakeState>('idle');
@@ -107,6 +109,7 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
         return;
       }
       const run = await waitForRun(projectId, result.agent_run_id);
+      await refresh();
       if (run.status === 'completed') {
         setState('success');
       } else if (run.status === 'waiting_for_approval') {
@@ -117,8 +120,12 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
         setError(run.error_summary ?? 'Oga could not process that update. Try again safely.');
         setState('error');
       }
-    } catch {
-      setError('Oga could not reach the project. Check your connection and try again.');
+    } catch (cause) {
+      setError(
+        cause instanceof ApiRequestError
+          ? cause.message
+          : 'Oga could not reach the project. Check your connection and try again.',
+      );
       setState('error');
     }
   }

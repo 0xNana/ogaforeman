@@ -8,7 +8,7 @@ test('desktop command center and activity use API projections', async ({ page },
   const browserErrors = captureBrowserErrors(page);
 
   await signInToProject(page, testInfo);
-  await expect(page.getByLabel('Today summary')).toContainText('Completed1');
+  await expect(page.getByLabel('Today summary')).toContainText('Completed0');
   await expect(page.getByLabel('Today summary')).toContainText('Needs attention7');
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'First-floor blockwork completed.' })).toBeVisible();

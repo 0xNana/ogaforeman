@@ -4,10 +4,10 @@ const port = 3100;
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://127.0.0.1:${port}`,
@@ -32,16 +32,27 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: '../.venv/bin/python ../scripts/run_e2e_api.py',
-      url: 'http://127.0.0.1:8001/health/live',
-      reuseExistingServer: false,
-      timeout: 30_000,
+      command: 'XDG_CONFIG_HOME=/tmp/oga-foreman-firebase firebase emulators:start --only firestore --project oga-foreman-playwright --config ../firebase.json',
+      url: 'http://127.0.0.1:8085/',
+      reuseExistingServer: true,
+      timeout: 90_000,
     },
     {
       command: 'XDG_CONFIG_HOME=/tmp/oga-foreman-firebase firebase emulators:start --only auth --project oga-foreman-playwright --config ../firebase.json',
       url: 'http://127.0.0.1:9099/emulator/v1/projects/oga-foreman-playwright/config',
       reuseExistingServer: true,
       timeout: 90_000,
+    },
+    {
+      command: '../.venv/bin/python ../scripts/run_e2e_api.py',
+      url: 'http://127.0.0.1:8001/health/live',
+      reuseExistingServer: false,
+      timeout: 30_000,
+      env: {
+        FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085',
+        GOOGLE_CLOUD_PROJECT: 'oga-foreman-playwright',
+        OGA_ENV: 'test',
+      },
     },
     {
       command: `npm run build && npm run start -- --hostname 127.0.0.1 --port ${port}`,
