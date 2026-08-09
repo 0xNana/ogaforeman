@@ -20,6 +20,8 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert 'gcloud run deploy "${API_SERVICE}"' in source
     assert 'gcloud run deploy "${WORKER_SERVICE}"' in source
     assert 'gcloud run deploy "${WEB_SERVICE}"' in source
+    assert source.count("gcloud run services update-traffic") == 3
+    assert source.count("--to-latest") == 3
     assert "--push-auth-service-account" in source
     assert "--dead-letter-topic" in source
     assert "--max-delivery-attempts 5" in source

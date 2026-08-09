@@ -402,6 +402,10 @@ run gcloud run deploy "${WORKER_SERVICE}" \
   --max 20 \
   --concurrency 20 \
   --timeout 300
+run gcloud run services update-traffic "${WORKER_SERVICE}" \
+  --project "${GOOGLE_CLOUD_PROJECT}" \
+  --region "${GOOGLE_CLOUD_REGION}" \
+  --to-latest
 
 if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
   WORKER_URL="https://${WORKER_SERVICE}.invalid"
@@ -481,6 +485,10 @@ run gcloud run deploy "${API_SERVICE}" \
   --max 20 \
   --concurrency 40 \
   --timeout 300
+run gcloud run services update-traffic "${API_SERVICE}" \
+  --project "${GOOGLE_CLOUD_PROJECT}" \
+  --region "${GOOGLE_CLOUD_REGION}" \
+  --to-latest
 
 run gcloud run deploy "${WEB_SERVICE}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
@@ -499,6 +507,10 @@ run gcloud run deploy "${WEB_SERVICE}" \
   --max 10 \
   --concurrency 80 \
   --timeout 60
+run gcloud run services update-traffic "${WEB_SERVICE}" \
+  --project "${GOOGLE_CLOUD_PROJECT}" \
+  --region "${GOOGLE_CLOUD_REGION}" \
+  --to-latest
 
 HOSTING_CONFIG="$(mktemp .firebase-hosting.XXXXXX.json)"
 jq \
