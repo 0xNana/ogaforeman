@@ -151,6 +151,36 @@ Status: complete locally on 2026-08-09. The non-backing suite passes 285 tests a
 all 20 backing-service cases pass with the new follow-up reloaded through fresh
 Firestore clients; the focused mobile production-path journey also passes.
 
+### P0.6: True pause and resume
+
+Acceptance: the voice-only canonical update consumes durable audio while its
+`SiteUpdate` is `PROCESSING` and original `AgentRun` is `RUNNING`, then persists the
+update, request, and run in `WAITING_FOR_APPROVAL` / `AWAITING_APPROVAL` states. An
+approval decision does not execute the supplier action inline. Its claimed
+continuation reloads and validates the persisted decision, resolver, linked request,
+and exact source run, atomically records resume and terminal run activities, and
+executes the guarded supplier action once. Rejection preserves decision notes,
+cancels the request, terminalizes the same run, and can never enter the supplier
+branch. Both branches survive fresh Firestore and Storage clients while waiting.
+
+Verify: a parameterized backing-service test uploads actual voice bytes, captures the
+typed processing states inside interpretation, reconstructs clients before decision
+and continuation, and separately approves and rejects. Approval asserts the same
+daily-site-update run completes with one submission/outbox claim and one each of
+`agent_run.resumed`, `material_request.submitted`, and `agent_run.completed`.
+Rejection asserts persisted notes, no supplier outbox/activity, and one
+`agent_run.rejected`. Duplicate intake and continuation delivery are suppressed.
+
+Dependencies: P0.1 through P0.5, K-01, K-02, K-06, W-01, W-02, M-02 through M-04.
+
+Files: `app/workflows/resume.py`, `app/worker.py`,
+`tests/workflows/test_approval_resume.py`,
+`tests/integration/test_worker_site_update_firestore.py`.
+
+Status: complete locally on 2026-08-09. The non-backing suite passes 287 tests and
+all 22 backing-service cases pass; the six-case mobile production-path intake suite
+also passes.
+
 ## Dependency Graph
 
 ```text

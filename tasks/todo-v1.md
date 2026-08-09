@@ -55,6 +55,11 @@ real cloud environment, live model credential/billing, or human release gate.
   and Needs You, survives Firestore restart, and duplicate event delivery cannot
   create another action. The same mixed workflow still calculates a 30-bag shortage,
   creates one request/approval, and pauses the original run before supplier action.
+- [x] P0.6 The voice-only canonical workflow now proves its real processing and
+  waiting states, reloads the same run after fresh Firestore/Storage clients, and
+  atomically logs resume/reject/complete transitions. Approval submits once and
+  completes that run; rejection preserves notes, cancels the request, and produces
+  no supplier action. Both continuation events suppress duplicate delivery.
 
 ## Contracts and foundation
 
@@ -199,8 +204,8 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend without backing services: 285 passed, 20 explicitly deselected.
-- [x] Durable backing services: 20 passed against Firestore and Storage emulators,
+- [x] Backend without backing services: 287 passed, 22 explicitly deselected.
+- [x] Durable backing services: 22 passed against Firestore and Storage emulators,
   with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
   the Firestore restart case also passing separately against `127.0.0.1:8085`.
@@ -234,6 +239,11 @@ Vertical slice gate:
 - [x] P0.5 follow-through proof: the same production worker creates one canonical-
   assignee follow-up linked to the blocker/site update, logs it, survives restart,
   and renders it in Tasks and Needs You before the material approval resumes.
+- [x] P0.6 pause/resume proof: actual stored voice bytes produce the complete
+  canonical scenario; fresh clients observe `PROCESSING/RUNNING`, the durable wait,
+  decision-without-execution, and separate approve/reject continuations. Approval
+  resumes and completes the exact run with one supplier submission; rejection keeps
+  its reason, terminalizes the run, and has zero supplier actions.
 - [x] Frontend: normal `npm ci`, lint, typecheck, 11 unit tests, and build pass.
 - [x] Playwright: 17 passed, 13 intentional cross-device skips, including a real
   Firestore-backed approval/resume journey with no workflow request interception.

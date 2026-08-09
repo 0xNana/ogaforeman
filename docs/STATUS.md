@@ -44,6 +44,15 @@ clients and is visible from persisted snapshot state in Tasks and Needs You. The
 mixed workflow still calculates 30 missing cement bags from recorded stock and
 upcoming requirement, creates the request/approval, and pauses the original run.
 
+Approval continuation now closes the remaining lifecycle gap. The voice-only
+canonical scenario is observed while `SiteUpdate` is `PROCESSING` and its original
+`AgentRun` is `RUNNING`, then reloaded in the durable approval wait through fresh
+clients. Approval resolution leaves the run paused until its outbox event is claimed;
+that continuation validates the persisted decision and resolver, resumes the exact
+source run, submits once, and atomically logs resume and completion. Rejection is a
+separate restart case: notes persist, the request is cancelled, the original run is
+terminalized and audited, and no supplier action is queued or executed.
+
 This is still a **release candidate under construction**, not a deployable
 public beta. Every coordinator event route now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
@@ -57,8 +66,8 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend without backing services: 285 passed, 20 deselected
-- Firestore/Storage backing-service gate: 20 passed, no skips
+- Backend without backing services: 287 passed, 22 deselected
+- Firestore/Storage backing-service gate: 22 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
 - Full Firestore emulator integration: 92 passed
@@ -74,6 +83,8 @@ configured model, or human release review. The canonical evidence checklist is
   transitive, and unrelated task assertions
 - P0.5 production-worker follow-up/replay proof: passed; the full backing-service
   gate and focused mobile approval/resume journey also pass
+- P0.6 voice approval/rejection restart matrix: 2 passed against fresh Firestore and
+  Storage clients; the focused six-case mobile intake suite also passes
 - Frontend install, checks, and build: passed with 11 unit tests
 - Playwright desktop/mobile: 17 passed, 13 intentional device skips
 - Production npm audit: zero vulnerabilities
@@ -146,6 +157,15 @@ atomically and replay returns the existing task even if the source task is later
 reassigned. Snapshot projections mark the active follow-up for Tasks and Needs You;
 the canonical Firestore restart and mobile browser paths verify persistence and
 visibility before the existing material approval resumes the same run.
+
+P0.6 makes that approval boundary a fully audited state machine. The decision
+transaction persists the approval and request status without invoking the supplier.
+The continuation then derives the original run from the request source, verifies the
+persisted decision/resolver, and records `agent_run.resumed` before the guarded
+supplier action and `agent_run.completed` afterward. The rejection continuation uses
+the same source lookup and records `agent_run.rejected`; forged pending decisions or
+resolver mismatches are rejected, decision notes survive restart, and no supplier
+outbox/activity exists on that branch.
 
 ## Confirmed implementation
 

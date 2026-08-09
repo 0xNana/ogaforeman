@@ -203,6 +203,27 @@ Requirements:
   `task.follow_up_created`. Its idempotency scope is part of the originating event/run;
   the model cannot provide an assignee or arbitrary entity ID.
 
+### Approval Continuation Contract
+
+- The canonical processing state is `SiteUpdate.PROCESSING` with its `AgentRun`
+  `RUNNING`; a pending purchase atomically transitions them to their respective
+  `WAITING_FOR_APPROVAL` states. The different enum labels must not be collapsed
+  into an untyped browser status.
+- Resolving an approval persists the decision and linked request transition first.
+  It must not execute the supplier action inside the decision transaction or move
+  the original run out of its waiting state before the continuation event is claimed.
+- A continuation reloads the persisted approval, linked request, and run selected by
+  the request's source event. It validates the decision status and canonical resolver;
+  event payload alone cannot authorize a resume or rejection.
+- Resume, rejection terminalization, and successful terminal completion each commit
+  a system-attributed, idempotent `ActivityEvent` atomically with the corresponding
+  `AgentRun` change. The resolver remains the actor on the separate approval-decision
+  activity; the worker must not impersonate that user. Supplier submission retains
+  its separate persisted outbox and activity claim.
+- Rejection persists decision notes, leaves no supplier outbox/action, cancels or
+  rejects the request, and terminalizes the same logical run. Approval replay and
+  event redelivery cannot execute the external action or terminal transition twice.
+
 ### Always Do
 
 - read `PRODUCT.md`, `SECURITY_SAFETY.md`, and the active task before coding;
