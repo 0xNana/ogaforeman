@@ -48,6 +48,9 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert 'export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_PROJECT}"' in source
     assert "firebase_project_exists" in source
     assert "projects:addfirebase" in source
+    assert "run_with_transient_retry" in source
+    assert "Transient IAM conflict" in source
+    assert source.count("run_with_transient_retry gcloud") == 6
     assert "ALLOW_DIRTY_DEPLOY" not in source.split("DEPLOY_ENV_KEYS=", 1)[1].split("$'", 1)[0]
 
 

@@ -117,6 +117,33 @@ run() {
   "$@"
 }
 
+run_with_transient_retry() {
+  if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
+    run "$@"
+    return 0
+  fi
+
+  local attempt=1 delay_seconds=2 output status
+  while true; do
+    if output="$("$@" 2>&1)"; then
+      [[ -z "${output}" ]] || printf '%s\n' "${output}"
+      return 0
+    else
+      status=$?
+    fi
+    if ((attempt >= 6)) || \
+      [[ "${output}" != *conflict* && "${output}" != *ABORTED* && "${output}" != *ETag* ]]; then
+      printf '%s\n' "${output}" >&2
+      return "${status}"
+    fi
+    printf 'Transient IAM conflict; retrying in %ss (attempt %s/6).\n' \
+      "${delay_seconds}" "${attempt}" >&2
+    sleep "${delay_seconds}"
+    attempt=$((attempt + 1))
+    delay_seconds=$((delay_seconds * 2))
+  done
+}
+
 exists() {
   if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
     return 1
@@ -139,7 +166,7 @@ create_service_account() {
 grant_project_role() {
   local member="$1"
   local role="$2"
-  run gcloud projects add-iam-policy-binding "${GOOGLE_CLOUD_PROJECT}" \
+  run_with_transient_retry gcloud projects add-iam-policy-binding "${GOOGLE_CLOUD_PROJECT}" \
     --member "${member}" \
     --role "${role}" \
     --condition=None \
@@ -223,7 +250,7 @@ for role in roles/datastore.user roles/storage.objectViewer roles/pubsub.publish
   grant_project_role "serviceAccount:${WORKER_SERVICE_ACCOUNT_EMAIL}" "${role}"
 done
 
-run gcloud iam service-accounts add-iam-policy-binding "${API_SERVICE_ACCOUNT_EMAIL}" \
+run_with_transient_retry gcloud iam service-accounts add-iam-policy-binding "${API_SERVICE_ACCOUNT_EMAIL}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
   --member "serviceAccount:${API_SERVICE_ACCOUNT_EMAIL}" \
   --role roles/iam.serviceAccountTokenCreator \
@@ -344,7 +371,7 @@ else
     --format='value(projectNumber)')"
 fi
 
-run gcloud run services add-iam-policy-binding "${WORKER_SERVICE}" \
+run_with_transient_retry gcloud run services add-iam-policy-binding "${WORKER_SERVICE}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
   --region "${GOOGLE_CLOUD_REGION}" \
   --member "serviceAccount:${PUSH_SERVICE_ACCOUNT_EMAIL}" \
@@ -352,12 +379,12 @@ run gcloud run services add-iam-policy-binding "${WORKER_SERVICE}" \
   --quiet
 
 PUBSUB_SERVICE_AGENT="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
-run gcloud iam service-accounts add-iam-policy-binding "${PUSH_SERVICE_ACCOUNT_EMAIL}" \
+run_with_transient_retry gcloud iam service-accounts add-iam-policy-binding "${PUSH_SERVICE_ACCOUNT_EMAIL}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
   --member "serviceAccount:${PUBSUB_SERVICE_AGENT}" \
   --role roles/iam.serviceAccountTokenCreator \
   --quiet
-run gcloud pubsub topics add-iam-policy-binding "${DEAD_LETTER_TOPIC}" \
+run_with_transient_retry gcloud pubsub topics add-iam-policy-binding "${DEAD_LETTER_TOPIC}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
   --member "serviceAccount:${PUBSUB_SERVICE_AGENT}" \
   --role roles/pubsub.publisher \
@@ -382,7 +409,7 @@ else
     --ack-deadline 60 \
     --message-retention-duration 7d
 fi
-run gcloud pubsub subscriptions add-iam-policy-binding "${WORKER_SUBSCRIPTION}" \
+run_with_transient_retry gcloud pubsub subscriptions add-iam-policy-binding "${WORKER_SUBSCRIPTION}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
   --member "serviceAccount:${PUBSUB_SERVICE_AGENT}" \
   --role roles/pubsub.subscriber \
