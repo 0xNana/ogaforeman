@@ -485,6 +485,13 @@ p { font-size: 1.05rem; }
 .approval-resource-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 22px 0 0; padding: 15px; background: var(--paper); border-radius: 11px; }
 .approval-resource-details dt { color: var(--ink-faint); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
 .approval-resource-details dd { margin: 4px 0 0; font-size: 0.8rem; font-weight: 700; }
+.decision-receipt { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; margin-top: 18px; padding: 14px; border-radius: 11px; }
+.decision-receipt.approved { color: var(--green); background: var(--green-soft); }
+.decision-receipt.rejected { color: var(--red); background: var(--red-soft); }
+.decision-receipt-icon { display: inline-flex; padding-top: 1px; }
+.decision-receipt strong { display: block; color: var(--ink); font-size: 0.82rem; }
+.decision-receipt p { margin-top: 3px; color: var(--ink-soft); font-size: 0.78rem; }
+.decision-receipt a { display: inline-flex; align-items: center; gap: 5px; margin-top: 9px; font-size: 0.75rem; font-weight: 800; }
 
 .site-composer-page { max-width: 740px; }
 .site-composer-card { padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }

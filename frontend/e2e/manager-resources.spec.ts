@@ -37,13 +37,22 @@ test('manager can approve and reject decisions and persistence survives reload',
   await page.goto(`/projects/${projectId}/approvals`);
 
   const approveCard = page.getByRole('article').filter({ hasText: 'Approve desktop access sequence' });
+  const refreshedSnapshot = page.waitForRequest((request) => (
+    request.method() === 'GET' && request.url().endsWith(`/projects/${projectId}/snapshot`)
+  ));
   await approveCard.getByRole('button', { name: 'Approve' }).click();
+  await refreshedSnapshot;
   await expect(approveCard.getByText('APPROVED')).toBeVisible();
-  await expect(approveCard.getByText('Decision recorded. Oga will continue from here.')).toBeVisible();
+  await expect(approveCard.getByRole('status')).toContainText('Oga is resuming from the saved checkpoint.');
+  await expect(approveCard.getByRole('link', { name: 'Follow in activity' })).toHaveAttribute(
+    'href',
+    `/projects/${projectId}/activity`,
+  );
 
   const rejectCard = page.getByRole('article').filter({ hasText: 'Reject desktop access sequence' });
   await rejectCard.getByRole('button', { name: 'Reject' }).click();
   await expect(rejectCard.getByText('REJECTED')).toBeVisible();
+  await expect(rejectCard.getByRole('status')).toContainText('No supplier or external action will run.');
 
   await page.reload();
   await expect(page.getByRole('article').filter({ hasText: 'Approve desktop access sequence' }).getByText('APPROVED')).toBeVisible();
