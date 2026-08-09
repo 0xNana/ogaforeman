@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,6 +24,7 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "roles/artifactregistry.writer" in source
     assert "roles/storage.objectViewer" in source
     assert "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" in source
+    assert "--config cloudbuild.yaml" in source
     assert "--versioning" in source
     assert "--soft-delete-duration 30d" in source
     assert "scheduler jobs create http" in source
@@ -116,6 +119,7 @@ def test_cloud_build_upload_contains_only_container_sources() -> None:
     assert ignore[0] == "*"
     assert {
         "!Dockerfile",
+        "!cloudbuild.yaml",
         "!.dockerignore",
         "!pyproject.toml",
         "!uv.lock",
@@ -128,3 +132,11 @@ def test_cloud_build_upload_contains_only_container_sources() -> None:
         "**/__pycache__/",
         "**/*.py[cod]",
     }.issubset(ignore)
+
+
+def test_cloud_build_uses_cloud_logging_without_bucket_write_access() -> None:
+    config = yaml.safe_load((ROOT / "cloudbuild.yaml").read_text(encoding="utf-8"))
+
+    assert config["options"]["logging"] == "CLOUD_LOGGING_ONLY"
+    assert config["images"] == ["${_IMAGE_URI}"]
+    assert config["steps"][0]["args"] == ["build", "-t", "${_IMAGE_URI}", "."]

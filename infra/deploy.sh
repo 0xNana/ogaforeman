@@ -208,7 +208,8 @@ fi
 run gcloud builds submit \
   --project "${GOOGLE_CLOUD_PROJECT}" \
   --service-account "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" \
-  --tag "${IMAGE_URI}" \
+  --config cloudbuild.yaml \
+  --substitutions "_IMAGE_URI=${IMAGE_URI}" \
   .
 
 ENV_FILE="$(mktemp)"
