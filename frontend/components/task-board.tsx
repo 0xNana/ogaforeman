@@ -24,7 +24,7 @@ export function TaskBoard({ projectId, tasks, onRefresh }: Readonly<{ projectId:
     if (filter === 'BLOCKED') return task.status === 'BLOCKED';
     if (filter === 'DONE') return task.status === 'COMPLETED';
     if (filter === 'UPCOMING') return task.status === 'PENDING' && !task.dueLabel.toLowerCase().includes('today');
-    return task.dueLabel.toLowerCase().includes('today') || task.status === 'IN_PROGRESS' || task.status === 'BLOCKED';
+    return task.dueLabel.toLowerCase().includes('today') || task.status === 'IN_PROGRESS' || task.status === 'BLOCKED' || task.needsAttention === true;
   }), [filter, tasks]);
 
   async function createTask(event: React.FormEvent<HTMLFormElement>) {

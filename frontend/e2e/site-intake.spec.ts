@@ -43,7 +43,15 @@ test('runs a site update through real approval and same-run continuation', async
   expect(pausedRun.ok()).toBe(true);
   expect((await pausedRun.json()).status).toBe('waiting_for_approval');
 
-  await page.getByRole('link', { name: 'Review approval' }).click();
+  await page.goto(`/projects/${projectId}/tasks`);
+  const followUpRow = page.getByRole('article').filter({ hasText: 'Follow up: Electrical rough-in' });
+  await expect(followUpRow).toBeVisible();
+  await expect(followUpRow).toContainText('usr_kofi123');
+
+  await page.goto(`/projects/${projectId}/approvals`);
+  const followUpCard = page.getByRole('article').filter({ hasText: 'Follow up: Electrical rough-in' });
+  await expect(followUpCard).toBeVisible();
+  await expect(followUpCard).toContainText('usr_kofi123');
   const purchaseCard = page.getByRole('article').filter({ hasText: /30(?:\.0)? bags/ });
   await expect(purchaseCard.getByText('PENDING')).toBeVisible();
   await purchaseCard.getByRole('button', { name: 'Approve' }).click();

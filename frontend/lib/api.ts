@@ -30,6 +30,8 @@ export type Task = {
   dueLabel: string;
   blocking?: string;
   note?: string;
+  needsAttention?: boolean;
+  sourceRefs?: string[];
 };
 
 export type CreateTaskInput = {
