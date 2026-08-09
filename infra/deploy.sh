@@ -321,6 +321,16 @@ run gcloud storage buckets update "gs://${MEDIA_BUCKET}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
   --versioning \
   --soft-delete-duration 30d
+STORAGE_CORS_FILE="$(mktemp)"
+trap 'rm -f "${STORAGE_CORS_FILE}"' EXIT
+python3 infra/render_storage_cors.py \
+  --origins-json "${CORS_ALLOWED_ORIGINS}" \
+  --output "${STORAGE_CORS_FILE}"
+run gcloud storage buckets update "gs://${MEDIA_BUCKET}" \
+  --project "${GOOGLE_CLOUD_PROJECT}" \
+  --cors-file="${STORAGE_CORS_FILE}"
+rm -f "${STORAGE_CORS_FILE}"
+trap - EXIT
 
 if ! exists gcloud storage buckets describe "gs://${BACKUP_BUCKET}" --project "${GOOGLE_CLOUD_PROJECT}"; then
   run gcloud storage buckets create "gs://${BACKUP_BUCKET}" \

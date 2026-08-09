@@ -159,6 +159,14 @@ def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes()
     ]
 
 
+def test_deploy_applies_exact_origin_cors_to_media_bucket() -> None:
+    source = (ROOT / "infra" / "deploy.sh").read_text(encoding="utf-8")
+
+    assert "infra/render_storage_cors.py" in source
+    assert '--origins-json "${CORS_ALLOWED_ORIGINS}"' in source
+    assert '--cors-file="${STORAGE_CORS_FILE}"' in source
+
+
 def test_ci_runs_backend_suite_with_durable_backing_service_emulators() -> None:
     manifest = json.loads((ROOT / "firebase.json").read_text(encoding="utf-8"))
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
