@@ -95,6 +95,7 @@ def test_demo_environment_is_local_or_test_only(monkeypatch: pytest.MonkeyPatch)
                 gemini_location="global",
                 auth_issuer="https://issuer.example",
                 auth_audience="oga-staging",
+                cors_allowed_origins=("https://oga-staging.web.app",),
             )
         )
 

@@ -83,5 +83,6 @@ def test_configuration_probe_reports_local_and_deployed_contracts() -> None:
         gemini_location="global",
         auth_issuer="https://securetoken.google.com/oga-staging",
         auth_audience="oga-staging",
+        cors_allowed_origins=("https://oga-staging.web.app",),
     )
     assert configuration_probe(deployed)() == (True, "staging")

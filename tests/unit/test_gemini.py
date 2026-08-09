@@ -67,6 +67,7 @@ def test_deployed_runtime_uses_vertex_even_when_api_key_exists(
         gemini_api_key="developer-key",
         auth_issuer="https://securetoken.google.com/oga-staging",
         auth_audience="oga-staging",
+        cors_allowed_origins=("https://oga-staging.web.app",),
     )
 
     create_gemini_client(settings)
