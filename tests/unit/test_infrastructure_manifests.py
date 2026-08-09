@@ -18,6 +18,10 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "--dead-letter-topic" in source
     assert "--max-delivery-attempts 5" in source
     assert "backups schedules create" in source
+    assert "gcloud builds get-default-service-account" in source
+    assert "roles/artifactregistry.writer" in source
+    assert "roles/storage.objectViewer" in source
+    assert "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" in source
     assert "--versioning" in source
     assert "--soft-delete-duration 30d" in source
     assert "scheduler jobs create http" in source

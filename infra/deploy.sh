@@ -116,6 +116,23 @@ run gcloud services enable \
   cloudtrace.googleapis.com \
   --project "${GOOGLE_CLOUD_PROJECT}"
 
+if [[ -z "${BUILD_SERVICE_ACCOUNT_EMAIL:-}" ]]; then
+  if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
+    BUILD_SERVICE_ACCOUNT_EMAIL="000000000000-compute@developer.gserviceaccount.com"
+  else
+    BUILD_SERVICE_ACCOUNT_EMAIL="$(gcloud builds get-default-service-account \
+      --project "${GOOGLE_CLOUD_PROJECT}" \
+      --format='value(serviceAccountEmail)')"
+  fi
+fi
+if [[ -z "${BUILD_SERVICE_ACCOUNT_EMAIL}" ]]; then
+  printf 'Cloud Build did not return a default service account.\n' >&2
+  exit 2
+fi
+for role in roles/storage.objectViewer roles/artifactregistry.writer roles/logging.logWriter; do
+  grant_project_role "serviceAccount:${BUILD_SERVICE_ACCOUNT_EMAIL}" "${role}"
+done
+
 create_service_account "${API_SERVICE_ACCOUNT}" "Oga Foreman API ${DEPLOY_ENVIRONMENT}"
 create_service_account "${WORKER_SERVICE_ACCOUNT}" "Oga Foreman worker ${DEPLOY_ENVIRONMENT}"
 create_service_account "${PUSH_SERVICE_ACCOUNT}" "Oga Foreman push invoker ${DEPLOY_ENVIRONMENT}"
@@ -188,7 +205,11 @@ if ! exists gcloud artifacts repositories describe "${ARTIFACT_REPOSITORY}" \
     --description "Oga Foreman service images" \
     --project "${GOOGLE_CLOUD_PROJECT}"
 fi
-run gcloud builds submit --project "${GOOGLE_CLOUD_PROJECT}" --tag "${IMAGE_URI}" .
+run gcloud builds submit \
+  --project "${GOOGLE_CLOUD_PROJECT}" \
+  --service-account "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" \
+  --tag "${IMAGE_URI}" \
+  .
 
 ENV_FILE="$(mktemp)"
 trap 'rm -f "${ENV_FILE}"' EXIT
