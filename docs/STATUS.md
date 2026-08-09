@@ -2,7 +2,7 @@
 
 ## Status date
 
-2026-08-08
+2026-08-09
 
 ## Summary
 
@@ -17,8 +17,8 @@ This is still a **release candidate under construction**, not a deployable
 public beta. Every coordinator event route now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
 continuation. All currently identified non-cloud implementation blockers are
-resolved; remaining gates require a real cloud environment, configured model,
-or human release review. The canonical evidence checklist is
+resolved; remaining gates require deployed auth/operations evidence, a
+configured model, or human release review. The canonical evidence checklist is
 [tasks/todo-v1.md](../tasks/todo-v1.md).
 
 ## Locally verified on 2026-08-08
@@ -91,18 +91,18 @@ No known non-cloud implementation blockers remain in the canonical V1 scope.
 | --- | --- |
 | R-01 | Complete locally: 13 readiness controls pass without xfails |
 | R-02 | Local gates complete: fixture thresholds pass and a deliberate regression is rejected; configured Gemini remains external |
-| R-03 | Local controls pass; staging traces and alert smoke require cloud resources |
-| R-04 | Local capacity and backup dry-run pass; restore and cloud RTO/RPO evidence absent |
-| L-01 | Scripts, IAM manifests, CI, and container smoke exist; staging deploy/rollback absent |
+| R-03 | Staging health, metrics, log correlation, and five policies pass; Cloud Trace span and alert delivery remain |
+| R-04 | Isolated Firestore export/import and Storage generation recovery pass; first managed backup remains pending |
+| L-01 | Staging deploy, IAM, Scheduler, and rollback pass; Firebase browser/authenticated API smoke remains |
 | L-02 | Three-run deterministic four-workflow rehearsal passes; live-model rehearsal absent |
 | L-03 | Complete locally: isolated locked install, test, build, browser, eval, demo, capacity, and docs matrix passes |
 
 ## External release gates
 
-- Verify deployed Firebase tokens, route authorization, private Storage, and
-  worker OIDC invocation in staging.
-- Record staging traces, alert smoke, backup visibility, isolated restore,
-  projection rebuild, production smoke, and rollback.
+- Verify deployed Firebase browser tokens, route authorization, and authenticated
+  `/api/v1` journeys in staging.
+- Record a Cloud Trace span, alert delivery, first managed-backup visibility,
+  projection rebuild timing, and production smoke.
 - Run the configured Gemini eval with a valid key or billed Gemini Enterprise project and
   review mutation diffs before changing model/prompt configuration.
 - Complete human security, safety, scope, and launch review.

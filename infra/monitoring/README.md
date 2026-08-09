@@ -24,9 +24,11 @@ in Cloud Logging and the corresponding span in Cloud Trace. Trigger each alert
 only in staging, record the incident URL and recovery timestamp, and restore the
 threshold immediately afterward.
 
-This repository currently has no staging credentials or deployed URL, so trace
-correlation and alert-smoke evidence remain blocked rather than inferred from
-local tests.
+The deployed staging API and exact Cloud Logging correlation are recorded in
+`artifacts/operations/staging-observability.json` and
+`artifacts/operations/staging-log-correlation.json`; five policies are provisioned.
+Cloud Trace span visibility and an alert-delivery incident are still open and
+must not be inferred from the log-correlation pass.
 
 ## Dead-letter handling
 

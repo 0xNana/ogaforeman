@@ -1,0 +1,17 @@
+{
+  "api": {
+    "post_rollback_ready": true,
+    "rollback_revision": "oga-api-staging-00001-xh7",
+    "temporary_revision": "oga-api-staging-rollback-probe",
+    "traffic_percent": 100
+  },
+  "completed_at": "2026-08-09T02:11:49Z",
+  "project_id": "ogaforeman-cloud-2026",
+  "region": "europe-west1",
+  "worker": {
+    "cloud_run_ready": true,
+    "rollback_revision": "oga-worker-staging-00001-lm2",
+    "temporary_revision": "oga-worker-staging-rollback-probe",
+    "traffic_percent": 100
+  }
+}

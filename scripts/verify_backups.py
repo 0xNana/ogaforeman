@@ -220,9 +220,13 @@ def _check_backups(
 def _check_bucket(payload: object) -> BackupCheck:
     if not isinstance(payload, dict):
         raise ValueError("bucket description must be an object")
-    versioning = _nested_bool(payload, ("versioning", "enabled"))
+    versioning = (
+        _nested_bool(payload, ("versioning", "enabled"))
+        or payload.get("versioning_enabled") is True
+    )
     retention = _first_positive_number(
         _nested(payload, ("softDeletePolicy", "retentionDurationSeconds")),
+        _nested(payload, ("soft_delete_policy", "retentionDurationSeconds")),
         _nested(payload, ("soft_delete_policy", "retention_duration_seconds")),
     )
     if versioning or retention > 0:

@@ -25,10 +25,15 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "gcloud builds get-default-service-account" in source
     assert "roles/artifactregistry.writer" in source
     assert "roles/storage.objectViewer" in source
-    assert "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" in source
+    assert (
+        "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" in source
+    )
     assert "--config cloudbuild.yaml" in source
     assert "--versioning" in source
     assert "--soft-delete-duration 30d" in source
+    assert 'BACKUP_BUCKET="${BACKUP_BUCKET:-${GOOGLE_CLOUD_PROJECT}-oga-backups}"' in source
+    assert "gcp-sa-firestore.iam.gserviceaccount.com" in source
+    assert "roles/storage.admin" in source
     assert "scheduler jobs create http" in source
     assert "scheduler jobs update http" in source
     assert "--update-headers Content-Type=application/json" in source
@@ -50,7 +55,7 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "projects:addfirebase" in source
     assert "run_with_transient_retry" in source
     assert "Transient IAM conflict" in source
-    assert source.count("run_with_transient_retry gcloud") == 6
+    assert source.count("run_with_transient_retry gcloud") == 7
     assert "ALLOW_DIRTY_DEPLOY" not in source.split("DEPLOY_ENV_KEYS=", 1)[1].split("$'", 1)[0]
 
 

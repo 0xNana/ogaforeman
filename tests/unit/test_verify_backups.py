@@ -51,6 +51,36 @@ def test_live_backup_verification_accepts_recent_backup_and_soft_delete() -> Non
     assert len(runner.commands) == 2
 
 
+def test_live_backup_verification_accepts_current_gcloud_storage_shape() -> None:
+    runner = StubRunner(
+        (
+            [
+                {
+                    "name": "projects/oga-staging/locations/europe-west1/backups/backup-1",
+                    "state": "READY",
+                    "snapshotTime": "2026-08-08T06:00:00Z",
+                }
+            ],
+            {
+                "versioning_enabled": True,
+                "soft_delete_policy": {"retentionDurationSeconds": "2592000"},
+            },
+        )
+    )
+
+    evidence = verify_backups(
+        project_id="oga-staging",
+        bucket="oga-media",
+        live=True,
+        now=datetime(2026, 8, 8, 12, 0, tzinfo=UTC),
+        runner=runner,
+    )
+
+    assert evidence.passed is True
+    assert "versioning enabled" in evidence.checks[1].detail
+    assert "2592000 seconds" in evidence.checks[1].detail
+
+
 def test_live_backup_verification_fails_closed_without_protection() -> None:
     runner = StubRunner(([], {"versioning": {"enabled": False}}))
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DEPLOY_ENV_FILE="${DEPLOY_ENV_FILE:-.env}"
-DEPLOY_ENV_KEYS='^(GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_REGION|FIRESTORE_DATABASE|FIRESTORE_LOCATION|MEDIA_BUCKET|GEMINI_MODEL_ID|GEMINI_LOCATION|AUTH_ISSUER|AUTH_AUDIENCE|DEPLOY_ENVIRONMENT|DEPLOY_DRY_RUN|FIREBASE_CLI_VERSION|API_SERVICE|WORKER_SERVICE|API_CPU|API_MEMORY|WORKER_CPU|WORKER_MEMORY|ARTIFACT_REPOSITORY|IMAGE_TAG|PUBSUB_SITE_EVENTS_TOPIC|PUBSUB_DEAD_LETTER_TOPIC|PUBSUB_WORKER_SUBSCRIPTION|DEAD_LETTER_SUBSCRIPTION|API_SERVICE_ACCOUNT|WORKER_SERVICE_ACCOUNT|PUSH_SERVICE_ACCOUNT|SCHEDULE_PROJECT_ID|SCHEDULE_TIMEZONE|SCHEDULE_CRON|SCHEDULE_JOB|BUILD_SERVICE_ACCOUNT_EMAIL)$'
+DEPLOY_ENV_KEYS='^(GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_REGION|FIRESTORE_DATABASE|FIRESTORE_LOCATION|MEDIA_BUCKET|BACKUP_BUCKET|GEMINI_MODEL_ID|GEMINI_LOCATION|AUTH_ISSUER|AUTH_AUDIENCE|DEPLOY_ENVIRONMENT|DEPLOY_DRY_RUN|FIREBASE_CLI_VERSION|API_SERVICE|WORKER_SERVICE|API_CPU|API_MEMORY|WORKER_CPU|WORKER_MEMORY|ARTIFACT_REPOSITORY|IMAGE_TAG|PUBSUB_SITE_EVENTS_TOPIC|PUBSUB_DEAD_LETTER_TOPIC|PUBSUB_WORKER_SUBSCRIPTION|DEAD_LETTER_SUBSCRIPTION|API_SERVICE_ACCOUNT|WORKER_SERVICE_ACCOUNT|PUSH_SERVICE_ACCOUNT|SCHEDULE_PROJECT_ID|SCHEDULE_TIMEZONE|SCHEDULE_CRON|SCHEDULE_JOB|BUILD_SERVICE_ACCOUNT_EMAIL)$'
 
 trim_whitespace() {
   local value="$1"
@@ -67,6 +67,7 @@ load_deploy_env "${DEPLOY_ENV_FILE}"
 : "${AUTH_ISSUER:?Set AUTH_ISSUER}"
 : "${AUTH_AUDIENCE:?Set AUTH_AUDIENCE}"
 export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_PROJECT}"
+BACKUP_BUCKET="${BACKUP_BUCKET:-${GOOGLE_CLOUD_PROJECT}-oga-backups}"
 
 DEPLOY_ENVIRONMENT="${DEPLOY_ENVIRONMENT:-staging}"
 DEPLOY_DRY_RUN="${DEPLOY_DRY_RUN:-false}"
@@ -222,6 +223,13 @@ if ! firebase_project_exists; then
     --non-interactive
 fi
 
+if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
+  PROJECT_NUMBER="000000000000"
+else
+  PROJECT_NUMBER="$(gcloud projects describe "${GOOGLE_CLOUD_PROJECT}" \
+    --format='value(projectNumber)')"
+fi
+
 if [[ -z "${BUILD_SERVICE_ACCOUNT_EMAIL:-}" ]]; then
   if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
     BUILD_SERVICE_ACCOUNT_EMAIL="000000000000-compute@developer.gserviceaccount.com"
@@ -299,6 +307,20 @@ run gcloud storage buckets update "gs://${MEDIA_BUCKET}" \
   --versioning \
   --soft-delete-duration 30d
 
+if ! exists gcloud storage buckets describe "gs://${BACKUP_BUCKET}" --project "${GOOGLE_CLOUD_PROJECT}"; then
+  run gcloud storage buckets create "gs://${BACKUP_BUCKET}" \
+    --project "${GOOGLE_CLOUD_PROJECT}" \
+    --location "${GOOGLE_CLOUD_REGION}" \
+    --uniform-bucket-level-access
+fi
+run gcloud storage buckets update "gs://${BACKUP_BUCKET}" \
+  --project "${GOOGLE_CLOUD_PROJECT}" \
+  --versioning \
+  --soft-delete-duration 30d
+run_with_transient_retry gcloud storage buckets add-iam-policy-binding "gs://${BACKUP_BUCKET}" \
+  --member "serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-firestore.iam.gserviceaccount.com" \
+  --role roles/storage.admin
+
 create_topic "${SITE_EVENTS_TOPIC}"
 create_topic "${DEAD_LETTER_TOPIC}"
 
@@ -361,14 +383,11 @@ run gcloud run deploy "${WORKER_SERVICE}" \
 
 if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
   WORKER_URL="https://${WORKER_SERVICE}.invalid"
-  PROJECT_NUMBER="000000000000"
 else
   WORKER_URL="$(gcloud run services describe "${WORKER_SERVICE}" \
     --project "${GOOGLE_CLOUD_PROJECT}" \
     --region "${GOOGLE_CLOUD_REGION}" \
     --format='value(status.url)')"
-  PROJECT_NUMBER="$(gcloud projects describe "${GOOGLE_CLOUD_PROJECT}" \
-    --format='value(projectNumber)')"
 fi
 
 run_with_transient_retry gcloud run services add-iam-policy-binding "${WORKER_SERVICE}" \

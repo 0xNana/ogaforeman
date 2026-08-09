@@ -99,6 +99,7 @@ The script manages:
 - Firestore Native, deletion protection, deny-by-default client rules, indexes,
   and a daily 30-day backup schedule;
 - a private/versioned/soft-delete-protected Storage bucket;
+- a protected recovery export bucket with Firestore service-agent access;
 - Artifact Registry and a locked container build;
 - separate `oga-api-*` and `oga-worker-*` Cloud Run services with explicit CPU,
   memory, startup, and liveness settings;
@@ -164,9 +165,13 @@ smokes immediately after traffic moves.
 
 ## Current evidence state
 
-Infrastructure syntax, manifests, and dry-run output are locally verified. No
-staging deployment, rollback rehearsal, backup visibility check, or restore has
-been executed in this workspace. Those are release blockers, not assumed passes.
+Staging is deployed in `ogaforeman-cloud-2026`/`europe-west1`. Checked-in
+artifacts record the deployed revisions, public health and log correlation,
+duplicate-safe Scheduler delivery, explicit API/worker rollback, isolated
+Firestore export/import, and Storage generation recovery. The new daily managed
+backup schedule has not produced its first READY backup; Firebase browser auth,
+authenticated API smoke, Cloud Trace, and alert delivery also remain release
+gates rather than assumed passes.
 
 Official implementation references: [Firebase CLI](https://firebase.google.com/docs/cli),
 [Firestore database protection](https://cloud.google.com/firestore/docs/manage-databases),

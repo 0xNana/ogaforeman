@@ -1,6 +1,6 @@
 # Oga Foreman V1 Evidence Audit
 
-Audited 2026-08-08 against production paths, tests, artifacts, frontend journeys,
+Audited 2026-08-09 against production paths, tests, artifacts, frontend journeys,
 and deployment scripts. This file is the canonical checklist; the legacy
 `tasks/todo.md` checklist is retired.
 
@@ -53,8 +53,8 @@ Foundation gate:
 - [x] No production module imports `_PROJECT_DB` or uses
   `datetime.utcnow()`.
 - [x] All 13 local `PR-*` readiness controls pass without xfails.
-- [!] Deployed Firebase token, IAM, Firestore, and Storage enforcement still
-  require a real staging project.
+- [!] Workload IAM plus Firestore and Storage readiness are deployed; Firebase
+  browser tokens and authenticated cross-project API/media enforcement remain.
 
 ## Mutation and event kernel
 
@@ -124,9 +124,9 @@ Vertical slice gate:
   notification through the worker without inventing missing sections.
 - [x] E-01 Pub/Sub push, claims, retries, dead-letter metadata, and all typed
   worker event routes execute durable guarded behavior.
-- [!] E-02 Scheduler HTTP dispatch now feeds the real Pub/Sub worker push path
-  and proves one durable report, activity, processed event, and completed run;
-  only the deployed Cloud Scheduler smoke requires cloud resources.
+- [x] E-02 Scheduler HTTP dispatch feeds the real Pub/Sub worker push path; the
+  deployed `europe-west1` job produced one durable report, activity, processed
+  event, completed run, and outbox record, and a second dispatch changed no counts.
 
 ## API and UI
 
@@ -150,12 +150,15 @@ Vertical slice gate:
 - [!] R-02 Fixture eval passes 8/8 thresholds and records per-case mutation
   diffs; a checked-in deliberate-regression adapter proves the gate fails on a
   forbidden negated-task mutation. Only configured Gemini evidence remains.
-- [!] R-03 Local logs, metrics, health, dead-letter, and alert definitions pass;
-  staging trace correlation and alert smoke require deployed resources.
-- [!] R-04 Local capacity and backup dry-run pass; backup visibility, isolated
-  restore, Storage recovery, and measured cloud RTO/RPO require staging.
-- [!] L-01 Deployment/IAM scripts, CI, container smoke, and dry-run syntax exist;
-  staging deploy, authenticated smoke, and rollback rehearsal are not executed.
+- [!] R-03 Staging liveness, readiness, metrics, exact log correlation, and five
+  deployed alert policies pass; a Cloud Trace span and alert-incident delivery
+  smoke remain open.
+- [!] R-04 Protected Storage and an isolated two-document Firestore export/import
+  restore pass, including historical object-generation recovery. The new daily
+  managed backup schedule has not produced its first visible backup yet.
+- [!] L-01 Staging deployment, least-privilege workload IAM, public health smoke,
+  real Scheduler dispatch, and explicit API/worker rollback rehearsal pass.
+  Firebase browser authentication and authenticated `/api/v1` smoke remain open.
 - [!] L-02 Three deterministic dry runs and local browser/API/Firestore evidence
   pass, including terminal approved-material continuation; live Gemini evidence
   still needs a working external model route.
@@ -187,6 +190,11 @@ Vertical slice gate:
 - [x] Ruff, Ruff format, mypy, and documentation checks pass.
 - [x] Clean-checkout matrix: the complete documented command set passes from an
   isolated tracked/non-ignored source copy with no cloud credentials.
+- [x] Staging deployment: `ogaforeman-cloud-2026` runs API and private worker
+  revisions in `europe-west1` from image tag `0aa4a2c8dc7e`.
+- [x] Staging operations: health/metrics/log correlation, duplicate-safe
+  Scheduler delivery, rollback traffic restoration, isolated Firestore restore,
+  and Storage generation recovery are recorded under `artifacts/operations/`.
 
 ## Final release gate
 
@@ -194,8 +202,9 @@ Vertical slice gate:
 - [x] Every local `PR-*` control passes without strict xfails.
 - [x] No route may acknowledge a claimed event without performing or explicitly
   persisting the intended guarded workflow action.
-- [!] Production smoke, rollback, Firebase browser auth, backup/restore,
-  observability, and IAM evidence require a real staging environment.
+- [!] Staging deploy, rollback, Scheduler, IAM, log correlation, isolated restore,
+  and Storage recovery evidence pass. Firebase browser auth, authenticated API
+  smoke, first managed-backup visibility, Cloud Trace, and alert delivery remain.
 - [!] A configured live Gemini eval requires a valid model credential and
   working billing/quota route.
 - [!] Human security, safety, scope, and launch review remains required.

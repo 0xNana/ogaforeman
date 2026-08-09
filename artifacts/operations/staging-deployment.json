@@ -1,0 +1,21 @@
+{
+  "api_revision": "oga-api-staging-00001-xh7",
+  "api_url": "https://oga-api-staging-dc62gfsg7a-ew.a.run.app",
+  "alert_policy_count": 5,
+  "backup_schedule": "d42c3791-43a3-49a2-8457-ba21b04033b3",
+  "billing_enabled": true,
+  "deployed_at": "2026-08-09T01:56:40Z",
+  "firebase_registered": true,
+  "firestore_database": "(default)",
+  "firestore_location": "europe-west1",
+  "git_revision": "0aa4a2c8dc7e7d7f89e32528b98bb4dc7fc9141f",
+  "image": "europe-west1-docker.pkg.dev/ogaforeman-cloud-2026/oga-foreman/oga-foreman:0aa4a2c8dc7e",
+  "project_id": "ogaforeman-cloud-2026",
+  "project_name": "ogaforeman",
+  "project_number": "891773048332",
+  "recovery_bucket": "ogaforeman-cloud-2026-oga-backups",
+  "region": "europe-west1",
+  "scheduler_job": "oga-daily-brief-staging",
+  "worker_revision": "oga-worker-staging-00001-lm2",
+  "worker_url": "https://oga-worker-staging-dc62gfsg7a-ew.a.run.app"
+}

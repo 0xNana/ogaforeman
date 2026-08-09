@@ -1,0 +1,32 @@
+{
+  "base_url": "https://oga-api-staging-dc62gfsg7a-ew.a.run.app",
+  "checked_at": "2026-08-09T01:57:36.228130Z",
+  "checks": [
+    {
+      "detail": "{\"status\":\"ok\",\"timestamp\":\"2026-08-09T01:57:35.311966Z\"}",
+      "name": "liveness",
+      "ok": true,
+      "path": "/health/live",
+      "status_code": 200
+    },
+    {
+      "detail": "{\"status\":\"ready\",\"checks\":{\"configuration\":{\"status\":\"ok\",\"detail\":\"staging\"},\"firestore\":{\"status\":\"ok\",\"detail\":\"reachable\"},\"storage\":{\"status\":\"ok\",\"detail\":\"reachable\"}},\"timestamp\":\"2026-08-09T01:57:35.801615Z\"}",
+      "name": "readiness",
+      "ok": true,
+      "path": "/health/ready",
+      "status_code": 200
+    },
+    {
+      "detail": "http_request_duration_seconds_histogram_count{method=\"GET\",status_class=\"2xx\"} 5.0 http_request_duration_seconds_histogram_sum{method=\"GET\",status_class=\"2xx\"} 0.33831929699954344 http_requests_total_counter{method=\"GET\",status_class=\"2xx\"} 5.0 ",
+      "name": "metrics",
+      "ok": true,
+      "path": "/metrics",
+      "status_code": 200
+    }
+  ],
+  "correlation_id": "cor_smoke_7c433aac5208ee2b",
+  "git_revision": "0aa4a2c8dc7e7d7f89e32528b98bb4dc7fc9141f",
+  "passed": true,
+  "request_id": "req_smoke_31a3b48ee2c0ddf1",
+  "trace_id": "trc_smoke_c2c7150d22fe3759db3a8999bbf7806d"
+}

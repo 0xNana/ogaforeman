@@ -1,0 +1,24 @@
+{
+  "first_attempt_at": "2026-08-09T02:26:09.350158Z",
+  "first_run": {
+    "activity": "daily_brief.generated",
+    "agent_run_id": "run_872957ddafac7d3dacd4db825cde4c81",
+    "agent_run_status": "completed",
+    "outbox_count": 1,
+    "processed_event_id": "daily-brief:prj_recovery:2026-08-09",
+    "processed_event_status": "completed",
+    "report_id": "rpt_prj_recovery_2026-08-09",
+    "report_status": "draft"
+  },
+  "job": "oga-daily-brief-staging",
+  "project_id": "ogaforeman-cloud-2026",
+  "replay_counts": {
+    "activity": 2,
+    "agent_runs": 1,
+    "daily_reports": 1,
+    "outbox": 1,
+    "processed_events": 1
+  },
+  "replay_duplicate_safe": true,
+  "scheduler_project_id": "prj_recovery"
+}

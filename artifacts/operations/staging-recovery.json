@@ -1,0 +1,30 @@
+{
+  "export": {
+    "completed_at": "2026-08-09T02:18:00.785861Z",
+    "documents": 2,
+    "operation": "ASBmZWQ4ZGEwMjNhNWMtOGY4Yi0xOTA0LTEzZjktNmIyMzUyYzYkGnNlbmlsZXBpcAkKMxI",
+    "output_uri": "gs://ogaforeman-cloud-2026-oga-backups/rehearsals/restore-rehearsal-20260809",
+    "status": "SUCCESSFUL"
+  },
+  "import": {
+    "completed_at": "2026-08-09T02:18:46.278418Z",
+    "database": "oga-restore",
+    "documents": 2,
+    "operation": "AiBhMGRiYmE4NTVmMDEtZmM2OC0yMjY0LWRlOWYtYjU5ZTdlOTUkGnNlbmlsZXBpcAkKMxI",
+    "status": "SUCCESSFUL"
+  },
+  "project_id": "ogaforeman-cloud-2026",
+  "sentinel": {
+    "activity_id": "act_restore20260809",
+    "operation_id": "restore-rehearsal-20260809",
+    "project_id": "prj_recovery",
+    "restored": true
+  },
+  "storage": {
+    "generation_one": "1786242017197332",
+    "generation_two": "1786242023562805",
+    "object": "gs://ogaforeman-cloud-2026-oga-media/recovery-evidence/storage-restore-20260809.txt",
+    "restored_generation_one": true,
+    "restored_sha256": "15c9ac690fe2d43d0e4925db58a64db88de32b6826c8a5744c820920d4734d9e"
+  }
+}

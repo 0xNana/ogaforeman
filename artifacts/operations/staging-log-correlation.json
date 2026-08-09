@@ -1,0 +1,16 @@
+{
+  "correlation_id": "cor_smoke_7c433aac5208ee2b",
+  "entry_count": 3,
+  "event": "http_request_finished",
+  "project_id": "ogaforeman-cloud-2026",
+  "request_id": "req_smoke_31a3b48ee2c0ddf1",
+  "revision": "oga-api-staging-00001-xh7",
+  "routes": [
+    "/health/live",
+    "/health/ready",
+    "/metrics"
+  ],
+  "service": "oga-api-staging",
+  "status_class": "2xx",
+  "trace_id": "trc_smoke_c2c7150d22fe3759db3a8999bbf7806d"
+}
