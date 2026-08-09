@@ -25,6 +25,7 @@ from app.domain.enums import (
     MemberStatus,
     ProcessingStatus,
     Severity,
+    TaskSource,
     TaskStatus,
 )
 from app.domain.facts import (
@@ -277,6 +278,7 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
             project_id=project_id,
             title="Electrical rough-in",
             status=TaskStatus.PLANNED,
+            assigned_to="usr_electrician123",
             dependency_ids=["tsk_blockwork123"],
         ),
         Task(
@@ -356,6 +358,7 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
     run = store.repository(AgentRun).require(project_id, accepted["agent_run_id"])
     attachment = store.repository(Attachment).require(project_id, "att_progress123")
     task = store.repository(Task).require(project_id, "tsk_blockwork123")
+    tasks = store.repository(Task).list(project_id)
     material = store.repository(Material).require(project_id, "mat_cement123")
     issues = store.repository(Issue).list(project_id)
     requests = store.repository(MaterialRequest).list(project_id)
@@ -381,6 +384,15 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
         (IssueType.DELAY_RISK, ("tsk_plastering123",)),
     }
     assert len(issues) == 3
+    blocker = next(issue for issue in issues if issue.type is IssueType.BLOCKER)
+    follow_ups = [task for task in tasks if task.source is TaskSource.SITE_UPDATE]
+    assert len(follow_ups) == 1
+    assert follow_ups[0].assigned_to == "usr_electrician123"
+    assert follow_ups[0].source_refs == [
+        update.id,
+        blocker.id,
+        "tsk_electrical123",
+    ]
     assert len(requests) == 1
     assert requests[0].quantity == Decimal("30")
     assert requests[0].status is MaterialRequestStatus.AWAITING_APPROVAL
@@ -396,6 +408,7 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
     assert {activity.action for activity in activities} >= {
         "attachment.linked",
         "task.completed",
+        "task.follow_up_created",
         "issue.created",
         "material.quantity_updated",
         "material.requested",

@@ -24,8 +24,8 @@ from app.domain.authorization import (
     ensure_permission,
     ensure_project_scope,
 )
-from app.domain.enums import ActorType, TaskPriority, TaskSource, TaskStatus
-from app.domain.models import ActivityEvent, CanonicalId, Task
+from app.domain.enums import ActorType, IssueType, Severity, TaskPriority, TaskSource, TaskStatus
+from app.domain.models import ActivityEvent, CanonicalId, Issue, SiteUpdate, Task
 from app.domain.policies import InvalidTransitionError, ensure_task_transition
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.tasks import TaskRepository
@@ -71,6 +71,18 @@ class CreateTaskCommand(BaseModel):
         if self.planned_start and self.planned_end and self.planned_end < self.planned_start:
             raise ValueError("planned_end cannot be before planned_start")
         return self
+
+
+class CreateBlockerFollowUpCommand(BaseModel):
+    """Create one source-linked operational task for a persisted blocker."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    blocked_task_id: CanonicalId
+    source_issue_id: CanonicalId
+    source_site_update_id: CanonicalId
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class UpdateTaskCommand(BaseModel):
@@ -140,7 +152,6 @@ class TaskService:
     """Apply task updates with authorization, policy, idempotency, and audit."""
 
     def __init__(self, store: RepositoryStore) -> None:
-        self._tasks = TaskRepository(store)
         self._activities = ActivityService(store)
 
     def create_task(
@@ -191,6 +202,45 @@ class TaskService:
             duplicate=result.duplicate,
         )
 
+    def create_blocker_follow_up(
+        self,
+        access: ProjectAccessContext,
+        command: CreateBlockerFollowUpCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        self._authorize_follow_up(access, command, context)
+        task_id = _created_task_id(context)
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="task.follow_up_created",
+                entity_type="task",
+                entity_id=task_id,
+                summary="Created a blocker follow-up task.",
+                metadata={
+                    "blocked_task_id": command.blocked_task_id,
+                    "source_issue_id": command.source_issue_id,
+                    "source_site_update_id": command.source_site_update_id,
+                },
+            ),
+            lambda session: self._create_blocker_follow_up(
+                session,
+                access,
+                command,
+                task_id,
+            ),
+            replay=lambda session, activity: TaskRepository.for_session(session, access).require(
+                command.project_id, activity.entity_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("follow-up task replay did not resolve persisted state")
+        return TaskChange(
+            task=result.value,
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
+
     def update_task(
         self,
         access: ProjectAccessContext,
@@ -230,6 +280,57 @@ class TaskService:
                 {**command.model_dump(), "target_status": TaskStatus.COMPLETED}
             )
         return self.update_task(access, command, context)
+
+    @staticmethod
+    def _authorize_follow_up(
+        access: ProjectAccessContext,
+        command: CreateBlockerFollowUpCommand,
+        context: MutationContext,
+    ) -> None:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.OPERATE)
+        if context.actor_type is ActorType.USER and context.actor_id != access.actor.user_id:
+            raise PermissionError("mutation actor does not match the authorized user")
+
+    @staticmethod
+    def _create_blocker_follow_up(
+        session: RepositorySession,
+        access: ProjectAccessContext,
+        command: CreateBlockerFollowUpCommand,
+        task_id: str,
+    ) -> Task:
+        tasks = TaskRepository.for_session(session, access)
+        blocked_task = tasks.require(command.project_id, command.blocked_task_id)
+        issue = session.repository(Issue).require(command.project_id, command.source_issue_id)
+        site_update = session.repository(SiteUpdate).require(
+            command.project_id, command.source_site_update_id
+        )
+        if issue.type is not IssueType.BLOCKER:
+            raise TaskStateError("follow-up source issue must be a blocker")
+        if blocked_task.id not in issue.task_ids:
+            raise TaskStateError("follow-up blocker does not reference the source task")
+        if site_update.id not in issue.evidence_refs:
+            raise TaskStateError("follow-up blocker does not reference the source site update")
+        if blocked_task.status is not TaskStatus.BLOCKED:
+            raise TaskStateError("follow-up source task must be blocked")
+        return tasks.create(
+            Task(
+                id=task_id,
+                project_id=command.project_id,
+                title=f"Follow up: {blocked_task.title}",
+                description=issue.description,
+                status=TaskStatus.PLANNED,
+                priority=_follow_up_priority(issue.severity),
+                assigned_to=blocked_task.assigned_to,
+                planned_start=command.occurred_at,
+                planned_end=command.occurred_at,
+                source_refs=[site_update.id, issue.id, blocked_task.id],
+                source=TaskSource.SITE_UPDATE,
+                created_at=command.occurred_at,
+                updated_at=command.occurred_at,
+            )
+        )
 
     @staticmethod
     def _authorize(
@@ -363,7 +464,14 @@ def _created_task_id(context: MutationContext) -> str:
     return f"tsk_{sha256(raw.encode('utf-8')).hexdigest()[:32]}"
 
 
+def _follow_up_priority(severity: Severity) -> TaskPriority:
+    if severity is Severity.INFO:
+        return TaskPriority.LOW
+    return TaskPriority(severity.value)
+
+
 __all__ = [
+    "CreateBlockerFollowUpCommand",
     "CreateTaskCommand",
     "TaskApprovalRequiredError",
     "TaskBlockedCompletionError",

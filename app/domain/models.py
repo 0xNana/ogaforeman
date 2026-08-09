@@ -126,6 +126,7 @@ class Task(DomainModel):
     actual_start: AwareDatetime | None = None
     actual_completion: AwareDatetime | None = None
     dependency_ids: list[CanonicalId] = Field(default_factory=list)
+    source_refs: list[CanonicalId] = Field(default_factory=list, max_length=10)
     completion_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     source: TaskSource = TaskSource.MANUAL
     version: int = Field(default=0, ge=0)
@@ -152,6 +153,9 @@ class Task(DomainModel):
 
         if self.id in self.dependency_ids:
             raise ValueError("a task cannot depend on itself")
+
+        if len(self.source_refs) != len(set(self.source_refs)):
+            raise ValueError("source_refs cannot contain duplicates")
 
         if len(self.dependency_ids) != len(set(self.dependency_ids)):
             raise ValueError("dependency_ids cannot contain duplicate task IDs")

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from app.domain.activity import MutationContext
 from app.domain.authorization import ProjectAccessContext
-from app.services.tasks import TaskChange, TaskService, UpdateTaskCommand
+from app.services.tasks import (
+    CreateBlockerFollowUpCommand,
+    TaskChange,
+    TaskService,
+    UpdateTaskCommand,
+)
 
 
 class TaskTools:
@@ -20,6 +25,13 @@ class TaskTools:
         context: MutationContext,
     ) -> TaskChange:
         return self._service.update_task(self._access, command, context)
+
+    def create_blocker_follow_up(
+        self,
+        command: CreateBlockerFollowUpCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        return self._service.create_blocker_follow_up(self._access, command, context)
 
     def complete_task(
         self,

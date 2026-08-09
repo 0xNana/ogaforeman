@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.domain.enums import MaterialRequestStatus, TaskStatus
+from app.domain.enums import MaterialRequestStatus, TaskSource, TaskStatus
 from app.domain.models import (
     ActivityEvent,
     Approval,
@@ -86,6 +86,7 @@ def task_projection(task: Task, timezone: ZoneInfo) -> dict[str, object]:
     else:
         due_label = "Not scheduled"
     note = task.description or f"{_display_decimal(task.completion_percent)}% complete."
+    is_follow_up = task.source is TaskSource.SITE_UPDATE and bool(task.source_refs)
     return {
         "id": task.id,
         "title": task.title,
@@ -94,6 +95,9 @@ def task_projection(task: Task, timezone: ZoneInfo) -> dict[str, object]:
         "dueLabel": due_label,
         "blocking": None,
         "note": note,
+        "needsAttention": is_follow_up
+        and task.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED},
+        "sourceRefs": list(task.source_refs),
     }
 
 

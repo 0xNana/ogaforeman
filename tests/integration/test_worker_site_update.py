@@ -161,6 +161,7 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
             project_id=PROJECT_ID,
             title="Electrical rough-in",
             status=TaskStatus.IN_PROGRESS,
+            assigned_to="usr_electrician123",
         ),
         Task(
             id="tsk_ceiling123",
@@ -216,6 +217,12 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
         settings=Settings(_env_file=None),
         site_interpreter=interpreter,
     )
+    replay = await process_event_async(
+        _event(text=blocker_text).model_dump_json().encode(),
+        store=store,
+        settings=Settings(_env_file=None),
+        site_interpreter=interpreter,
+    )
 
     tasks = {task.id: task for task in store.repository(Task).list(PROJECT_ID)}
     issues = store.repository(Issue).list(PROJECT_ID)
@@ -223,7 +230,11 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
     run = store.repository(AgentRun).require(PROJECT_ID, run_id_for_event(EVENT_ID))
     blocker = next(issue for issue in issues if issue.type is IssueType.BLOCKER)
     schedule_risk = next(issue for issue in issues if issue.type is IssueType.DELAY_RISK)
+    follow_ups = [task for task in tasks.values() if task.source is TaskSource.SITE_UPDATE]
+    activities = store.repository(ActivityEvent).list(PROJECT_ID)
 
+    assert replay.status == "duplicate"
+    assert interpreter.calls == [blocker_text]
     assert tasks["tsk_electrical123"].status is TaskStatus.BLOCKED
     assert tasks["tsk_ceiling123"].status is TaskStatus.PLANNED
     assert tasks["tsk_plastering123"].status is TaskStatus.PLANNED
@@ -235,6 +246,32 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
     assert "First-floor plastering" in schedule_risk.description
     assert "Landscaping" not in schedule_risk.description
     assert "Completed inspection" not in schedule_risk.description
+    assert len(follow_ups) == 1
+    follow_up = follow_ups[0]
+    assert follow_up.title == "Follow up: Electrical rough-in"
+    assert follow_up.assigned_to == "usr_electrician123"
+    assert follow_up.status is TaskStatus.PLANNED
+    assert follow_up.source_refs == [UPDATE_ID, blocker.id, "tsk_electrical123"]
+    assert follow_up.planned_start == NOW
+    assert follow_up.planned_end == NOW
+    follow_up_activity = next(
+        activity for activity in activities if activity.action == "task.follow_up_created"
+    )
+    assert follow_up_activity.entity_id == follow_up.id
+    assert follow_up_activity.source_event_id == EVENT_ID
+    assert follow_up_activity.agent_run_id == run.id
+    assert {
+        key: follow_up_activity.metadata[key]
+        for key in (
+            "blocked_task_id",
+            "source_issue_id",
+            "source_site_update_id",
+        )
+    } == {
+        "blocked_task_id": "tsk_electrical123",
+        "source_issue_id": blocker.id,
+        "source_site_update_id": UPDATE_ID,
+    }
     assert [fact.metadata["issue_id"] for fact in report.active_blockers] == [
         blocker.id,
         schedule_risk.id,

@@ -39,6 +39,7 @@ from app.services.material_requests import MaterialRequestService, MaterialShort
 from app.services.reports import ReportService
 from app.services.schedule_impact import calculate_impact
 from app.tools.materials import MaterialQuantityCommand, MaterialTools
+from app.services.tasks import CreateBlockerFollowUpCommand
 from app.tools.tasks import TaskTools, UpdateTaskCommand
 
 if TYPE_CHECKING:
@@ -252,6 +253,31 @@ class SiteUpdateService:
                         ),
                     )
                     tasks_updated += int(not task_change.duplicate)
+
+                follow_up_change = self._task_tools.create_blocker_follow_up(
+                    CreateBlockerFollowUpCommand(
+                        project_id=access.project_id,
+                        blocked_task_id=blocked_task.id,
+                        source_issue_id=issue.id,
+                        source_site_update_id=site_update.id,
+                        occurred_at=site_update.submitted_at,
+                    ),
+                    _mutation_context(
+                        access,
+                        site_update,
+                        causal_event_id,
+                        run_id,
+                        f"task:blocker-follow-up:{index}:{blocked_task.id}",
+                    ),
+                )
+                pending_actions.append(
+                    f"Follow-up task created for {blocked_task.title}"
+                    + (
+                        f" and assigned to {follow_up_change.task.assigned_to}."
+                        if follow_up_change.task.assigned_to
+                        else "; assignment is still needed."
+                    )
+                )
 
                 impacted_ids = sorted(
                     calculate_impact(project_context.active_tasks, task_ids) - set(task_ids)

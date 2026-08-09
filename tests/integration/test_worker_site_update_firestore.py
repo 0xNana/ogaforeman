@@ -28,6 +28,7 @@ from app.domain.enums import (
     MemberRole,
     ProcessingStatus,
     Severity,
+    TaskSource,
     TaskStatus,
 )
 from app.domain.events import EventType, ProjectEvent
@@ -248,6 +249,11 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
     restarted = FirestoreRepositoryStore(create_firestore_client(settings))
     task = restarted.repository(Task).require(DEMO_PROJECT_ID, "tsk_blockwork")
     electrical = restarted.repository(Task).require(DEMO_PROJECT_ID, "tsk_electrical")
+    follow_ups = [
+        persisted_task
+        for persisted_task in restarted.repository(Task).list(DEMO_PROJECT_ID)
+        if persisted_task.source is TaskSource.SITE_UPDATE
+    ]
     material = restarted.repository(Material).require(DEMO_PROJECT_ID, "mat_cement")
     update = restarted.repository(SiteUpdate).require(DEMO_PROJECT_ID, accepted["site_update_id"])
     run = restarted.repository(AgentRun).require(DEMO_PROJECT_ID, accepted["agent_run_id"])
@@ -266,6 +272,9 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
     assert interpreter.image_calls[0][0].data == PHOTO_BYTES
     assert task.status is TaskStatus.COMPLETED
     assert electrical.status is TaskStatus.BLOCKED
+    blocker = next(issue for issue in issues if issue.type is IssueType.BLOCKER)
+    assert len(follow_ups) == 1
+    assert follow_ups[0].source_refs == [update.id, blocker.id, electrical.id]
     assert material.available_quantity == Decimal("10")
     assert update.processing_status is ProcessingStatus.WAITING_FOR_APPROVAL
     assert update.transcript == TRANSCRIPT
@@ -303,6 +312,7 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
         "attachment.linked",
         "site_update.transcribed",
         "task.completed",
+        "task.follow_up_created",
         "issue.created",
         "material.quantity_updated",
         "material.requested",
@@ -353,6 +363,7 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
         requests[0].id,
     )
     final_approval = final_store.repository(Approval).require(DEMO_PROJECT_ID, approval.id)
+    final_follow_up = final_store.repository(Task).require(DEMO_PROJECT_ID, follow_ups[0].id)
     final_activities = final_store.repository(ActivityEvent).list(DEMO_PROJECT_ID)
     restarted_storage = GoogleCloudStorageAdapter(
         bucket_name,
@@ -365,6 +376,7 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
     assert final_run.status is AgentRunStatus.COMPLETED
     assert final_request.status is MaterialRequestStatus.SUBMITTED
     assert final_approval.status is ApprovalStatus.APPROVED
+    assert final_follow_up == follow_ups[0]
     assert (
         restarted_storage.read_bytes(
             object_path=photo.object_path,

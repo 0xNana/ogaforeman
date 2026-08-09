@@ -18,6 +18,7 @@ from app.domain.enums import (
     MemberRole,
     ProjectStatus,
     ReportStatus,
+    TaskSource,
     TaskStatus,
 )
 from app.domain.models import (
@@ -243,6 +244,22 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
             updated_at=NOW,
         )
     )
+    store.repository(Task).create(
+        Task(
+            id="tsk_followup123",
+            project_id=PROJECT_ID,
+            title="Follow up: Electrical rough-in",
+            description="The assigned subcontractor was absent today.",
+            status=TaskStatus.PLANNED,
+            assigned_to="usr_electrician123",
+            planned_start=NOW,
+            planned_end=NOW,
+            source=TaskSource.SITE_UPDATE,
+            source_refs=["sup_update123", "iss_blocker123", "tsk_electrical123"],
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
     store.repository(Material).create(
         Material(
             id="mat_cement123",
@@ -300,7 +317,16 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
         "dueLabel": "Completed 8 Aug",
         "blocking": None,
         "note": "100% complete.",
+        "needsAttention": False,
+        "sourceRefs": [],
     }
+    assert snapshot["tasks"][1]["title"] == "Follow up: Electrical rough-in"
+    assert snapshot["tasks"][1]["needsAttention"] is True
+    assert snapshot["tasks"][1]["sourceRefs"] == [
+        "sup_update123",
+        "iss_blocker123",
+        "tsk_electrical123",
+    ]
     assert snapshot["materials"][0]["status"] == "LOW"
     assert snapshot["materials"][0]["quantity"] == 10
     assert snapshot["approvals"][0]["version"] == 0
