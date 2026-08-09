@@ -426,7 +426,7 @@ class SiteUpdateService:
             f"{materials_updated} material update, and report {report.id}."
         )
         if schedule_risk_summaries:
-            summary = f"{summary} Schedule risk: {' '.join(schedule_risk_summaries)}"
+            summary = f"{summary} {_schedule_response_summary(schedule_risk_summaries)}"
         return SiteUpdateResult(
             site_update_id=site_update.id,
             report_id=report.id,
@@ -531,12 +531,23 @@ def _schedule_review_action(blocked_task: Task, impacted_tasks: Sequence[Task]) 
     return f"Review schedule impact on {titles} due to the {blocked_task.title} blocker."
 
 
-def _bounded_task_titles(tasks: Sequence[Task], *, limit: int = 20) -> str:
+def _bounded_task_titles(tasks: Sequence[Task], *, limit: int = 10) -> str:
     visible = [task.title for task in tasks[:limit]]
     remaining = len(tasks) - len(visible)
     if remaining:
         visible.append(f"{remaining} more dependent task{'s' if remaining != 1 else ''}")
     return ", ".join(visible)
+
+
+def _schedule_response_summary(risk_summaries: Sequence[str]) -> str:
+    additional_count = len(risk_summaries) - 1
+    additional = (
+        f" {additional_count} additional schedule risk"
+        f"{'s are' if additional_count != 1 else ' is'} in the daily report."
+        if additional_count
+        else ""
+    )
+    return f"Schedule risk: {risk_summaries[0]}{additional}"
 
 
 def _earliest_focus_date(
