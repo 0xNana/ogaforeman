@@ -59,7 +59,7 @@ export function WorkflowReceipt({
       {summary && <p className="workflow-receipt-response" aria-label="Oga response">{summary}</p>}
       {pendingActions.length > 0 && (
         <ul className="workflow-receipt-pending" aria-label="Oga pending actions">
-          {pendingActions.map((action) => <li key={action}>{action}</li>)}
+          {pendingActions.map((action, index) => <li key={`${index}:${action}`}>{action}</li>)}
         </ul>
       )}
 
