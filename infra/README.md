@@ -8,7 +8,8 @@ The choice and the authenticated Pub/Sub push boundary are recorded in
 
 - Firestore Native database and a daily 30-day backup schedule;
 - Firestore deletion protection plus checked-in deny-by-default rules and indexes;
-- private Cloud Storage bucket with uniform access, versioning, and 30-day soft delete;
+- private Cloud Storage bucket with uniform access, versioning, 30-day soft
+  delete, and exact-origin CORS for signed browser uploads;
 - Artifact Registry and Cloud Build image publication;
 - separate Cloud Run API and worker services with startup/liveness probes;
 - API, worker, and push-invoker service accounts with scoped IAM roles;
@@ -45,6 +46,7 @@ export GEMINI_MODEL_ID=your-approved-model
 export GEMINI_LOCATION=global
 export AUTH_ISSUER=https://securetoken.google.com/oga-staging
 export AUTH_AUDIENCE=oga-staging
+export CORS_ALLOWED_ORIGINS='["https://oga-staging.web.app","https://oga-staging.firebaseapp.com"]'
 ```
 
 `FIRESTORE_LOCATION` is mandatory because the database location cannot be

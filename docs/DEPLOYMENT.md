@@ -16,6 +16,10 @@ the Google Cloud project/region, Firestore database, Storage bucket, Pub/Sub
 resources, Gemini model/location, and authentication issuer/audience. Production
 rejects demo and fake-model modes.
 
+`CORS_ALLOWED_ORIGINS` must be a JSON list of exact HTTPS frontend origins. The
+deploy applies that same allowlist to the API and the private media bucket so
+signed browser `PUT` uploads work without allowing wildcard origins.
+
 Credentials belong in workload identity or Secret Manager. Never commit service
 account keys, bearer tokens, or Firebase admin credentials.
 
@@ -98,7 +102,8 @@ The script manages:
 
 - Firestore Native, deletion protection, deny-by-default client rules, indexes,
   and a daily 30-day backup schedule;
-- a private/versioned/soft-delete-protected Storage bucket;
+- a private/versioned/soft-delete-protected Storage bucket with exact-origin
+  CORS for signed browser uploads;
 - a protected recovery export bucket with Firestore service-agent access;
 - Artifact Registry and a locked container build;
 - separate `oga-api-*` and `oga-worker-*` Cloud Run services with explicit CPU,

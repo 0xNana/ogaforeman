@@ -76,7 +76,7 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend without backing services: 292 passed, 22 deselected
+- Backend without backing services: 299 passed, 22 deselected
 - Firestore/Storage backing-service gate: 22 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
@@ -102,6 +102,8 @@ configured model, or human release review. The canonical evidence checklist is
 - Production npm audit: zero vulnerabilities
 - Documentation links/tests: passed
 - Isolated clean-checkout command matrix: passed
+- Deployed browser CORS: both Firebase Hosting origins pass API and private
+  media-bucket preflight; an unconfigured origin receives no allow-origin header
 
 Firestore auth bootstrap now converges through atomic document creation rather
 than a contended read/write transaction. Its bounded create retry includes
@@ -109,6 +111,13 @@ Firestore's retryable `ABORTED` lock-timeout response, while `AlreadyExists`
 still converges on the canonical user. The 32-call concurrency race and complete
 backing-service suite pass. Frontend CI now installs Java 21 before Playwright
 starts the Firestore emulator, matching the backend durability job.
+
+The deployed API already allowed both Firebase Hosting origins. The direct media
+bucket had no CORS policy, which blocked signed browser uploads before object
+authorization could be evaluated. The bucket now uses the same two exact HTTPS
+origins, allows the signed `PUT` contract headers, and denies an unconfigured
+origin. `infra/deploy.sh` regenerates this policy from `CORS_ALLOWED_ORIGINS` on
+every deployment.
 
 The Playwright stack is self-contained and starts Firebase Auth emulator plus a
 local API. Deployed Firebase sign-up and API bootstrap are now confirmed. The
