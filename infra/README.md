@@ -63,7 +63,7 @@ bash infra/smoke-container.sh oga-foreman:cloud-ready
 ```
 
 The smoke boots both the API and worker entrypoints from the same non-root image
-and requires each `/healthz` endpoint to respond successfully.
+and requires each `/health/live` endpoint to respond successfully.
 
 ## Review without changing cloud state
 

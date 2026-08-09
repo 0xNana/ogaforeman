@@ -10,8 +10,8 @@ signed URLs, and chain-of-thought are excluded.
 Endpoints:
 
 ```text
-GET /healthz   process liveness
-GET /readyz    configuration, Firestore, and Storage readiness
+GET /health/live   process liveness
+GET /health/ready  configuration, Firestore, and Storage readiness
 GET /metrics   bounded Prometheus-format local metrics
 ```
 

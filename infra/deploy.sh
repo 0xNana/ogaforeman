@@ -246,8 +246,8 @@ run gcloud run deploy "${WORKER_SERVICE}" \
   --cpu "${WORKER_CPU}" \
   --memory "${WORKER_MEMORY}" \
   --cpu-boost \
-  --startup-probe=initialDelaySeconds=0,timeoutSeconds=5,periodSeconds=5,failureThreshold=12,httpGet.port=8080,httpGet.path=/readyz \
-  --liveness-probe=initialDelaySeconds=30,timeoutSeconds=5,periodSeconds=30,failureThreshold=3,httpGet.port=8080,httpGet.path=/healthz \
+  --startup-probe=initialDelaySeconds=0,timeoutSeconds=5,periodSeconds=5,failureThreshold=12,httpGet.port=8080,httpGet.path=/health/ready \
+  --liveness-probe=initialDelaySeconds=30,timeoutSeconds=5,periodSeconds=30,failureThreshold=3,httpGet.port=8080,httpGet.path=/health/live \
   --min 0 \
   --max 20 \
   --concurrency 20 \
@@ -328,8 +328,8 @@ run gcloud run deploy "${API_SERVICE}" \
   --cpu "${API_CPU}" \
   --memory "${API_MEMORY}" \
   --cpu-boost \
-  --startup-probe=initialDelaySeconds=0,timeoutSeconds=5,periodSeconds=5,failureThreshold=12,httpGet.port=8080,httpGet.path=/readyz \
-  --liveness-probe=initialDelaySeconds=30,timeoutSeconds=5,periodSeconds=30,failureThreshold=3,httpGet.port=8080,httpGet.path=/healthz \
+  --startup-probe=initialDelaySeconds=0,timeoutSeconds=5,periodSeconds=5,failureThreshold=12,httpGet.port=8080,httpGet.path=/health/ready \
+  --liveness-probe=initialDelaySeconds=30,timeoutSeconds=5,periodSeconds=30,failureThreshold=3,httpGet.port=8080,httpGet.path=/health/live \
   --min 0 \
   --max 20 \
   --concurrency 40 \

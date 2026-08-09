@@ -17,7 +17,7 @@ wait_for_health() {
   local port="$2"
   local attempt
   for attempt in $(seq 1 30); do
-    if curl --fail --silent "http://127.0.0.1:${port}/healthz" >/dev/null; then
+    if curl --fail --silent "http://127.0.0.1:${port}/health/live" >/dev/null; then
       return 0
     fi
     if [[ "$(docker inspect --format '{{.State.Running}}' "${container}" 2>/dev/null || true)" != "true" ]]; then

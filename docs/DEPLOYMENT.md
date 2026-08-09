@@ -19,8 +19,8 @@ rejects demo and fake-model modes.
 Credentials belong in workload identity or Secret Manager. Never commit service
 account keys, bearer tokens, or Firebase admin credentials.
 
-The backend container runs as a non-root user. Cloud Run uses `/readyz` for its
-startup probe and `/healthz` for liveness; startup therefore verifies deployed
+The backend container runs as a non-root user. Cloud Run uses `/health/ready` for its
+startup probe and `/health/live` for liveness; startup therefore verifies deployed
 configuration and required Firestore/Storage access before the revision receives
 traffic.
 

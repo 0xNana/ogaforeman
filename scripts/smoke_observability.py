@@ -70,8 +70,8 @@ def run_smoke(
     checks: list[SmokeCheck] = []
     try:
         for name, path, expected in (
-            ("liveness", "/healthz", {200}),
-            ("readiness", "/readyz", {200, 503}),
+            ("liveness", "/health/live", {200}),
+            ("readiness", "/health/ready", {200, 503}),
             ("metrics", "/metrics", {200}),
         ):
             try:

@@ -109,8 +109,12 @@ def test_runtime_container_drops_root_and_has_reusable_smoke_check() -> None:
     smoke = (ROOT / "infra" / "smoke-container.sh").read_text(encoding="utf-8")
 
     assert "USER oga" in dockerfile
-    assert "/healthz" in smoke
+    assert "/health/live" in smoke
     assert "app.worker_http:app" in smoke
+
+    deploy = (ROOT / "infra" / "deploy.sh").read_text(encoding="utf-8")
+    assert deploy.count("httpGet.path=/health/live") == 2
+    assert deploy.count("httpGet.path=/health/ready") == 2
 
 
 def test_cloud_build_upload_contains_only_container_sources() -> None:

@@ -64,12 +64,12 @@ def create_health_router(
     metric_store = metric_registry or metrics
     router = APIRouter(tags=["health"])
 
-    @router.get("/healthz", include_in_schema=True)
-    async def healthz() -> dict[str, object]:
+    @router.get("/health/live", include_in_schema=True)
+    async def health_live() -> dict[str, object]:
         return health_registry.liveness()
 
-    @router.get("/readyz", include_in_schema=True)
-    async def readyz() -> Response:
+    @router.get("/health/ready", include_in_schema=True)
+    async def health_ready() -> Response:
         payload, code = health_registry.readiness()
         return JSONResponse(status_code=code, content=payload)
 

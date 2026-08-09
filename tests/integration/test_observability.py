@@ -34,7 +34,7 @@ async def test_request_logs_and_response_share_request_and_correlation_ids() -> 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
-            "/healthz",
+            "/health/live",
             headers={"X-Request-ID": "req_health123", "X-Correlation-ID": "cor_health123"},
         )
 

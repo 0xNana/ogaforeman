@@ -368,7 +368,7 @@ def create_app() -> FastAPI:
         )
         return Response(status_code=204)
 
-    @app.get("/healthz")
+    @app.get("/health/live")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 

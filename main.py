@@ -58,8 +58,8 @@ async def service_root() -> dict[str, str]:
     return {
         "service": "Oga Foreman API",
         "status": "ok",
-        "health": "/healthz",
-        "readiness": "/readyz",
+        "health": "/health/live",
+        "readiness": "/health/ready",
     }
 
 

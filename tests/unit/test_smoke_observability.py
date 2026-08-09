@@ -9,8 +9,8 @@ from scripts.smoke_observability import run_smoke
 class StubTransport(httpx.BaseTransport):
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         payloads = {
-            "/healthz": (200, '{"status":"ok"}'),
-            "/readyz": (200, '{"status":"ready"}'),
+            "/health/live": (200, '{"status":"ok"}'),
+            "/health/ready": (200, '{"status":"ready"}'),
             "/metrics": (200, "oga_test_counter 1\n"),
         }
         status_code, body = payloads[request.url.path]
