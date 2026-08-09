@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.api.dependencies import configured_project_access
 from app.domain.authorization import ProjectPermission
-from app.domain.enums import AgentRunStatus
+from app.domain.enums import AgentRunStatus, WorkflowName
 from app.domain.models import AgentRun
 
 
@@ -18,8 +18,16 @@ class AgentRunResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
+    run_id: str
+    project_id: str
+    trigger_event_id: str
+    workflow: WorkflowName
     status: AgentRunStatus
     step: str | None
+    attempt: int
+    trace_id: str
+    started_at: datetime
+    updated_at: datetime
     result_summary: str | None
     pending_actions: list[str]
     error_code: str | None
@@ -40,8 +48,16 @@ def get_agent_run(
     )
     return AgentRunResponse(
         id=run.id,
+        run_id=run.id,
+        project_id=run.project_id,
+        trigger_event_id=run.trigger_event_id,
+        workflow=run.workflow,
         status=run.status,
         step=run.step,
+        attempt=run.attempt,
+        trace_id=run.trace_id,
+        started_at=run.started_at,
+        updated_at=run.updated_at,
         result_summary=run.result_summary,
         pending_actions=run.pending_actions,
         error_code=run.error_code,

@@ -119,8 +119,16 @@ export type SiteUpdateResult = {
 
 export type AgentRunState = {
   id: string;
+  run_id: string;
+  project_id: string;
+  trigger_event_id: string;
+  workflow: 'daily_site_update' | 'material_shortage' | 'blocker_delay' | 'daily_brief';
   status: 'queued' | 'running' | 'waiting_for_approval' | 'waiting_for_clarification' | 'completed' | 'failed' | 'dead_lettered';
   step: string | null;
+  attempt: number;
+  trace_id: string;
+  started_at: string;
+  updated_at: string;
   result_summary: string | null;
   pending_actions: string[];
   error_code: string | null;

@@ -310,6 +310,18 @@ def test_issue_resolution_timestamp_matches_terminal_status() -> None:
 
 
 def test_agent_run_and_processed_event_enforce_terminal_metadata() -> None:
+    legacy_run = AgentRun.model_validate(
+        {
+            "id": "run_legacy001",
+            "project_id": "prj_ridge",
+            "trigger_event_id": "evt_legacy001",
+            "workflow": WorkflowName.DAILY_SITE_UPDATE,
+            "trace_id": "trace-legacy-1",
+            "started_at": NOW,
+        }
+    )
+    assert legacy_run.updated_at == legacy_run.started_at
+
     with pytest.raises(ValidationError, match="completed_at"):
         AgentRun(
             id="run_update001",

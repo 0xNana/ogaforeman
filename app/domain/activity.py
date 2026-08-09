@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import UTC, datetime
+from enum import StrEnum
 from hashlib import sha256
 from typing import Any, Self
 
@@ -17,6 +18,29 @@ from pydantic import AwareDatetime, ConfigDict, Field, model_validator
 
 from .enums import ActorType
 from .models import CanonicalId, DomainModel, IdempotencyKey
+
+
+class WorkflowActivityAction(StrEnum):
+    """Stable public vocabulary for the observable workflow timeline."""
+
+    SITE_UPDATE_RECEIVED = "site_update.received"
+    SITE_UPDATE_MEDIA_PROCESSED = "site_update.media_processed"
+    SITE_UPDATE_INTERPRETED = "site_update.interpreted"
+    PROJECT_CONTEXT_RETRIEVED = "project.context_retrieved"
+    TASK_COMPLETED = "task.completed"
+    BLOCKER_DETECTED = "blocker.detected"
+    SCHEDULE_RISK_DETECTED = "schedule.risk_detected"
+    MATERIAL_QUANTITY_UPDATED = "material.quantity_updated"
+    MATERIAL_RISK_DETECTED = "material.risk_detected"
+    MATERIAL_REQUESTED = "material.requested"
+    APPROVAL_REQUESTED = "approval.requested"
+    WORKFLOW_PAUSED = "workflow.paused"
+    APPROVAL_APPROVED = "approval.approved"
+    APPROVAL_REJECTED = "approval.rejected"
+    WORKFLOW_RESUMED = "workflow.resumed"
+    EXTERNAL_ACTION_EXECUTED = "external_action.executed"
+    REPORT_UPDATED = "report.updated"
+    WORKFLOW_COMPLETED = "workflow.completed"
 
 
 class MutationContextRequiredError(ValueError):
@@ -174,6 +198,7 @@ __all__ = [
     "MutationContextRequiredError",
     "ToolContext",
     "UnsafeActivityDataError",
+    "WorkflowActivityAction",
     "activity_id",
     "mutation_fingerprint",
 ]

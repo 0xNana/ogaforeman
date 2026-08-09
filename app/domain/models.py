@@ -391,6 +391,7 @@ class AgentRun(DomainModel):
     attempt: int = Field(default=1, ge=1)
     step: str | None = Field(default=None, max_length=300)
     started_at: AwareDatetime = Field(default_factory=utc_now)
+    updated_at: AwareDatetime = Field(default_factory=utc_now)
     completed_at: AwareDatetime | None = None
     trace_id: str = Field(min_length=1, max_length=256)
     result_summary: str | None = Field(default=None, max_length=5_000)
@@ -398,6 +399,15 @@ class AgentRun(DomainModel):
     error_code: str | None = Field(default=None, max_length=128)
     error_summary: str | None = Field(default=None, max_length=5_000)
     version: int = Field(default=0, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def backfill_legacy_updated_at(cls, value: Any) -> Any:
+        if isinstance(value, dict) and "updated_at" not in value and "started_at" in value:
+            migrated = dict(value)
+            migrated["updated_at"] = value.get("completed_at") or value["started_at"]
+            return migrated
+        return value
 
     @model_validator(mode="after")
     def validate_terminal_state(self) -> Self:
@@ -412,6 +422,8 @@ class AgentRun(DomainModel):
             raise ValueError("completed_at is only valid for a terminal agent run")
         if self.completed_at is not None and self.completed_at < self.started_at:
             raise ValueError("completed_at cannot be before started_at")
+        if self.updated_at < self.started_at:
+            raise ValueError("updated_at cannot be before started_at")
 
         if self.status in {AgentRunStatus.FAILED, AgentRunStatus.DEAD_LETTERED} and not (
             self.error_code and self.error_summary

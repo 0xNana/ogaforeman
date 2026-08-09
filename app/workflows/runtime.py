@@ -29,6 +29,7 @@ class RuntimeManager:
         """Start or resume an agent run."""
 
         def _start(session: RepositorySession) -> AgentRun:
+            now = datetime.now(UTC)
             run_repo = AgentRunRepository.for_session(session)
             run = run_repo.get(project_id, run_id)
             if run is None:
@@ -40,7 +41,8 @@ class RuntimeManager:
                         workflow=workflow,
                         trace_id=trace_id,
                         status=AgentRunStatus.RUNNING,
-                        started_at=datetime.now(UTC),
+                        started_at=now,
+                        updated_at=now,
                     )
                 )
             elif run.status in {
@@ -48,7 +50,7 @@ class RuntimeManager:
                 AgentRunStatus.WAITING_FOR_APPROVAL,
                 AgentRunStatus.WAITING_FOR_CLARIFICATION,
             }:
-                run = run.model_copy(update={"status": AgentRunStatus.RUNNING})
+                run = run.model_copy(update={"status": AgentRunStatus.RUNNING, "updated_at": now})
                 run = run_repo.save(run, expected_version=run.version)
             elif run.status is AgentRunStatus.FAILED:
                 run = run.model_copy(
@@ -58,6 +60,7 @@ class RuntimeManager:
                         "completed_at": None,
                         "error_code": None,
                         "error_summary": None,
+                        "updated_at": now,
                     }
                 )
                 run = run_repo.save(run, expected_version=run.version)
@@ -79,7 +82,7 @@ class RuntimeManager:
             run = run_repo.require(project_id, run_id)
             if run.status != AgentRunStatus.RUNNING:
                 raise RuntimeError(f"Cannot checkpoint run {run_id} in status {run.status}")
-            run = run.model_copy(update={"step": step})
+            run = run.model_copy(update={"step": step, "updated_at": datetime.now(UTC)})
             return run_repo.save(run, expected_version=run.version)
 
         return self._runs.run_transaction(_checkpoint)
@@ -91,7 +94,11 @@ class RuntimeManager:
             run_repo = AgentRunRepository.for_session(session)
             run = run_repo.require(project_id, run_id)
             run = run.model_copy(
-                update={"status": AgentRunStatus.WAITING_FOR_APPROVAL, "step": step}
+                update={
+                    "status": AgentRunStatus.WAITING_FOR_APPROVAL,
+                    "step": step,
+                    "updated_at": datetime.now(UTC),
+                }
             )
             return run_repo.save(run, expected_version=run.version)
 
@@ -104,7 +111,11 @@ class RuntimeManager:
             run_repo = AgentRunRepository.for_session(session)
             run = run_repo.require(project_id, run_id)
             run = run.model_copy(
-                update={"status": AgentRunStatus.WAITING_FOR_CLARIFICATION, "step": step}
+                update={
+                    "status": AgentRunStatus.WAITING_FOR_CLARIFICATION,
+                    "step": step,
+                    "updated_at": datetime.now(UTC),
+                }
             )
             return run_repo.save(run, expected_version=run.version)
 
@@ -118,8 +129,13 @@ class RuntimeManager:
             run = run_repo.require(project_id, run_id)
             if run.status is AgentRunStatus.COMPLETED:
                 return run
+            completed_at = datetime.now(UTC)
             run = run.model_copy(
-                update={"status": AgentRunStatus.COMPLETED, "completed_at": datetime.now(UTC)}
+                update={
+                    "status": AgentRunStatus.COMPLETED,
+                    "completed_at": completed_at,
+                    "updated_at": completed_at,
+                }
             )
             return run_repo.save(run, expected_version=run.version)
 
@@ -135,12 +151,14 @@ class RuntimeManager:
             run = run_repo.require(project_id, run_id)
             if run.status is AgentRunStatus.COMPLETED:
                 return run
+            completed_at = datetime.now(UTC)
             run = run.model_copy(
                 update={
                     "status": AgentRunStatus.FAILED,
                     "error_code": error_code,
                     "error_summary": error_summary,
-                    "completed_at": datetime.now(UTC),
+                    "completed_at": completed_at,
+                    "updated_at": completed_at,
                 }
             )
             return run_repo.save(run, expected_version=run.version)
