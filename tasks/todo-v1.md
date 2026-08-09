@@ -46,6 +46,10 @@ real cloud environment, live model credential/billing, or human release gate.
   `backing_services` test with no skips. The canonical multimodal test reconstructs
   Firestore and Cloud Storage clients around the approval pause, proves all workflow
   records plus original media bytes survive, and resumes the same run exactly once.
+- [x] P0.4 Actionable blocker facts now block the resolved project task and traverse
+  the persisted dependency graph to create a separate downstream delay-risk issue.
+  The source task and supported dependents appear in the daily report and in a
+  restart-safe `AgentRun` response; unrelated tasks are excluded without phrase rules.
 
 ## Contracts and foundation
 
@@ -190,7 +194,7 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend without backing services: 281 passed, 20 explicitly deselected.
+- [x] Backend without backing services: 282 passed, 20 explicitly deselected.
 - [x] Durable backing services: 20 passed against Firestore and Storage emulators,
   with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
@@ -218,6 +222,10 @@ Vertical slice gate:
 - [x] P0.3 restart proof: site update, attachments and original bytes, transcript,
   tasks, issues, materials, approval, waiting/completed agent run, and activities
   survive fresh clients; post-restart approval continuation executes once.
+- [x] P0.4 blocker-impact proof: generic natural-language absence resolves to the
+  canonical blocked task, direct/transitive dependency risk excludes unrelated work,
+  three distinct full-scenario issues survive backing-service restart, and the mobile
+  receipt renders the persisted schedule summary and action.
 - [x] Frontend: normal `npm ci`, lint, typecheck, 10 unit tests, and build pass.
 - [x] Playwright: 17 passed, 13 intentional cross-device skips, including a real
   Firestore-backed approval/resume journey with no workflow request interception.

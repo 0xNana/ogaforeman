@@ -95,6 +95,33 @@ Status: complete locally on 2026-08-09. The standard suite passes 281 tests with
 20 backing-service cases deselected; the Firestore/Storage emulator gate executes
 all 20 separately with no skips.
 
+### P0.4: Natural-language blocker impact
+
+Acceptance: an actionable `IssueFact` classified as a blocker resolves only to an
+authorized project task, transitions that task to `blocked`, and routes its canonical
+ID through the dependency-impact service. A separate delay-risk issue references only
+the downstream task IDs present in the project graph. Both blocker and schedule risk
+project into the daily report, while the same concise risk summary and pending review
+action persist on the originating `AgentRun` and are returned by the run API. No
+construction phrase or task title controls dependency selection.
+
+Verify: a production-worker test interprets a generic absence statement, blocks
+electrical rough-in, traverses direct and transitive test dependencies, excludes an
+unrelated task, persists two audited issues and report facts, and exposes the dynamic
+task titles in the worker response. The canonical mixed API, Firestore/Storage restart,
+and mobile browser journeys use a seeded electrical-to-plastering dependency and prove
+the durable run response survives the approval pause.
+
+Dependencies: P0.1 through P0.3, A-02 through A-04, K-02, K-03, B-01, W-02, W-04.
+
+Files: `app/services/site_updates.py`, `app/domain/models.py`,
+`app/services/site_update_lifecycle.py`, `app/api/v1/agent_runs.py`,
+`scripts/seed_demo.py`, `scripts/run_e2e_api.py`, relevant integration/browser tests.
+
+Status: complete locally on 2026-08-09. All 20 backing-service cases pass with
+fresh Storage clients and the existing Firestore emulator; the six-case mobile intake
+journey passes with the dependency-derived risk visible in Oga's receipt.
+
 ## Dependency Graph
 
 ```text

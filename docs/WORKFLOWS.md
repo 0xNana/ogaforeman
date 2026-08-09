@@ -22,11 +22,11 @@ claim event
   -> SiteInterpreter structured facts
   -> validate and apply safety policy
   -> clarify if high-impact ambiguity exists
-  -> fan out: progress | blocker | materials
-  -> join results and evaluate dependencies
+  -> fan out: progress | blocker -> dependency impact | materials
+  -> join results and persist schedule risks
   -> apply typed safe mutations
   -> update source-linked daily report
-  -> activity + user response
+  -> activity + durable AgentRun user response
 ```
 
 Canonical acceptance input:

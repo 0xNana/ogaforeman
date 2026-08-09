@@ -102,6 +102,11 @@ GET /projects/{project_id}/activity
 GET /projects/{project_id}/agent-runs/{run_id}
 ```
 
+The agent-run response includes the durable workflow status/checkpoint plus
+`result_summary` and `pending_actions`. For site updates these are the concise,
+user-safe Oga response persisted on the exact run before it completes or pauses;
+clients do not reconstruct them from browser state.
+
 ### Site Update Intake
 
 ```text

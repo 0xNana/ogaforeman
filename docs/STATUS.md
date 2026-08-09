@@ -30,6 +30,12 @@ emulator environment into configuration tests. The multimodal restart case persi
 both attachment metadata and real media objects, reconstructs service clients before
 approval and continuation, and completes the original run exactly once.
 
+Natural-language blocker facts now enter that same durable path. After entity
+resolution, Oga blocks the matched task, traverses actual task `dependency_ids`,
+creates a distinct downstream delay-risk issue, and projects both facts into the
+daily report. The concise impact and pending schedule review persist on the same
+`AgentRun`, are returned by the run API, and appear in the site-update receipt.
+
 This is still a **release candidate under construction**, not a deployable
 public beta. Every coordinator event route now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
@@ -43,7 +49,7 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend without backing services: 281 passed, 20 deselected
+- Backend without backing services: 282 passed, 20 deselected
 - Firestore/Storage backing-service gate: 20 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
@@ -56,6 +62,8 @@ configured model, or human release review. The canonical evidence checklist is
 - Capacity baseline: 5/5 scenarios passed
 - Dry demo rehearsal: 3/3 runs passed
 - P0.2 Firestore-backed worker/attachment proof: 2 focused tests passed
+- P0.4 production-worker blocker/dependency proof: passed, including direct,
+  transitive, and unrelated task assertions
 - Frontend install, checks, and build: passed with 10 unit tests
 - Playwright desktop/mobile: 17 passed, 13 intentional device skips
 - Production npm audit: zero vulnerabilities
@@ -111,6 +119,14 @@ Firestore client processes the continuation and a third verifies the same run is
 complete, the supplier action occurred once, and both original media objects remain
 checksum-valid. CI uses the checked-in Firebase CLI and Java 21 to start both
 emulators before running the marked gate.
+
+P0.4 connects `IssueFact(BLOCKER)` to the existing schedule-impact calculation.
+The blocker task is resolved from authorized project context and moved to `blocked`;
+only graph-supported downstream tasks receive a separate `DELAY_RISK` issue. The
+canonical seed now records plastering's electrical dependency, so the demo exposes
+electrical schedule impact and cement shortage as distinct causes. Issue creation,
+task state, report projection, and the run response are replay-safe and audited by
+the existing typed mutation/lifecycle services.
 
 ## Confirmed implementation
 

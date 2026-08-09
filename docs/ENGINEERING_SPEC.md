@@ -183,6 +183,19 @@ Requirements:
 - The aggregate inline-media limit is configurable below Gemini's request cap;
   Storage reads enforce size and SHA-256 again at consumption time.
 
+### Blocker-Impact Contract
+
+- An actionable blocker fact may identify a task only through authorized project
+  context and deterministic entity resolution. The matched task is transitioned by
+  the typed task service; model output never supplies a database path or arbitrary ID.
+- The resolved task ID enters the canonical dependency-impact calculation. A separate
+  delay-risk issue contains only graph-supported downstream task IDs; task titles and
+  construction phrases do not decide impact.
+- Blocker and delay-risk issues project into the source-linked daily report. The
+  concise risk summary and pending review action are persisted on the originating
+  `AgentRun` before completion or approval/clarification pause and are exposed by the
+  authorized run API.
+
 ### Always Do
 
 - read `PRODUCT.md`, `SECURITY_SAFETY.md`, and the active task before coding;

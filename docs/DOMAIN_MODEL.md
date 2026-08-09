@@ -214,6 +214,8 @@ step: string
 started_at: datetime
 completed_at: datetime | null
 trace_id: string
+result_summary: string | null
+pending_actions: string[]
 error_code: string | null
 error_summary: string | null
 ```

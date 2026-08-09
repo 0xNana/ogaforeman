@@ -272,6 +272,11 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
     assert update.transcribed_attachment_ids == [audio.id]
     assert run.status is AgentRunStatus.WAITING_FOR_APPROVAL
     assert run.step == "approval_required"
+    assert run.result_summary is not None
+    assert "Electrical rough-in is blocked" in run.result_summary
+    assert any(
+        "schedule impact on First-floor plastering" in action for action in run.pending_actions
+    )
     assert attachment.site_update_id == update.id
     assert second_attachment.site_update_id == update.id
     assert {(issue.type, tuple(issue.task_ids)) for issue in issues} == {
