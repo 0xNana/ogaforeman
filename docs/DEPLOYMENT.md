@@ -83,17 +83,16 @@ The V1 choice is reviewed `gcloud` scripts; see
 Review the plan without cloud mutation:
 
 ```bash
-GOOGLE_CLOUD_PROJECT=oga-staging \
-GOOGLE_CLOUD_REGION=europe-west1 \
-FIRESTORE_LOCATION=your-approved-firestore-location \
-MEDIA_BUCKET=oga-staging-media \
-GEMINI_MODEL_ID=your-approved-model \
-GEMINI_LOCATION=global \
-AUTH_ISSUER=https://securetoken.google.com/oga-staging \
-AUTH_AUDIENCE=oga-staging \
 DEPLOY_DRY_RUN=true \
 ./infra/deploy.sh
 ```
+
+`infra/deploy.sh` reads deployment variables from the ignored root `.env` by
+default. Set `DEPLOY_ENV_FILE=/path/to/file` to use another dotenv file. Only
+the script's deployment allowlist is imported, dotenv contents are never
+executed as shell code, and already exported shell variables take precedence.
+Keep `ALLOW_DIRTY_DEPLOY` as an explicit shell-only override; the dotenv loader
+does not import it.
 
 The script manages:
 

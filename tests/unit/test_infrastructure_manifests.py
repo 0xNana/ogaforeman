@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
 
 import yaml
 
@@ -42,6 +44,66 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "--startup-probe" in source
     assert "--liveness-probe" in source
     assert "Refusing cloud deployment from a dirty worktree" in source
+    assert 'load_deploy_env "${DEPLOY_ENV_FILE}"' in source
+    assert "ALLOW_DIRTY_DEPLOY" not in source.split("DEPLOY_ENV_KEYS=", 1)[1].split("$'", 1)[0]
+
+
+def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) -> None:
+    marker = tmp_path / "must-not-exist"
+    env_file = tmp_path / "deploy.env"
+    env_file.write_text(
+        "\n".join(
+            (
+                "GOOGLE_CLOUD_PROJECT=dotenv-project",
+                "GOOGLE_CLOUD_REGION=dotenv-region",
+                "FIRESTORE_DATABASE='(default)'",
+                "FIRESTORE_LOCATION=europe-west1",
+                "MEDIA_BUCKET=dotenv-media",
+                "GEMINI_MODEL_ID=gemini-3.1-pro-preview",
+                "GEMINI_LOCATION=global",
+                "AUTH_ISSUER=https://securetoken.google.com/dotenv-project",
+                "AUTH_AUDIENCE=dotenv-project",
+                'SCHEDULE_CRON="15 6 * * *"',
+                f"PATH=$(touch {marker})",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    for key in (
+        "GOOGLE_CLOUD_PROJECT",
+        "FIRESTORE_DATABASE",
+        "FIRESTORE_LOCATION",
+        "MEDIA_BUCKET",
+        "GEMINI_MODEL_ID",
+        "GEMINI_LOCATION",
+        "AUTH_ISSUER",
+        "AUTH_AUDIENCE",
+    ):
+        environment.pop(key, None)
+    environment.update(
+        {
+            "DEPLOY_ENV_FILE": str(env_file),
+            "DEPLOY_DRY_RUN": "true",
+            "GOOGLE_CLOUD_REGION": "override-region",
+        }
+    )
+
+    completed = subprocess.run(
+        ["bash", "infra/deploy.sh"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "override-region-docker.pkg.dev/dotenv-project" in completed.stdout
+    assert "dotenv-region-docker.pkg.dev" not in completed.stdout
+    assert not marker.exists()
 
 
 def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes() -> None:

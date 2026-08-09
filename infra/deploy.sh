@@ -1,6 +1,62 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DEPLOY_ENV_FILE="${DEPLOY_ENV_FILE:-.env}"
+DEPLOY_ENV_KEYS='^(GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_REGION|FIRESTORE_DATABASE|FIRESTORE_LOCATION|MEDIA_BUCKET|GEMINI_MODEL_ID|GEMINI_LOCATION|AUTH_ISSUER|AUTH_AUDIENCE|DEPLOY_ENVIRONMENT|DEPLOY_DRY_RUN|FIREBASE_CLI_VERSION|API_SERVICE|WORKER_SERVICE|API_CPU|API_MEMORY|WORKER_CPU|WORKER_MEMORY|ARTIFACT_REPOSITORY|IMAGE_TAG|PUBSUB_SITE_EVENTS_TOPIC|PUBSUB_DEAD_LETTER_TOPIC|PUBSUB_WORKER_SUBSCRIPTION|DEAD_LETTER_SUBSCRIPTION|API_SERVICE_ACCOUNT|WORKER_SERVICE_ACCOUNT|PUSH_SERVICE_ACCOUNT|SCHEDULE_PROJECT_ID|SCHEDULE_TIMEZONE|SCHEDULE_CRON|SCHEDULE_JOB|BUILD_SERVICE_ACCOUNT_EMAIL)$'
+
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "${value}"
+}
+
+load_deploy_env() {
+  local env_file="$1"
+  local line line_number=0 key value first_character last_character
+
+  [[ -f "${env_file}" ]] || return 0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line_number=$((line_number + 1))
+    line="${line%$'\r'}"
+    line="$(trim_whitespace "${line}")"
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    if [[ "${line}" == export[[:space:]]* ]]; then
+      line="$(trim_whitespace "${line#export}")"
+    fi
+    if [[ "${line}" != *=* ]]; then
+      printf '%s:%s: expected KEY=VALUE\n' "${env_file}" "${line_number}" >&2
+      exit 2
+    fi
+
+    key="$(trim_whitespace "${line%%=*}")"
+    if [[ ! "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      printf '%s:%s: invalid environment variable name\n' "${env_file}" "${line_number}" >&2
+      exit 2
+    fi
+    [[ "${key}" =~ ${DEPLOY_ENV_KEYS} ]] || continue
+    [[ -v "${key}" ]] && continue
+
+    value="$(trim_whitespace "${line#*=}")"
+    if [[ -n "${value}" ]]; then
+      first_character="${value:0:1}"
+      last_character="${value: -1}"
+      if [[ "${first_character}" == "'" || "${first_character}" == '"' ]]; then
+        if [[ "${last_character}" != "${first_character}" ]]; then
+          printf '%s:%s: unterminated quoted value for %s\n' \
+            "${env_file}" "${line_number}" "${key}" >&2
+          exit 2
+        fi
+        value="${value:1:${#value}-2}"
+      fi
+    fi
+    printf -v "${key}" '%s' "${value}"
+    export "${key}"
+  done <"${env_file}"
+}
+
+load_deploy_env "${DEPLOY_ENV_FILE}"
+
 : "${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT}"
 : "${GOOGLE_CLOUD_REGION:?Set GOOGLE_CLOUD_REGION}"
 : "${FIRESTORE_DATABASE:=(default)}"
