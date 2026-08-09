@@ -28,7 +28,7 @@ def test_calculate_impact():
         source=TaskSource.MANUAL,
     )
 
-    impacted = calculate_impact([task1, task2, task3], ["task_001"])
+    impacted = calculate_impact(iter([task1, task2, task3]), ["task_001"])
     assert "task_001" in impacted
     assert "task_002" in impacted
     assert "task_003" in impacted

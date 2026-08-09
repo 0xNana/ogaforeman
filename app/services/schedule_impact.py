@@ -8,11 +8,12 @@ _TERMINAL_TASK_STATUSES = {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
 
 
 def calculate_impact(tasks: Iterable[Task], blocked_task_ids: list[str]) -> set[str]:
-    tasks_by_id = {task.id: task for task in tasks}
+    task_list = list(tasks)
+    tasks_by_id = {task.id: task for task in task_list}
 
     # build reverse dependency graph
     reverse_deps: dict[str, list[str]] = {task_id: [] for task_id in tasks_by_id}
-    for task in tasks:
+    for task in task_list:
         for dep_id in task.dependency_ids:
             if dep_id in reverse_deps:
                 reverse_deps[dep_id].append(task.id)
