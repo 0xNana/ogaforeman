@@ -53,15 +53,14 @@ def test_firestore_probe_reports_bounded_dependency_state() -> None:
 
 def test_storage_probe_checks_object_data_plane_without_leaking_details() -> None:
     assert storage_probe(FakeStorageClient(), "oga-media")() == (True, "reachable")
-    assert storage_probe(
-        FakeStorageClient(failure=NotFound("missing")), "oga-media"
-    )() == (
+    assert storage_probe(FakeStorageClient(failure=NotFound("missing")), "oga-media")() == (
         False,
         "bucket_not_found",
     )
-    assert storage_probe(
-        FakeStorageClient(failure=RuntimeError("secret")), "oga-media"
-    )() == (False, "RuntimeError")
+    assert storage_probe(FakeStorageClient(failure=RuntimeError("secret")), "oga-media")() == (
+        False,
+        "RuntimeError",
+    )
 
 
 def test_configuration_probe_reports_local_and_deployed_contracts() -> None:
