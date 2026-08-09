@@ -518,13 +518,6 @@ p { font-size: 1.05rem; }
 .process-state-row.current { color: var(--ink); font-weight: 700; }
 .process-state-row svg { color: var(--green); }
 .process-spinner { width: 17px; height: 17px; border: 2px solid var(--line-strong); border-top-color: var(--orange); border-radius: 50%; animation: spin 760ms linear infinite; }
-.oga-result { margin-top: 18px; padding: 18px; background: var(--green-soft); border-radius: 14px; }
-.oga-result-head { display: flex; align-items: center; gap: 11px; }
-.oga-result-head div { display: grid; gap: 2px; }
-.oga-result-head strong { font-size: 0.9rem; }
-.oga-result-head span { color: var(--green); font-size: 0.77rem; }
-.oga-result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
-.oga-result-grid span { display: flex; align-items: center; gap: 7px; color: var(--green); font-size: 0.76rem; font-weight: 700; }
 .workflow-receipt { margin-top: 18px; padding: 20px; background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 24%, transparent); border-radius: 14px; }
 .workflow-receipt.waiting { background: var(--amber-soft); border-color: color-mix(in srgb, var(--amber) 28%, transparent); }
 .workflow-receipt-heading { display: flex; align-items: flex-start; gap: 13px; }
@@ -700,7 +693,7 @@ p { font-size: 1.05rem; }
   .approval-resource-details { grid-template-columns: 1fr; }
   .site-recording-area { grid-template-columns: 58px minmax(0, 1fr); }
   .site-waveform { grid-column: 1 / -1; justify-content: center; }
-  .oga-result-grid, .loading-grid { grid-template-columns: 1fr; }
+  .loading-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

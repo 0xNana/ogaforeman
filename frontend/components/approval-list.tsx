@@ -20,7 +20,11 @@ export function ApprovalList({ approvals: initialApprovals, projectId, onRefresh
     try {
       const updated = await api.resolveApproval(projectId, approvalId, decision, approval.version);
       setResolvedApprovals((items) => ({ ...items, [approvalId]: updated }));
-      await onRefresh();
+      try {
+        await onRefresh();
+      } catch {
+        setError('The decision was saved, but the project view could not refresh. Refresh to see the latest state.');
+      }
     } catch (cause) {
       if (cause instanceof ApiRequestError && cause.code === 'CONFLICT_VERSION_MISMATCH') {
         setError('This approval changed after you opened it. Refresh before deciding.');

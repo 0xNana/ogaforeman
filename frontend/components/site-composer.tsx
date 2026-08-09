@@ -137,6 +137,7 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
   }
 
   const busy = state === 'uploading' || state === 'processing';
+  const terminal = state === 'success' || state === 'approval';
 
   return (
     <div className="site-composer-page">
@@ -157,7 +158,7 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
         {state === 'recorded' && <div className="recorded-actions"><span><FileAudio size={16} /> Voice note ready</span><button type="button" onClick={toggleRecording}><RotateCcw size={14} /> Record again</button></div>}
 
         <label className="sr-only" htmlFor="site-update-text">Type a site update</label>
-        <textarea id="site-update-text" className="composer-textarea" value={text} onChange={(event) => setText(event.target.value)} placeholder="First-floor blockwork is done. The electrician didn't show. We have about 10 bags of cement left..." disabled={busy || state === 'success'} />
+        <textarea id="site-update-text" className="composer-textarea" value={text} onChange={(event) => setText(event.target.value)} placeholder="First-floor blockwork is done. The electrician didn't show. We have about 10 bags of cement left..." disabled={busy || terminal} />
 
         <input ref={fileInput} className="attachment-input" type="file" id="site-attachment" accept="image/*,audio/*,.pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         {file && <div className="attachment-preview"><Paperclip size={15} /> {file.name}</div>}
@@ -168,8 +169,15 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
         {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} />}
         {(state === 'uploading' || state === 'processing') && <div className="process-state" role="status"><div className={`process-state-row${state === 'uploading' ? ' current' : ''}`}>{state === 'uploading' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Adding your site photos...</div><div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>{state === 'processing' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Checking the project...</div><div className="process-state-row"><CheckCircle2 size={17} /> Updating the site...</div></div>}
 
-        <div className={`composer-bottom${state === 'success' || state === 'approval' ? ' terminal' : ''}`}>
-          {state === 'success' || state === 'approval' ? <button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button> : <><label className="attachment-button" htmlFor="site-attachment"><ImageIcon size={16} /> {file ? 'Change attachment' : 'Add photos or file'}</label><button className="btn btn-accent" type="button" onClick={submit} disabled={busy}><Send size={16} /> {busy ? 'Oga is working...' : 'Send to Oga'}</button></>}
+        <div className={`composer-bottom${terminal ? ' terminal' : ''}`}>
+          {terminal ? (
+            <button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button>
+          ) : (
+            <>
+              <label className="attachment-button" htmlFor="site-attachment"><ImageIcon size={16} /> {file ? 'Change attachment' : 'Add photos or file'}</label>
+              <button className="btn btn-accent" type="button" onClick={submit} disabled={busy}><Send size={16} /> {busy ? 'Oga is working...' : 'Send to Oga'}</button>
+            </>
+          )}
         </div>
       </section>
     </div>
