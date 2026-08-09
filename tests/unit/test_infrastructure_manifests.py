@@ -104,3 +104,23 @@ def test_runtime_container_drops_root_and_has_reusable_smoke_check() -> None:
     assert "USER oga" in dockerfile
     assert "/healthz" in smoke
     assert "app.worker_http:app" in smoke
+
+
+def test_cloud_build_upload_contains_only_container_sources() -> None:
+    ignore = (ROOT / ".gcloudignore").read_text(encoding="utf-8").splitlines()
+
+    assert ignore[0] == "*"
+    assert {
+        "!Dockerfile",
+        "!.dockerignore",
+        "!pyproject.toml",
+        "!uv.lock",
+        "!README.md",
+        "!main.py",
+        "!app/",
+        "!app/**",
+        "!scripts/",
+        "!scripts/**",
+        "**/__pycache__/",
+        "**/*.py[cod]",
+    }.issubset(ignore)

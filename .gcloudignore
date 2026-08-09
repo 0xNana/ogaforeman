@@ -1,0 +1,13 @@
+*
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!uv.lock
+!README.md
+!main.py
+!app/
+!app/**
+!scripts/
+!scripts/**
+**/__pycache__/
+**/*.py[cod]
