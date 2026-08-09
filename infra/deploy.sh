@@ -66,6 +66,7 @@ load_deploy_env "${DEPLOY_ENV_FILE}"
 : "${GEMINI_LOCATION:?Set GEMINI_LOCATION}"
 : "${AUTH_ISSUER:?Set AUTH_ISSUER}"
 : "${AUTH_AUDIENCE:?Set AUTH_AUDIENCE}"
+export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_PROJECT}"
 
 DEPLOY_ENVIRONMENT="${DEPLOY_ENVIRONMENT:-staging}"
 DEPLOY_DRY_RUN="${DEPLOY_DRY_RUN:-false}"
@@ -152,6 +153,22 @@ create_topic() {
   fi
 }
 
+firebase_project_exists() {
+  if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then
+    return 1
+  fi
+  npx --yes "firebase-tools@${FIREBASE_CLI_VERSION}" projects:list --json | \
+    python3 -c '
+import json
+import sys
+
+project_id = sys.argv[1]
+payload = json.load(sys.stdin)
+projects = payload.get("result", []) if isinstance(payload, dict) else []
+raise SystemExit(0 if any(item.get("projectId") == project_id for item in projects) else 1)
+' "${GOOGLE_CLOUD_PROJECT}"
+}
+
 run gcloud config set project "${GOOGLE_CLOUD_PROJECT}"
 run gcloud services enable \
   artifactregistry.googleapis.com \
@@ -171,6 +188,12 @@ run gcloud services enable \
   storage.googleapis.com \
   cloudtrace.googleapis.com \
   --project "${GOOGLE_CLOUD_PROJECT}"
+
+if ! firebase_project_exists; then
+  run npx --yes "firebase-tools@${FIREBASE_CLI_VERSION}" projects:addfirebase \
+    "${GOOGLE_CLOUD_PROJECT}" \
+    --non-interactive
+fi
 
 if [[ -z "${BUILD_SERVICE_ACCOUNT_EMAIL:-}" ]]; then
   if [[ "${DEPLOY_DRY_RUN}" == "true" ]]; then

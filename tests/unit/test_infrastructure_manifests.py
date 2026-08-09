@@ -45,6 +45,9 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "--liveness-probe" in source
     assert "Refusing cloud deployment from a dirty worktree" in source
     assert 'load_deploy_env "${DEPLOY_ENV_FILE}"' in source
+    assert 'export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_PROJECT}"' in source
+    assert "firebase_project_exists" in source
+    assert "projects:addfirebase" in source
     assert "ALLOW_DIRTY_DEPLOY" not in source.split("DEPLOY_ENV_KEYS=", 1)[1].split("$'", 1)[0]
 
 

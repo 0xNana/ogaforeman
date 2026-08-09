@@ -112,7 +112,11 @@ The worker is private. Pub/Sub and Scheduler use an OIDC service account with
 still require application authentication and membership.
 
 The pinned Firebase CLI deploy uses Application Default Credentials and an
-explicit `--project`; it never relies on `.firebaserc` for environment selection.
+explicit quota project and `--project`; it never relies on `.firebaserc` for
+environment selection. The script idempotently registers a plain Google Cloud
+project with Firebase before deploying Firestore rules and indexes. A cached
+`firebase login` takes precedence over ADC, so sign out stale Firebase CLI
+accounts before deploying under a different gcloud identity.
 The root `firebase.json` points to the checked-in rules and index definitions in
 `firebase/firestore.rules` and `firebase/firestore.indexes.json`.
 The V1 script supports the `(default)` Firestore database only and fails before
