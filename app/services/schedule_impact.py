@@ -1,12 +1,17 @@
-from typing import Iterable, Set, Dict, List
+from collections.abc import Iterable
+
+from app.domain.enums import TaskStatus
 from app.domain.models import Task
 
 
-def calculate_impact(tasks: Iterable[Task], blocked_task_ids: List[str]) -> Set[str]:
+_TERMINAL_TASK_STATUSES = {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
+
+
+def calculate_impact(tasks: Iterable[Task], blocked_task_ids: list[str]) -> set[str]:
     tasks_by_id = {task.id: task for task in tasks}
 
     # build reverse dependency graph
-    reverse_deps: Dict[str, List[str]] = {task_id: [] for task_id in tasks_by_id}
+    reverse_deps: dict[str, list[str]] = {task_id: [] for task_id in tasks_by_id}
     for task in tasks:
         for dep_id in task.dependency_ids:
             if dep_id in reverse_deps:
@@ -20,7 +25,10 @@ def calculate_impact(tasks: Iterable[Task], blocked_task_ids: List[str]) -> Set[
         if current in tasks_by_id and current not in impacted:
             impacted.add(current)
             for downstream in reverse_deps.get(current, []):
-                if downstream not in impacted:
+                if (
+                    downstream not in impacted
+                    and tasks_by_id[downstream].status not in _TERMINAL_TASK_STATUSES
+                ):
                     stack.append(downstream)
 
     return impacted

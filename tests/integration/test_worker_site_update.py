@@ -182,6 +182,15 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
             title="Landscaping",
             status=TaskStatus.PLANNED,
         ),
+        Task(
+            id="tsk_inspection123",
+            project_id=PROJECT_ID,
+            title="Completed inspection",
+            status=TaskStatus.COMPLETED,
+            completion_percent=Decimal("100"),
+            actual_completion=NOW,
+            dependency_ids=["tsk_electrical123"],
+        ),
     ):
         store.repository(Task).create(task)
     interpreter = FakeSiteInterpreter(
@@ -219,11 +228,13 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
     assert tasks["tsk_ceiling123"].status is TaskStatus.PLANNED
     assert tasks["tsk_plastering123"].status is TaskStatus.PLANNED
     assert tasks["tsk_landscaping123"].status is TaskStatus.PLANNED
+    assert tasks["tsk_inspection123"].status is TaskStatus.COMPLETED
     assert blocker.task_ids == ["tsk_electrical123"]
     assert schedule_risk.task_ids == ["tsk_ceiling123", "tsk_plastering123"]
     assert "Ceiling closure" in schedule_risk.description
     assert "First-floor plastering" in schedule_risk.description
     assert "Landscaping" not in schedule_risk.description
+    assert "Completed inspection" not in schedule_risk.description
     assert [fact.metadata["issue_id"] for fact in report.active_blockers] == [
         blocker.id,
         schedule_risk.id,
