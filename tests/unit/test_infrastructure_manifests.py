@@ -244,6 +244,24 @@ def test_ci_runs_locked_backend_frontend_and_container_gates() -> None:
     assert "infra/smoke-container.sh" in source
 
 
+def test_frontend_ci_installs_java_before_starting_firestore_e2e() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    )
+    steps = workflow["jobs"]["frontend"]["steps"]
+    e2e_index = next(
+        index for index, step in enumerate(steps) if step.get("run") == "npm run test:e2e"
+    )
+    java_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("uses") == "actions/setup-java@v4"
+        and step.get("with", {}).get("java-version") == "21"
+    )
+
+    assert java_index < e2e_index
+
+
 def test_runtime_container_drops_root_and_has_reusable_smoke_check() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     smoke = (ROOT / "infra" / "smoke-container.sh").read_text(encoding="utf-8")
