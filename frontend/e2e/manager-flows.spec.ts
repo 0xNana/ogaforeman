@@ -12,6 +12,10 @@ test('desktop command center and activity use API projections', async ({ page },
   await expect(page.getByLabel('Today summary')).toContainText('Needs attention7');
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'First-floor blockwork completed.' })).toBeVisible();
+  await expect(page.getByLabel('Type a site update')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add attachment' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start voice recording' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Type' })).toHaveCount(0);
 
   const accessibility = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa'])

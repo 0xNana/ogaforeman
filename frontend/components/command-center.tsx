@@ -6,55 +6,21 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
-  Image as ImageIcon,
-  LoaderCircle,
   Mic,
-  Paperclip,
   PackageCheck,
-  Send,
-  Type,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { api, type ProjectSnapshot } from '@/lib/api';
-
-type ComposerState = 'idle' | 'recording' | 'processing' | 'success' | 'error';
+import { useMemo } from 'react';
+import { SiteComposer } from '@/components/site-composer';
+import type { ProjectSnapshot } from '@/lib/api';
 
 export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
-  const [text, setText] = useState('');
-  const [composerState, setComposerState] = useState<ComposerState>('idle');
-  const [error, setError] = useState<string | null>(null);
-
   const completedCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'COMPLETED').length, [snapshot.tasks]);
   const attentionCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'BLOCKED' || task.needsAttention).length + snapshot.approvals.filter((approval) => approval.status === 'PENDING').length, [snapshot.approvals, snapshot.tasks]);
   const waitingCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'PENDING').length, [snapshot.tasks]);
   const pendingApprovals = snapshot.approvals.filter((approval) => approval.status === 'PENDING');
   const blockers = snapshot.tasks.filter((task) => task.status === 'BLOCKED');
   const followUps = snapshot.tasks.filter((task) => task.needsAttention);
-
-  async function submitUpdate() {
-    if (!text.trim() || composerState === 'processing') return;
-    setComposerState('processing');
-    setError(null);
-    try {
-      const result = await api.submitSiteUpdate(snapshot.project.id, text);
-      if (result.status !== 'queued') {
-        setComposerState('error');
-        setError('Oga could not queue that update.');
-        return;
-      }
-      setComposerState('success');
-      setText('');
-    } catch {
-      setComposerState('error');
-      setError('Oga could not reach the project. Check your connection and try again.');
-    }
-  }
-
-  function toggleRecording() {
-    setError(null);
-    setComposerState((current) => current === 'recording' ? 'idle' : 'recording');
-  }
 
   return (
     <div>
@@ -68,12 +34,7 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
           <section className="app-card composer-card" aria-labelledby="composer-title">
             <span className="composer-kicker">Talk to Oga</span>
             <h2 id="composer-title">What&apos;s happening on site?</h2>
-            <textarea aria-label="Site update" value={text} onChange={(event) => setText(event.target.value)} placeholder="Tell Oga what happened..." disabled={composerState === 'processing'} />
-            {composerState === 'recording' && <div className="recording-bar" role="status"><span>Listening... 00:14</span><span className="waveform" aria-hidden="true">{Array.from({ length: 12 }, (_, index) => <span key={index} style={{ height: `${8 + (index % 4) * 4}px` }} />)}</span></div>}
-            {composerState === 'processing' && <div className="status-banner info" role="status"><LoaderCircle size={16} className="spin-icon" /> Oga is checking the project...</div>}
-            {composerState === 'success' && <div className="status-banner success" role="status"><CheckCircle2 size={16} /> Oga handled it. Your update is in the queue.</div>}
-            {composerState === 'error' && <div className="status-banner error" role="alert"><AlertTriangle size={16} /> {error}</div>}
-            <div className="composer-actions"><div className="composer-tools"><button className="tool-button" type="button" onClick={toggleRecording}><Mic size={15} /> {composerState === 'recording' ? 'Stop' : 'Talk'}</button><button className="tool-button" type="button"><ImageIcon size={15} /> Photos</button><button className="tool-button" type="button"><Paperclip size={15} /> Attach</button><button className="tool-button" type="button"><Type size={15} /> Type</button></div><button className="talk-button" type="button" onClick={submitUpdate} disabled={!text.trim() || composerState === 'processing'}><Send size={15} /> Send update</button></div>
+            <SiteComposer projectId={snapshot.project.id} embedded />
           </section>
 
           <div className="stats-row" aria-label="Today summary"><div className="stat-card"><span className="stat-card-label">Completed</span><span className="stat-card-value">{completedCount}</span></div><div className="stat-card warning"><span className="stat-card-label">Needs attention</span><span className="stat-card-value">{attentionCount}</span></div><div className="stat-card waiting"><span className="stat-card-label">Waiting</span><span className="stat-card-value">{waitingCount}</span></div></div>

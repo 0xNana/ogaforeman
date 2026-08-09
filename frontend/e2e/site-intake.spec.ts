@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { captureBrowserErrors, projectId, signInToProject } from './support';
@@ -10,6 +11,29 @@ test.beforeEach(async ({ page }, testInfo) => {
   await signInToProject(page, testInfo);
   await page.goto(`/projects/${projectId}/site`);
   await expect(page.getByRole('heading', { name: 'Tell Oga what happened.' })).toBeVisible();
+});
+
+test('uses one compact composer for text, attachments and voice', async ({ page }) => {
+  const textInput = page.getByLabel('Type a site update');
+  const attachmentButton = page.getByRole('button', { name: 'Add attachment' });
+  const microphoneButton = page.getByRole('button', { name: 'Start voice recording' });
+  const sendButton = page.getByRole('button', { name: 'Send to Oga' });
+
+  await expect(textInput).toBeVisible();
+  await expect(textInput).toHaveAttribute('placeholder', 'Tell Oga what happened on site...');
+  await expect(attachmentButton).toBeVisible();
+  await expect(attachmentButton).toHaveText('');
+  await expect(microphoneButton).toBeVisible();
+  await expect(microphoneButton).toHaveText('');
+  await expect(sendButton).toBeVisible();
+  await expect(sendButton).toHaveText('');
+  await expect(page.getByText('Hold to talk to Oga')).toHaveCount(0);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.site-composer-page')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
 });
 
 test('runs a site update through real approval and same-run continuation', async ({ page, request }) => {
@@ -75,7 +99,10 @@ test('runs a site update through real approval and same-run continuation', async
 
 test('uploads and submits a photo using the signed attachment contract', async ({ page }) => {
   const browserErrors = captureBrowserErrors(page);
-  await page.locator('#site-attachment').setInputFiles({
+  const fileChooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add attachment' }).click();
+  const fileChooser = await fileChooserPromise;
+  await fileChooser.setFiles({
     name: 'site-progress.png',
     mimeType: 'image/png',
     buffer: Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'),

@@ -2,14 +2,13 @@
 
 import {
   AlertTriangle,
+  ArrowUp,
   CheckCircle2,
   FileAudio,
-  Image as ImageIcon,
   LoaderCircle,
   Mic,
   Paperclip,
-  RotateCcw,
-  Send,
+  Plus,
   Square,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -19,7 +18,7 @@ import { WorkflowReceipt } from '@/components/workflow-receipt';
 
 type IntakeState = 'idle' | 'recording' | 'recorded' | 'uploading' | 'processing' | 'approval' | 'clarification' | 'success' | 'error';
 
-export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
+export function SiteComposer({ projectId, embedded = false }: Readonly<{ projectId: string; embedded?: boolean }>) {
   const { refresh } = useProject();
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -148,30 +147,92 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
 
   const busy = state === 'uploading' || state === 'processing';
   const terminal = state === 'success' || state === 'approval';
+  const canSubmit = Boolean(text.trim() || file) && state !== 'recording';
 
   return (
-    <div className="site-composer-page">
-      <div className="page-heading"><div><span className="eyebrow">Site update</span><h1>Tell Oga what happened.</h1><p>Talk, type or add photos. Oga will handle the follow-through.</p></div></div>
-      <section className="site-composer-card" aria-labelledby="site-composer-title">
-        <span className="composer-kicker">Ridge House · Today</span>
-        <h2 id="site-composer-title">What happened today?</h2>
-        <p>Short and natural works best. Say what finished, what is stuck and what is running low.</p>
+    <div className={`site-composer-page${embedded ? ' embedded' : ''}`}>
+      {!embedded && <div className="page-heading"><div><span className="eyebrow">Site update</span><h1>Tell Oga what happened.</h1><p>Talk, type or add photos. Oga will handle the follow-through.</p></div></div>}
+      <section className="site-composer-card" aria-label="Send a site update">
+        <input
+          ref={fileInput}
+          className="attachment-input"
+          type="file"
+          id="site-attachment"
+          accept="image/*,audio/*,.pdf"
+          onChange={(event) => {
+            setFile(event.target.files?.[0] ?? null);
+            setError(null);
+            if (state === 'recorded') setState('idle');
+          }}
+        />
 
-        <div className="site-recording-area">
-          <button className={`record-button${state === 'recording' ? ' recording' : ''}`} type="button" onClick={toggleRecording} disabled={busy} aria-label={state === 'recording' ? 'Stop recording' : 'Start voice recording'}>
-            {state === 'recording' ? <Square size={24} fill="currentColor" /> : <Mic size={28} />}
-          </button>
-          <div><strong>{state === 'recording' ? 'Listening...' : state === 'recorded' ? 'Voice note ready' : 'Hold to talk to Oga'}</strong><span>{state === 'recording' ? '00:14 · Tap when you are done' : state === 'recorded' ? 'Use this recording or record again' : 'Voice updates are fastest on site'}</span></div>
-          {state === 'recording' && <span className="waveform site-waveform" aria-hidden="true">{Array.from({ length: 15 }, (_, index) => <span key={index} />)}</span>}
-        </div>
+        {!terminal && (
+          <div className={`chat-composer${state === 'recording' ? ' recording' : ''}`}>
+            {state === 'recording' && (
+              <div className="composer-media-status recording" role="status">
+                <span className="recording-dot" aria-hidden="true" />
+                <span>Listening...</span>
+                <span className="waveform compact-waveform" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <span key={index} />)}</span>
+              </div>
+            )}
+            {state === 'recorded' && (
+              <div className="recorded-actions" role="status">
+                <FileAudio size={15} aria-hidden="true" />
+                <span>Voice note ready</span>
+              </div>
+            )}
+            {file && state !== 'recorded' && (
+              <div className="attachment-preview" aria-live="polite">
+                <Paperclip size={15} aria-hidden="true" />
+                <span>{file.name}</span>
+              </div>
+            )}
 
-        {state === 'recorded' && <div className="recorded-actions"><span><FileAudio size={16} /> Voice note ready</span><button type="button" onClick={toggleRecording}><RotateCcw size={14} /> Record again</button></div>}
+            <label className="sr-only" htmlFor="site-update-text">Type a site update</label>
+            <textarea
+              id="site-update-text"
+              className="composer-textarea"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              placeholder="Tell Oga what happened on site..."
+              rows={2}
+              disabled={busy}
+            />
 
-        <label className="sr-only" htmlFor="site-update-text">Type a site update</label>
-        <textarea id="site-update-text" className="composer-textarea" value={text} onChange={(event) => setText(event.target.value)} placeholder="First-floor blockwork is done. The electrician didn't show. We have about 10 bags of cement left..." disabled={busy || terminal} />
-
-        <input ref={fileInput} className="attachment-input" type="file" id="site-attachment" accept="image/*,audio/*,.pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        {file && <div className="attachment-preview"><Paperclip size={15} /> {file.name}</div>}
+            <div className="chat-composer-actions">
+              <button
+                className="composer-icon-button"
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                disabled={busy || state === 'recording'}
+                aria-label="Add attachment"
+              >
+                <Plus size={21} aria-hidden="true" />
+              </button>
+              <div className="chat-composer-primary-actions">
+                <button
+                  className={`composer-icon-button microphone${state === 'recording' ? ' recording' : ''}`}
+                  type="button"
+                  onClick={toggleRecording}
+                  disabled={busy}
+                  aria-label={state === 'recording' ? 'Stop recording' : 'Start voice recording'}
+                  aria-pressed={state === 'recording'}
+                >
+                  {state === 'recording' ? <Square size={17} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
+                </button>
+                <button
+                  className="composer-icon-button send"
+                  type="button"
+                  onClick={submit}
+                  disabled={busy || !canSubmit}
+                  aria-label="Send to Oga"
+                >
+                  {busy ? <LoaderCircle size={19} className="spin-icon" aria-hidden="true" /> : <ArrowUp size={19} aria-hidden="true" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {state === 'error' && <div className="status-banner error" role="alert"><AlertTriangle size={16} /> {error}</div>}
         {state === 'clarification' && <div className="status-banner info" role="status"><AlertTriangle size={16} /> Oga needs a clearer detail before changing the project. Add the task, quantity or timing and send again.</div>}
@@ -179,16 +240,7 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
         {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
         {(state === 'uploading' || state === 'processing') && <div className="process-state" role="status"><div className={`process-state-row${state === 'uploading' ? ' current' : ''}`}>{state === 'uploading' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Adding your site photos...</div><div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>{state === 'processing' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Checking the project...</div><div className="process-state-row"><CheckCircle2 size={17} /> Updating the site...</div></div>}
 
-        <div className={`composer-bottom${terminal ? ' terminal' : ''}`}>
-          {terminal ? (
-            <button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button>
-          ) : (
-            <>
-              <label className="attachment-button" htmlFor="site-attachment"><ImageIcon size={16} /> {file ? 'Change attachment' : 'Add photos or file'}</label>
-              <button className="btn btn-accent" type="button" onClick={submit} disabled={busy}><Send size={16} /> {busy ? 'Oga is working...' : 'Send to Oga'}</button>
-            </>
-          )}
-        </div>
+        {terminal && <div className="composer-reset"><button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button></div>}
       </section>
     </div>
   );
