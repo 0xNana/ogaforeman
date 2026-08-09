@@ -25,6 +25,7 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "identitytoolkit.googleapis.com" in source
     assert "firebaserules.googleapis.com" in source
     assert "gcloud firestore databases update" in source
+    assert "else\n  run gcloud firestore databases update" in source
     assert "--delete-protection" in source
     assert "firebase-tools@${FIREBASE_CLI_VERSION}" in source
     assert "--only firestore" in source

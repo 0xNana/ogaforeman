@@ -142,11 +142,12 @@ if ! exists gcloud firestore databases describe \
     --type firestore-native \
     --delete-protection \
     --project "${GOOGLE_CLOUD_PROJECT}"
+else
+  run gcloud firestore databases update \
+    --database "${FIRESTORE_DATABASE}" \
+    --delete-protection \
+    --project "${GOOGLE_CLOUD_PROJECT}"
 fi
-run gcloud firestore databases update \
-  --database "${FIRESTORE_DATABASE}" \
-  --delete-protection \
-  --project "${GOOGLE_CLOUD_PROJECT}"
 
 run npx --yes "firebase-tools@${FIREBASE_CLI_VERSION}" deploy \
   --only firestore \
