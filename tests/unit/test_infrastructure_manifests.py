@@ -142,6 +142,7 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
 def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes() -> None:
     manifest = json.loads((ROOT / "firebase.json").read_text(encoding="utf-8"))
     rules = (ROOT / "firebase" / "firestore.rules").read_text(encoding="utf-8")
+    indexes = json.loads((ROOT / "firebase" / "firestore.indexes.json").read_text(encoding="utf-8"))
 
     assert manifest["firestore"] == [
         {
@@ -151,6 +152,17 @@ def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes()
         }
     ]
     assert "allow read, write: if false;" in rules
+    assert indexes["indexes"] == [
+        {
+            "collectionGroup": "members",
+            "queryScope": "COLLECTION_GROUP",
+            "fields": [
+                {"fieldPath": "status", "order": "ASCENDING"},
+                {"fieldPath": "user_id", "order": "ASCENDING"},
+            ],
+            "density": "SPARSE_ALL",
+        }
+    ]
     assert manifest["hosting"]["rewrites"] == [
         {
             "source": "**",

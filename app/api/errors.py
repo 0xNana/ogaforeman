@@ -193,7 +193,7 @@ def install_request_id_middleware(
         started = monotonic()
         correlation = request.headers.get("X-Correlation-ID") or request_id
         trace_id = request.headers.get("X-Trace-ID")
-        span_scope = (
+        trace_span = (
             TraceSpan(
                 "http.request",
                 trace_id=trace_id,
@@ -202,8 +202,9 @@ def install_request_id_middleware(
                 route=request.url.path,
             )
             if trace_exporter is not None
-            else nullcontext()
+            else None
         )
+        span_scope = trace_span if trace_span is not None else nullcontext()
         with (
             bind_context(
                 new_correlation_context(
@@ -216,7 +217,7 @@ def install_request_id_middleware(
         ):
             try:
                 response = await call_next(request)
-            except Exception:
+            except Exception as exc:
                 log_event(
                     logger,
                     logging.ERROR,
@@ -226,11 +227,9 @@ def install_request_id_middleware(
                     route=request.url.path,
                     status="error",
                 )
-                metrics.increment(
-                    "http_requests_total",
-                    labels={"method": request.method, "status_class": "5xx"},
-                )
-                raise
+                if trace_span is not None:
+                    trace_span.status = "error"
+                response = await _handle_unexpected_error(request, exc)
             duration = monotonic() - started
             status_class = f"{response.status_code // 100}xx"
             metrics.increment(
