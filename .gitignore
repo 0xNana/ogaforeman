@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+.coverage
+htmlcov/
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+*-service-key.json
+
+# Local cloud/emulator state
+.firebase/
+firestore-debug.log
+firebase-debug.log
+storage-debug.log
+pubsub-debug.log
+tmp/
+*.local.json
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+!.vscode/extensions.json
+*.swp

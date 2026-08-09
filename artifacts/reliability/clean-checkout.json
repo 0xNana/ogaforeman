@@ -1,0 +1,223 @@
+{
+  "generated_at": "2026-08-09T00:10:08.902014+00:00",
+  "source_tree_sha256": "2d4b7169929e0d9be025bab4c8b6e0aeeb39e772dd129f0cc9c885dabe2ac155",
+  "source_file_count": 314,
+  "passed": true,
+  "commands": [
+    {
+      "name": "python_sync",
+      "command": [
+        "uv",
+        "sync",
+        "--all-extras",
+        "--locked"
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 0.859,
+      "passed": true
+    },
+    {
+      "name": "ruff",
+      "command": [
+        ".venv/bin/ruff",
+        "check",
+        "."
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 0.033,
+      "passed": true
+    },
+    {
+      "name": "format",
+      "command": [
+        ".venv/bin/ruff",
+        "format",
+        "--check",
+        "."
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 0.034,
+      "passed": true
+    },
+    {
+      "name": "mypy",
+      "command": [
+        ".venv/bin/mypy",
+        "app"
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 16.737,
+      "passed": true
+    },
+    {
+      "name": "backend",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 15.465,
+      "passed": true
+    },
+    {
+      "name": "fixture_eval",
+      "command": [
+        ".venv/bin/python",
+        "scripts/run_evals.py",
+        "--adapter",
+        "fixture"
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 2.744,
+      "passed": true
+    },
+    {
+      "name": "negative_eval",
+      "command": [
+        ".venv/bin/python",
+        "scripts/run_evals.py",
+        "--adapter",
+        "deliberate-regression",
+        "--output",
+        "artifacts/evals/deliberate-regression.json"
+      ],
+      "working_directory": ".",
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "duration_seconds": 2.705,
+      "passed": true
+    },
+    {
+      "name": "demo",
+      "command": [
+        ".venv/bin/python",
+        "scripts/run_demo.py",
+        "--runs",
+        "3"
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 2.815,
+      "passed": true
+    },
+    {
+      "name": "capacity",
+      "command": [
+        ".venv/bin/python",
+        "scripts/run_capacity_baseline.py"
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 6.917,
+      "passed": true
+    },
+    {
+      "name": "docs",
+      "command": [
+        ".venv/bin/python",
+        "scripts/check_docs.py"
+      ],
+      "working_directory": ".",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 0.04,
+      "passed": true
+    },
+    {
+      "name": "frontend_install",
+      "command": [
+        "npm",
+        "ci",
+        "--prefer-offline",
+        "--fetch-retries=5",
+        "--fetch-retry-mintimeout=1000",
+        "--fetch-retry-maxtimeout=10000"
+      ],
+      "working_directory": "frontend",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 28.432,
+      "passed": true
+    },
+    {
+      "name": "frontend_lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "working_directory": "frontend",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 5.639,
+      "passed": true
+    },
+    {
+      "name": "frontend_types",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "working_directory": "frontend",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 5.253,
+      "passed": true
+    },
+    {
+      "name": "frontend_unit",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "working_directory": "frontend",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 1.248,
+      "passed": true
+    },
+    {
+      "name": "frontend_build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "working_directory": "frontend",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 15.489,
+      "passed": true
+    },
+    {
+      "name": "frontend_e2e",
+      "command": [
+        "npm",
+        "run",
+        "test:e2e"
+      ],
+      "working_directory": "frontend",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "duration_seconds": 52.671,
+      "passed": true
+    }
+  ]
+}

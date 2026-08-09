@@ -1,0 +1,33 @@
+{
+  "displayName": "Oga Foreman API p95 latency",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "The Oga API p95 request latency exceeded the 15 second workflow objective. Check dependency readiness and worker queue age.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "API p95 latency above 15 seconds",
+      "conditionThreshold": {
+        "filter": "resource.type=\"cloud_run_revision\" AND resource.label.\"service_name\"=\"${API_SERVICE}\" AND metric.type=\"run.googleapis.com/request_latencies\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 15000,
+        "duration": "300s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_PERCENTILE_95",
+            "crossSeriesReducer": "REDUCE_MAX",
+            "groupByFields": [
+              "resource.label.service_name"
+            ]
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ]
+}

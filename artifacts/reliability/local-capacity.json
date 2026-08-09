@@ -1,0 +1,44 @@
+{
+  "environment": "local_in_memory",
+  "generated_at": "2026-08-08T11:10:58.582274Z",
+  "git_revision": "4bec3f104a665edf32f380a0ed5d937cc453e20e",
+  "passed": true,
+  "scenarios": [
+    {
+      "count": 100,
+      "detail": "100 isolated project partitions retained one task each",
+      "duration_ms": 13.79,
+      "name": "100_project_partitions",
+      "passed": true
+    },
+    {
+      "count": 25,
+      "detail": "25 concurrent updates retained 10 attachment references each",
+      "duration_ms": 6.588,
+      "name": "25_concurrent_site_updates",
+      "passed": true
+    },
+    {
+      "count": 10,
+      "detail": "one completed claim and nine duplicate replays",
+      "duration_ms": 3.871,
+      "name": "10_duplicate_deliveries",
+      "passed": true
+    },
+    {
+      "count": 10,
+      "detail": "one human decision won; nine retries replayed one activity/outbox result",
+      "duration_ms": 5.314,
+      "name": "concurrent_approval_decisions",
+      "passed": true
+    },
+    {
+      "count": 100,
+      "detail": "100 daily-brief events reached one terminal claim per project",
+      "duration_ms": 339.802,
+      "name": "100_project_scheduler_burst",
+      "passed": true
+    }
+  ],
+  "total_duration_ms": 369.453
+}

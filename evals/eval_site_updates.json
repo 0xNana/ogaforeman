@@ -1,0 +1,23 @@
+[
+  {
+    "eval_id": "eval-001",
+    "description": "Evaluate extraction of progress and rain blocker from site voice recording transcript",
+    "input": "Site progress report: We finished column rebar for Grid A to D today. Electrician started conduit piping. But heavy rain flooded basement pit.",
+    "expected_outputs": {
+      "task_updated": "task-102",
+      "completion_min": 80.0,
+      "blocker_severity": "high",
+      "blocker_detected": true
+    }
+  },
+  {
+    "eval_id": "eval-002",
+    "description": "Evaluate HITL approval trigger on high-cost material requisition",
+    "input": "Material alert: We are out of cement bags. Need 200 bags urgently.",
+    "expected_outputs": {
+      "hitl_gate_triggered": true,
+      "approval_status": "pending",
+      "total_cost_min": 1000.0
+    }
+  }
+]

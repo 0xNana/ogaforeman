@@ -1,0 +1,307 @@
+"""Deterministic, repository-backed task mutation commands."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
+from hashlib import sha256
+from typing import Self
+
+from pydantic import (
+    AliasChoices,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
+
+from app.domain.activity import ActivitySpec, MutationContext
+from app.domain.authorization import (
+    ProjectAccessContext,
+    ProjectPermission,
+    ensure_permission,
+    ensure_project_scope,
+)
+from app.domain.enums import ActorType, TaskStatus
+from app.domain.models import ActivityEvent, CanonicalId, Task
+from app.domain.policies import InvalidTransitionError, ensure_task_transition
+from app.repositories.interfaces import RepositorySession, RepositoryStore
+from app.repositories.tasks import TaskRepository
+from app.services.activity import ActivityService
+
+
+class TaskMutationError(ValueError):
+    code = "VALIDATION_FAILED"
+
+
+class TaskEvidenceRejectedError(TaskMutationError):
+    """Evidence polarity is not safe for a state mutation."""
+
+
+class TaskStateError(TaskMutationError):
+    code = "INVALID_STATE_TRANSITION"
+
+
+class TaskBlockedCompletionError(TaskStateError):
+    """A blocked task cannot be completed by this command."""
+
+
+class TaskDependencyIncompleteError(TaskStateError):
+    """One or more task dependencies are not complete."""
+
+
+class TaskApprovalRequiredError(TaskMutationError):
+    code = "APPROVAL_REQUIRED"
+
+
+class UpdateTaskCommand(BaseModel):
+    """Typed task update produced by a workflow or explicit user action."""
+
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        str_strip_whitespace=True,
+        populate_by_name=True,
+    )
+
+    project_id: CanonicalId
+    task_id: CanonicalId
+    expected_version: int = Field(ge=0)
+    completion_percent: Decimal | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        validation_alias=AliasChoices("completion_percent", "completion_percentage"),
+    )
+    target_status: TaskStatus | None = Field(
+        default=None,
+        validation_alias=AliasChoices("target_status", "status"),
+    )
+    evidence: str | None = Field(default=None, min_length=1, max_length=5_000)
+    negated: bool = Field(default=False, validation_alias=AliasChoices("negated", "is_negated"))
+    ambiguous: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ambiguous", "is_ambiguous"),
+    )
+    human_correction: bool = False
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="after")
+    def validate_update(self) -> Self:
+        if self.completion_percent is None and self.target_status is None:
+            raise ValueError("task update requires completion_percent or target_status")
+        if self.requests_completion and not self.evidence:
+            raise ValueError("task completion requires explicit evidence")
+        if self.human_correction and self.target_status is not TaskStatus.IN_PROGRESS:
+            raise ValueError("human_correction is only valid when reopening a task")
+        return self
+
+    @property
+    def requests_completion(self) -> bool:
+        return self.target_status is TaskStatus.COMPLETED or self.completion_percent == Decimal(
+            "100"
+        )
+
+
+TaskUpdateCommand = UpdateTaskCommand
+
+
+@dataclass(frozen=True, slots=True)
+class TaskChange:
+    task: Task
+    activity: ActivityEvent
+    duplicate: bool = False
+
+    @property
+    def replayed(self) -> bool:
+        return self.duplicate
+
+
+class TaskService:
+    """Apply task updates with authorization, policy, idempotency, and audit."""
+
+    def __init__(self, store: RepositoryStore) -> None:
+        self._tasks = TaskRepository(store)
+        self._activities = ActivityService(store)
+
+    def update_task(
+        self,
+        access: ProjectAccessContext,
+        command: UpdateTaskCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        self._authorize(access, command, context)
+        self._validate_evidence(command)
+        spec = _activity_spec(command)
+
+        result = self._activities.mutate(
+            context,
+            spec,
+            lambda session: self._apply_update(session, access, command, context),
+            replay=lambda session, activity: TaskRepository.for_session(session, access).require(
+                activity.project_id, activity.entity_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("task replay did not resolve its persisted entity")
+        return TaskChange(
+            task=result.value,
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
+
+    def complete_task(
+        self,
+        access: ProjectAccessContext,
+        command: UpdateTaskCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        if not command.evidence:
+            raise TaskEvidenceRejectedError("task completion requires explicit evidence")
+        if command.target_status is not TaskStatus.COMPLETED:
+            command = UpdateTaskCommand.model_validate(
+                {**command.model_dump(), "target_status": TaskStatus.COMPLETED}
+            )
+        return self.update_task(access, command, context)
+
+    @staticmethod
+    def _authorize(
+        access: ProjectAccessContext,
+        command: UpdateTaskCommand,
+        context: MutationContext,
+    ) -> None:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.OPERATE)
+        if context.actor_type is ActorType.USER and context.actor_id != access.actor.user_id:
+            raise PermissionError("mutation actor does not match the authorized user")
+
+    @staticmethod
+    def _validate_evidence(command: UpdateTaskCommand) -> None:
+        if command.negated:
+            raise TaskEvidenceRejectedError("negated evidence cannot update task state")
+        if command.ambiguous:
+            raise TaskEvidenceRejectedError("ambiguous evidence cannot update task state")
+
+    @staticmethod
+    def _apply_update(
+        session: RepositorySession,
+        access: ProjectAccessContext,
+        command: UpdateTaskCommand,
+        context: MutationContext,
+    ) -> Task:
+        repository = TaskRepository.for_session(session, access)
+        current = repository.require(command.project_id, command.task_id)
+        tasks = repository.list(command.project_id)
+        by_id = {task.id: task for task in tasks}
+        for dependency_id in current.dependency_ids:
+            if dependency_id not in by_id:
+                raise TaskStateError(f"task references missing dependency {dependency_id}")
+
+        target_status = command.target_status or current.status
+        if command.requests_completion:
+            target_status = TaskStatus.COMPLETED
+        elif (
+            command.target_status is None
+            and command.completion_percent is not None
+            and command.completion_percent > 0
+            and current.status is TaskStatus.PLANNED
+        ):
+            target_status = TaskStatus.IN_PROGRESS
+        target_percent = (
+            command.completion_percent
+            if command.completion_percent is not None
+            else current.completion_percent
+        )
+        if target_status is TaskStatus.CANCELLED:
+            raise TaskApprovalRequiredError("task cancellation requires human approval")
+        if target_status is TaskStatus.COMPLETED:
+            if current.status is TaskStatus.BLOCKED:
+                raise TaskBlockedCompletionError("a blocked task cannot be completed")
+            incomplete = [
+                dependency_id
+                for dependency_id in current.dependency_ids
+                if by_id[dependency_id].status is not TaskStatus.COMPLETED
+            ]
+            if incomplete:
+                raise TaskDependencyIncompleteError(
+                    "task dependencies must be completed first: " + ", ".join(incomplete)
+                )
+            target_percent = Decimal("100")
+
+        if command.human_correction:
+            if context.actor_type is not ActorType.USER:
+                raise TaskStateError("human correction requires a user actor")
+            if target_percent >= Decimal("100"):
+                raise TaskStateError("a reopened task must have completion_percent below 100")
+
+        try:
+            ensure_task_transition(
+                current.status,
+                target_status,
+                human_correction=command.human_correction,
+            )
+        except InvalidTransitionError as exc:
+            raise TaskStateError(str(exc)) from exc
+
+        actual_start = current.actual_start
+        if target_status is TaskStatus.IN_PROGRESS and actual_start is None:
+            actual_start = command.occurred_at
+        actual_completion = current.actual_completion
+        if target_status is TaskStatus.COMPLETED:
+            actual_completion = command.occurred_at
+        elif current.status is TaskStatus.COMPLETED and target_status is TaskStatus.IN_PROGRESS:
+            actual_completion = None
+
+        updated = current.model_copy(
+            update={
+                "status": target_status,
+                "completion_percent": target_percent,
+                "actual_start": actual_start,
+                "actual_completion": actual_completion,
+                "updated_at": command.occurred_at,
+            }
+        )
+        return repository.save(updated, expected_version=command.expected_version)
+
+
+def _activity_spec(command: UpdateTaskCommand) -> ActivitySpec:
+    effective_status = (
+        TaskStatus.COMPLETED if command.requests_completion else command.target_status
+    )
+    status = effective_status.value if effective_status else None
+    percent = str(command.completion_percent) if command.completion_percent is not None else None
+    evidence_digest = (
+        sha256(command.evidence.encode("utf-8")).hexdigest()[:16] if command.evidence else None
+    )
+    summary = (
+        "Task marked complete" if command.requests_completion else "Task progress or status updated"
+    )
+    return ActivitySpec(
+        action=("task.completed" if command.requests_completion else "task.updated"),
+        entity_type="task",
+        entity_id=command.task_id,
+        summary=summary,
+        metadata={
+            "target_status": status,
+            "completion_percent": percent,
+            "evidence_digest": evidence_digest,
+            "human_correction": command.human_correction,
+        },
+    )
+
+
+__all__ = [
+    "TaskApprovalRequiredError",
+    "TaskBlockedCompletionError",
+    "TaskChange",
+    "TaskDependencyIncompleteError",
+    "TaskEvidenceRejectedError",
+    "TaskMutationError",
+    "TaskService",
+    "TaskStateError",
+    "TaskUpdateCommand",
+    "UpdateTaskCommand",
+]

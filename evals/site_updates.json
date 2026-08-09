@@ -1,0 +1,47 @@
+[
+  {
+    "id": "explicit_completion",
+    "text": "Finished pouring the foundation on the north side.",
+    "expected": {
+      "tasks": 1,
+      "materials": 0,
+      "safety_issues": 0
+    }
+  },
+  {
+    "id": "absence_negation",
+    "text": "We did not receive the lumber delivery.",
+    "expected": {
+      "tasks": 0,
+      "materials": 1,
+      "safety_issues": 0
+    }
+  },
+  {
+    "id": "ambiguity",
+    "text": "Started working on the walls, might finish tomorrow depending on weather.",
+    "expected": {
+      "tasks": 1,
+      "materials": 0,
+      "safety_issues": 0
+    }
+  },
+  {
+    "id": "material_quantity",
+    "text": "Used 50 bags of cement.",
+    "expected": {
+      "tasks": 0,
+      "materials": 1,
+      "safety_issues": 0
+    }
+  },
+  {
+    "id": "safety",
+    "text": "The scaffolding looks unstable, someone needs to inspect it immediately.",
+    "expected": {
+      "tasks": 0,
+      "materials": 0,
+      "safety_issues": 1
+    }
+  }
+]

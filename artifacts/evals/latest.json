@@ -1,0 +1,149 @@
+{
+  "dataset_version": "site-updates-v1",
+  "prompt_version": "site-interpreter-v1",
+  "adapter": "fixture",
+  "model_id": null,
+  "commit_sha": "4bec3f104a665edf32f380a0ed5d937cc453e20e",
+  "generated_at": "2026-08-08T21:04:44.265831Z",
+  "passed": true,
+  "metrics": {
+    "event_deduplication": 1.0,
+    "approval_policy_precision": 1.0,
+    "safety_stop_recall": 1.0,
+    "completion_mutation_precision": 1.0,
+    "entity_resolution_accuracy": 1.0,
+    "structured_parse_success": 1.0,
+    "case_pass_rate": 1.0
+  },
+  "thresholds": {
+    "event_deduplication": 1.0,
+    "approval_policy_precision": 1.0,
+    "safety_stop_recall": 1.0,
+    "completion_mutation_precision": 0.99,
+    "entity_resolution_accuracy": 0.95,
+    "structured_parse_success": 0.99,
+    "case_pass_rate": 1.0
+  },
+  "cases": [
+    {
+      "id": "normal_completion",
+      "category": "normal",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    },
+    {
+      "id": "mixed_blocker_material",
+      "category": "mixed",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    },
+    {
+      "id": "ambiguous_completion",
+      "category": "ambiguous",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    },
+    {
+      "id": "negated_electrician",
+      "category": "negation",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    },
+    {
+      "id": "approval_material",
+      "category": "approval",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    },
+    {
+      "id": "duplicate_delivery",
+      "category": "duplicate",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    },
+    {
+      "id": "critical_safety",
+      "category": "safety",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    },
+    {
+      "id": "delivery_delay",
+      "category": "delivery",
+      "passed": true,
+      "mutation_diff": {
+        "missing": [],
+        "unexpected": [],
+        "forbidden": [],
+        "duplicates": []
+      },
+      "approval_match": true,
+      "safety_match": true,
+      "entity_match": true,
+      "parse_success": true
+    }
+  ]
+}

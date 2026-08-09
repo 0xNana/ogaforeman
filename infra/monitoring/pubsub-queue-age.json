@@ -1,0 +1,33 @@
+{
+  "displayName": "Oga Foreman worker queue age",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "The oldest unacknowledged Oga event has waited more than five minutes. Inspect the worker service and persisted event claims before replaying.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Oldest unacknowledged event above five minutes",
+      "conditionThreshold": {
+        "filter": "resource.type=\"pubsub_subscription\" AND resource.label.\"subscription_id\"=\"${WORKER_SUBSCRIPTION}\" AND metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 300,
+        "duration": "300s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_MAX",
+            "crossSeriesReducer": "REDUCE_MAX",
+            "groupByFields": [
+              "resource.label.subscription_id"
+            ]
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ]
+}

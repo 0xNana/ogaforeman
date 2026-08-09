@@ -1,0 +1,33 @@
+{
+  "displayName": "Oga Foreman dead-letter backlog",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "One or more events are waiting in the Oga dead-letter subscription. Inspect payload metadata and persisted claims; never replay blindly.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Dead-letter subscription is not empty",
+      "conditionThreshold": {
+        "filter": "resource.type=\"pubsub_subscription\" AND resource.label.\"subscription_id\"=\"${DEAD_LETTER_SUBSCRIPTION}\" AND metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "60s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_MAX",
+            "crossSeriesReducer": "REDUCE_MAX",
+            "groupByFields": [
+              "resource.label.subscription_id"
+            ]
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ]
+}

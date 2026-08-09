@@ -1,0 +1,20 @@
+{
+  "bucket": "ogaforeman.firebasestorage.app",
+  "checked_at": "2026-08-08T11:10:59.027839Z",
+  "checks": [
+    {
+      "detail": "would list READY Firestore backups and enforce maximum age",
+      "name": "firestore_backup_visibility",
+      "status": "planned"
+    },
+    {
+      "detail": "would require bucket versioning or a non-zero soft-delete policy",
+      "name": "storage_deletion_protection",
+      "status": "planned"
+    }
+  ],
+  "event": "backup_verification_planned",
+  "mode": "dry_run",
+  "passed": null,
+  "project_id": "ogaforeman"
+}

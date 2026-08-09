@@ -1,0 +1,74 @@
+{
+  "mode": "dry-run",
+  "repetitions": 3,
+  "passed": true,
+  "release_blocked": true,
+  "generated_at": "2026-08-08T11:43:23.749957Z",
+  "runs": [
+    {
+      "run_number": 1,
+      "decision": "approve",
+      "reset_twice": true,
+      "task_activity_created": true,
+      "material_request_created": true,
+      "report_projection_applied": true,
+      "continuation_replay_suppressed": true,
+      "worker_restart_resume_verified": true,
+      "rejection_closed_request": false,
+      "delivery_delay_replay_suppressed": true,
+      "final_run_status": "completed",
+      "activity_count": 4,
+      "processed_event_count": 2,
+      "passed": true,
+      "notes": [
+        "The rehearsal uses deterministic typed services and a durable repository adapter.",
+        "The full site-update API/coordinator path remains a documented release blocker."
+      ]
+    },
+    {
+      "run_number": 2,
+      "decision": "reject",
+      "reset_twice": true,
+      "task_activity_created": true,
+      "material_request_created": true,
+      "report_projection_applied": true,
+      "continuation_replay_suppressed": true,
+      "worker_restart_resume_verified": true,
+      "rejection_closed_request": true,
+      "delivery_delay_replay_suppressed": false,
+      "final_run_status": "failed",
+      "activity_count": 4,
+      "processed_event_count": 1,
+      "passed": true,
+      "notes": [
+        "The rehearsal uses deterministic typed services and a durable repository adapter.",
+        "The full site-update API/coordinator path remains a documented release blocker."
+      ]
+    },
+    {
+      "run_number": 3,
+      "decision": "approve",
+      "reset_twice": true,
+      "task_activity_created": true,
+      "material_request_created": true,
+      "report_projection_applied": true,
+      "continuation_replay_suppressed": true,
+      "worker_restart_resume_verified": true,
+      "rejection_closed_request": false,
+      "delivery_delay_replay_suppressed": true,
+      "final_run_status": "completed",
+      "activity_count": 4,
+      "processed_event_count": 2,
+      "passed": true,
+      "notes": [
+        "The rehearsal uses deterministic typed services and a durable repository adapter.",
+        "The full site-update API/coordinator path remains a documented release blocker."
+      ]
+    }
+  ],
+  "blocked_controls": [
+    "PR-03 approval rejection is not atomic inside ApprovalService",
+    "PR-04 approval continuation is not executed by the worker coordinator",
+    "PR-09 site-update API route is not wired to the coordinator"
+  ]
+}

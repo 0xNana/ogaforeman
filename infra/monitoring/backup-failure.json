@@ -1,0 +1,30 @@
+{
+  "displayName": "Oga Foreman backup verification failure",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "The scheduled backup verification reported a failure. Preserve the evidence artifact and follow the recovery runbook before the next release.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Backup verification failure logged",
+      "conditionThreshold": {
+        "filter": "resource.type=\"global\" AND metric.type=\"logging.googleapis.com/user/oga_backup_failure_count\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ]
+}

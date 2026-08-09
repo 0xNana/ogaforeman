@@ -1,0 +1,639 @@
+# Oga Foreman V1 Execution Plan
+
+## How to Use This Plan
+
+Work top to bottom. A task is one focused session and should normally touch no more than five files. Keep the repository runnable after every task. Mark the matching item in `tasks/todo-v1.md`, update `docs/STATUS.md`, and record contract changes before starting dependent work.
+
+## Dependency Graph
+
+```text
+configuration/tooling
+  -> domain schemas and policies
+    -> repository interfaces and Firestore
+      -> auth, idempotency, activity, typed tools
+        -> coordinator and structured interpreter
+          -> Daily Site Update vertical slice
+            -> Materials + approvals
+            -> Blockers + safety
+            -> Daily Brief + scheduler/events
+              -> versioned API
+                -> Next.js UI
+                  -> E2E, observability, deployment, demo
+```
+
+## Phase 0: Contract Freeze
+
+### P0-01: Publish product and engineering contracts
+
+Acceptance: the docs index, product spec, engineering spec, production controls, status baseline, and ADRs exist; assumptions and open questions are explicit.
+
+Verify: link scan and human review of `docs/PRODUCT.md` and `docs/ENGINEERING_SPEC.md`.
+
+Dependencies: none.
+
+Files: `docs/*.md`, `docs/decisions/*.md`, `AGENTS.md`.
+
+Scope: M.
+
+### P0-02: Review and approve production assumptions
+
+Acceptance: the user confirms or changes the target stack, public-beta reliability targets, approval policy, authentication direction, and four-workflow scope; decisions are reflected in specs/ADRs.
+
+Verify: no unresolved assumption changes a foundation interface; review outcome is recorded in `docs/STATUS.md`.
+
+Dependencies: P0-01.
+
+Files: `docs/PRODUCT.md`, `docs/ENGINEERING_SPEC.md`, `docs/SLOS.md`, `docs/STATUS.md`.
+
+Scope: S.
+
+### Checkpoint P0
+
+- Human confirms assumptions, target stack, approval policy, and the four-workflow scope.
+- No feature implementation proceeds on an unreviewed contract change.
+
+## Phase 1: Foundation
+
+### F-01: Lock development tooling
+
+Acceptance: Python dev dependencies are installable; pytest, ruff, mypy, frontend lint/type/test commands are defined; generated files are ignored.
+
+Verify: `uv sync --all-extras --locked`, `npm ci --ignore-scripts`, backend pytest/ruff/mypy, and frontend audit/lint/typecheck/test.
+
+Dependencies: P0-01.
+
+Files: `pyproject.toml`, `uv.lock`, `.python-version`, `.gitignore`, `frontend/package.json`, `frontend/package-lock.json`.
+
+Scope: S.
+
+### F-02: Add typed runtime configuration
+
+Acceptance: one settings object validates environment, model, cloud resources, limits, policy version, and demo mode; missing production values fail fast.
+
+Verify: settings unit tests for local, production, missing secret, invalid limit, and timezone cases.
+
+Dependencies: F-01.
+
+Files: `app/config/settings.py`, `app/config/__init__.py`, `.env.example`, `tests/unit/test_settings.py`.
+
+Scope: M.
+
+### F-03: Implement domain enums and entities
+
+Acceptance: Pydantic/domain models cover the entities and invariants in `DOMAIN_MODEL.md`; all timestamps are timezone-aware; IDs are canonical.
+
+Verify: unit tests for status transitions, dependency cycles, quantity/percentage validation, and naive datetime rejection.
+
+Dependencies: F-01.
+
+Files: `app/domain/models.py`, `app/domain/enums.py`, `app/domain/policies.py`, `tests/unit/test_domain.py`.
+
+Scope: M.
+
+### F-04: Define repository interfaces and in-memory test adapter
+
+Acceptance: application code depends on repository protocols; fake repositories support transactions/version checks and are isolated per test.
+
+Verify: repository contract tests run against a fresh fake for every test and pass concurrent version conflict cases.
+
+Dependencies: F-03.
+
+Files: `app/repositories/interfaces.py`, `app/repositories/memory.py`, `app/repositories/__init__.py`, `tests/contract/test_repositories.py`.
+
+Scope: M.
+
+### F-05: Add Firestore repositories and emulator seed/reset
+
+Acceptance: project-owned entities persist in the documented subcollections; transactions couple mutation and activity; seed/reset is environment-guarded and idempotent.
+
+Verify: emulator integration test creates two projects, restarts the service, resets twice, and proves isolation.
+
+Dependencies: F-04.
+
+Files: `app/infrastructure/firestore.py`, `app/repositories/firestore.py`, `scripts/seed_demo.py`, `scripts/reset_demo.py`, `tests/integration/test_firestore_repositories.py`.
+
+Scope: M.
+
+### F-06: Implement identity and project authorization
+
+Acceptance: authenticated user context and role checks are available to API, repositories, and tools; cross-project access is rejected.
+
+Verify: authorization matrix tests for admin/manager/foreman/viewer and two projects.
+
+Dependencies: F-03, F-05.
+
+Files: `app/api/auth.py`, `app/domain/authorization.py`, `app/repositories/membership.py`, `tests/integration/test_authorization.py`.
+
+Scope: M.
+
+### F-07: Implement secure attachment intake
+
+Acceptance: signed upload requests are project-scoped, short-lived, size/type limited, checksum-verified, and represented by `Attachment` metadata.
+
+Verify: upload contract tests for valid, expired, forged-path, oversized, invalid-type, and checksum mismatch cases.
+
+Dependencies: F-05, F-06.
+
+Files: `app/api/uploads.py`, `app/infrastructure/storage.py`, `app/services/attachments.py`, `tests/integration/test_uploads.py`.
+
+Scope: M.
+
+### Checkpoint F
+
+- Firestore emulator and fake repository tests pass.
+- Restart, authorization, timestamp, and upload controls pass.
+- No production path imports `_PROJECT_DB`.
+
+## Phase 2: Mutation and Event Kernel
+
+### K-01: Add event envelope, claims, and idempotency
+
+Acceptance: all registered event types validate; claims are atomic; duplicates return prior result references; expired claims can be reclaimed.
+
+Verify: duplicate delivery and concurrent claim integration tests.
+
+Dependencies: F-05, F-06.
+
+Files: `app/domain/events.py`, `app/services/event_claims.py`, `app/repositories/event_claims.py`, `tests/contract/test_events.py`, `tests/integration/test_event_claims.py`.
+
+Scope: M.
+
+### K-02: Build activity/audit service
+
+Acceptance: mutation context is mandatory; domain writes and activity records commit atomically; summaries exclude hidden reasoning/secrets.
+
+Verify: mutation contract tests assert actor, source event, run, entity, and exactly-once activity behavior.
+
+Dependencies: F-04, F-05, K-01.
+
+Files: `app/services/activity.py`, `app/repositories/activity.py`, `app/domain/activity.py`, `tests/contract/test_activity.py`.
+
+Scope: M.
+
+### K-03: Replace task tools with typed repository-backed tools
+
+Acceptance: task updates resolve existing authorized IDs, enforce status/dependency invariants, support idempotency, and emit activities.
+
+Verify: tool matrix for valid update, negated update, duplicate, conflict, forbidden project, and blocked completion.
+
+Dependencies: F-03, F-06, K-02.
+
+Files: `app/tools/tasks.py`, `app/services/tasks.py`, `app/repositories/tasks.py`, `tests/unit/test_task_tools.py`, `tests/integration/test_task_tools.py`.
+
+Scope: M.
+
+### K-04: Implement canonical material identity and ledger tools
+
+Acceptance: materials use canonical IDs/aliases/units; quantity changes are append-only ledger entries; negative stock and unknown units are rejected.
+
+Verify: alias, unit conversion policy, duplicate ledger event, concurrent update, and negative quantity tests.
+
+Dependencies: F-03, F-06, K-02.
+
+Files: `app/domain/materials.py`, `app/services/materials.py`, `app/repositories/materials.py`, `app/tools/materials.py`, `tests/unit/test_material_tools.py`.
+
+Scope: M.
+
+### K-05: Add structured API errors and rate limits
+
+Acceptance: API errors match `API.md`; intake/upload/model work has per-user/project limits with retry headers; logs contain request IDs.
+
+Verify: API contract and burst-limit tests.
+
+Dependencies: F-02, F-06, F-07.
+
+Files: `app/api/errors.py`, `app/api/limits.py`, `app/api/dependencies.py`, `tests/integration/test_api_errors_limits.py`.
+
+Scope: M.
+
+### K-06: Add outbox claims for notifications and external actions
+
+Acceptance: notifications and supplier actions have persisted claims, retry status, and deduplication keys; a retry cannot repeat a completed side effect.
+
+Verify: outbox contract tests for success, crash-before-ack, retry, and duplicate delivery.
+
+Dependencies: K-01, K-02.
+
+Files: `app/services/outbox.py`, `app/repositories/outbox.py`, `app/services/notifications.py`, `tests/integration/test_outbox.py`.
+
+Scope: M.
+
+## Phase 3: Agent Kernel
+
+### A-01: Create typed agent registry
+
+Acceptance: coordinator and four specialists have one canonical name/description/prompt version/tool allowlist; startup validates references.
+
+Verify: registry completeness and duplicate-name tests.
+
+Dependencies: F-02, K-03, K-04.
+
+Files: `app/agents/registry.py`, `app/agents/factory.py`, `app/prompts/manifest.yaml`, `tests/unit/test_agent_registry.py`.
+
+Scope: M.
+
+### A-02: Implement structured SiteInterpreter adapter
+
+Acceptance: fake and Gemini adapters return validated `ExtractedFactSet` with evidence, confidence, negation, and clarification fields.
+
+Verify: eval fixtures for explicit completion, absence/negation, ambiguity, material quantity, and safety.
+
+Dependencies: F-02, A-01.
+
+Files: `app/agents/interpreter.py`, `app/domain/facts.py`, `app/infrastructure/gemini.py`, `tests/unit/test_interpreter.py`, `evals/site_updates.json`.
+
+Scope: M.
+
+### A-03: Build bounded project context and entity resolution
+
+Acceptance: context contains only authorized relevant entities; task/material matching returns candidates and confidence; unknown/ambiguous matches clarify.
+
+Verify: overlapping-name, cross-project, alias, and ambiguous-match tests.
+
+Dependencies: F-03, F-06, K-03, K-04, A-02.
+
+Files: `app/services/context.py`, `app/services/entity_resolution.py`, `app/repositories/context.py`, `tests/unit/test_entity_resolution.py`.
+
+Scope: M.
+
+### A-04: Route facts through policy before mutation
+
+Acceptance: explicit positive facts can proceed; negated/ambiguous facts cannot complete/update progress; safety facts trigger stop policy; high-impact actions require approval.
+
+Verify: policy matrix tests mapped to `PRODUCTION_READINESS.md`.
+
+Dependencies: A-02, A-03, K-03, K-04.
+
+Files: `app/domain/policies.py`, `app/services/fact_router.py`, `tests/unit/test_fact_router.py`, `tests/unit/test_safety_policy.py`.
+
+Scope: M.
+
+### A-05: Route every production event through OgaCoordinator
+
+Acceptance: API and worker entrypoints invoke one coordinator service; direct workflow calls are limited to tests/demo adapters; coordinator route names resolve through the registry.
+
+Verify: API-to-coordinator and Pub/Sub-to-coordinator integration tests assert one run and one route decision.
+
+Dependencies: A-01, A-04, K-01.
+
+Files: `app/agents/coordinator.py`, `app/services/event_router.py`, `app/api/events.py`, `tests/integration/test_coordinator_routing.py`.
+
+Scope: M.
+
+## Phase 4: Daily Site Update Vertical Slice
+
+### W-01: Persist workflow runs and checkpoints
+
+Acceptance: runs/checkpoints survive worker restart and expose safe status summaries.
+
+Verify: kill/restart worker between steps and resume test.
+
+Dependencies: K-01, K-02, A-01.
+
+Files: `app/workflows/runtime.py`, `app/repositories/runs.py`, `tests/workflows/test_runtime.py`.
+
+Scope: M.
+
+### W-02: Implement Daily Site Update orchestration
+
+Acceptance: API/event path invokes `OgaCoordinator`, fans out branches, joins results, updates report, and emits response/activity.
+
+Verify: canonical mixed update workflow test and API-to-coordinator integration test.
+
+Dependencies: A-04, W-01, K-03, K-04.
+
+Files: `app/workflows/site_update.py`, `app/agents/coordinator.py`, `app/services/site_updates.py`, `tests/workflows/test_site_update.py`.
+
+Scope: M.
+
+### W-03: Add clarification and safety stop branches
+
+Acceptance: ambiguous updates wait for clarification; credible safety/structural issues stop unsafe branches and notify qualified roles.
+
+Verify: ambiguity and safety E2E/workflow tests.
+
+Dependencies: W-02, A-04.
+
+Files: `app/workflows/clarification.py`, `app/workflows/safety.py`, `app/services/notifications.py`, `tests/workflows/test_clarification_safety.py`.
+
+Scope: M.
+
+### W-04: Persist daily report projection and response
+
+Acceptance: report is unique per project/date, source-linked, replay-safe, and returns a concise summary with pending actions.
+
+Verify: report rebuild and duplicate replay tests.
+
+Dependencies: W-02, K-02.
+
+Files: `app/services/reports.py`, `app/repositories/reports.py`, `app/agents/reporter.py`, `tests/integration/test_reports.py`.
+
+Scope: M.
+
+### W-05: Remove prototype keyword and hard-coded-ID mutation paths
+
+Acceptance: production workflows use structured facts and entity resolution only; prototype keyword adapters are isolated under an explicit demo/test module or removed.
+
+Verify: static search for hard-coded task IDs/keyword mutation branches plus new-task/paraphrase regression tests.
+
+Dependencies: A-03, A-04, W-02.
+
+Files: `app/workflows/site_update.py`, `app/services/fact_router.py`, `tests/workflows/test_site_update.py`, `docs/STATUS.md`.
+
+Scope: M.
+
+### Checkpoint W
+
+- Canonical demo update works from API input through durable state and activity.
+- Duplicate delivery and worker restart tests pass.
+- No hard-coded task IDs or keyword mutation paths remain in production workflow code.
+
+## Phase 5: Materials and Approvals
+
+### M-01: Implement shortage calculation and request workflow
+
+Acceptance: stock, reservations, upcoming task requirements, needed-by, and request deduplication are persisted and typed.
+
+Verify: in-stock, shortage, duplicate, and missing-unit cases.
+
+Dependencies: K-04, W-01.
+
+Files: `app/workflows/materials.py`, `app/services/material_requests.py`, `tests/workflows/test_materials.py`.
+
+Scope: M.
+
+### M-02: Implement approval state machine and continuation events
+
+Acceptance: approve/reject is role/version/idempotency checked; rejection closes request branch; approval resumes persisted run after restart.
+
+Verify: approval conflict, rejection, restart/resume, and duplicate decision tests.
+
+Dependencies: K-01, K-02, M-01.
+
+Files: `app/services/approvals.py`, `app/repositories/approvals.py`, `app/workflows/resume.py`, `tests/workflows/test_approvals.py`.
+
+Scope: M.
+
+### M-03: Make approval pause/resume restart-safe
+
+Acceptance: an `AgentRun` waiting for approval persists its checkpoint; after worker restart, one approved decision resumes the same run and one rejection closes the linked request.
+
+Verify: kill/restart, duplicate decision, rejection, and external-action-not-called tests.
+
+Dependencies: M-02, W-01, K-06.
+
+Files: `app/workflows/resume.py`, `app/services/approvals.py`, `app/repositories/runs.py`, `tests/workflows/test_approval_resume.py`.
+
+Scope: M.
+
+### M-04: Add simulated supplier and delivery-delay adapter
+
+Acceptance: approved requests produce one claimed simulated action; status events include delayed delivery and preserve request history.
+
+Verify: outbox claim and delayed delivery replay tests.
+
+Dependencies: M-03, K-01, K-06.
+
+Files: `app/infrastructure/supplier_simulator.py`, `app/services/external_actions.py`, `tests/integration/test_supplier_simulator.py`.
+
+Scope: M.
+
+## Phase 6: Blockers and Daily Brief
+
+### B-01: Implement dependency impact analysis
+
+Acceptance: blocker facts resolve task/dependency graph, calculate transparent projected impact, and create risk/owner actions.
+
+Verify: dependency chain, no-dependency, cycle rejection, and delivery-delay tests.
+
+Dependencies: F-03, A-03, W-01.
+
+Files: `app/services/schedule_impact.py`, `app/workflows/blockers.py`, `tests/workflows/test_blockers.py`.
+
+Scope: M.
+
+### B-02: Add safety escalation and resolution tracking
+
+Acceptance: safety stop policy is enforced, qualified role is notified, acknowledgement is recorded, and issue resolution updates risk.
+
+Verify: critical safety workflow and resolution tests.
+
+Dependencies: W-03, B-01.
+
+Files: `app/services/safety.py`, `app/services/issues.py`, `tests/integration/test_safety.py`.
+
+Scope: M.
+
+### D-01: Implement scheduled Daily Brief
+
+Acceptance: scheduler event creates one source-linked brief per project/window and notification; missing data is not invented.
+
+Verify: scheduled event, duplicate event, empty project, and notification retry tests.
+
+Dependencies: W-04, K-01, K-02.
+
+Files: `app/workflows/daily_brief.py`, `app/services/daily_brief.py`, `tests/workflows/test_daily_brief.py`.
+
+Scope: M.
+
+### E-01: Connect Pub/Sub/Eventarc worker entrypoint
+
+Acceptance: API publishes normalized events; worker claims and routes them through coordinator; dead-letter and retry metadata are preserved.
+
+Verify: emulator end-to-end event delivery, duplicate, retry, and dead-letter tests.
+
+Dependencies: K-01, W-01, W-02.
+
+Files: `app/worker.py`, `app/infrastructure/pubsub.py`, `app/api/events.py`, `tests/integration/test_event_delivery.py`.
+
+Scope: M.
+
+### E-02: Add Cloud Scheduler configuration
+
+Acceptance: daily brief events are scheduled per environment/project policy and never run twice for the same window.
+
+Verify: infrastructure validation and duplicate scheduler event tests.
+
+Dependencies: D-01, E-01.
+
+Files: `infra/scheduler.*`, `scripts/register_schedules.py`, `tests/integration/test_scheduler_events.py`.
+
+Scope: S.
+
+## Phase 7: Versioned API and UI
+
+### S-01: Build versioned FastAPI routers and projections
+
+Acceptance: project/state/task/material/issue/report/activity/run routes match `API.md`, enforce auth, pagination, errors, and no process-global state.
+
+Verify: OpenAPI/contract tests and authorization matrix.
+
+Dependencies: F-06, K-02, W-02, M-02.
+
+Files: `app/api/v1/*.py`, `app/api/schemas.py`, `tests/contract/test_api.py`, `tests/integration/test_api.py`.
+
+Scope: M.
+
+### S-02: Build Next.js application shell and typed client
+
+Acceptance: project navigation, auth context, query keys, loading/error states, and responsive shell exist without hard-coded project data.
+
+Verify: lint/typecheck, component tests, and browser shell test.
+
+Dependencies: S-01.
+
+Files: `frontend/app/*`, `frontend/components/*`, `frontend/lib/api.ts`, `frontend/tests/*`.
+
+Scope: M.
+
+### S-03: Build mobile site intake flow
+
+Acceptance: text/voice/photo/file intake submits to signed-upload and site-update APIs, displays processing/clarification/error states, and links to results.
+
+Verify: Playwright mobile flow with denied microphone and invalid upload cases.
+
+Dependencies: F-07, S-01, S-02.
+
+Files: `frontend/app/projects/[id]/site/*`, `frontend/components/site-composer/*`, `frontend/tests/site-intake.*`, `e2e/site-update.spec.ts`.
+
+Scope: M.
+
+### S-04: Build command center, approvals, materials, tasks, reports, activity
+
+Acceptance: command center and activity views read API projections, show real status transitions, and handle stale/conflict/error states.
+
+Verify: desktop/mobile Playwright suite and accessibility scan.
+
+Dependencies: S-02, S-03, M-02, D-01.
+
+Files: `frontend/app/projects/[id]/page.tsx`, `frontend/app/projects/[id]/activity/page.tsx`, `frontend/components/command-center/*`, `e2e/manager-flows.spec.ts`.
+
+Scope: M.
+
+### S-05: Build manager resource and approval views
+
+Acceptance: approvals, materials, tasks, issues, and reports render API-backed state and support the documented actions.
+
+Verify: approval approve/reject, stale conflict, and resource browser tests.
+
+Dependencies: S-02, S-04, M-03, D-01.
+
+Files: `frontend/app/projects/[id]/approvals/page.tsx`, `frontend/app/projects/[id]/materials/page.tsx`, `frontend/app/projects/[id]/tasks/page.tsx`, `frontend/components/approval/*`, `e2e/manager-resources.spec.ts`.
+
+Scope: M.
+
+### S-06: Remove static UI state and hard-coded metrics
+
+Acceptance: no production screen uses demo-only metrics, inline mutation scripts, or client-owned project truth; all data reloads from the versioned API.
+
+Verify: browser fixture changes are reflected after reload and static-state search is clean.
+
+Dependencies: S-04, S-05.
+
+Files: `web/index.html`, `frontend/lib/api.ts`, `frontend/app/projects/[id]/page.tsx`, `frontend/tests/api-backed-state.test.ts`.
+
+Scope: S.
+
+## Phase 8: Reliability, Security, and Launch
+
+### R-01: Complete production-readiness test suite
+
+Acceptance: every PR control has an automated verification case; all core eval thresholds pass.
+
+Verify: commands in `PRODUCTION_READINESS.md`.
+
+Dependencies: all prior feature tasks.
+
+Files: `tests/production_readiness/*`, `evals/*`, `scripts/run_evals.py`, `docs/STATUS.md`.
+
+Scope: M.
+
+### R-02: Add eval runner and regression artifacts
+
+Acceptance: the locked dataset runs with fake and configured model adapters, reports mutation diffs, and enforces thresholds in `EVALS.md`.
+
+Verify: normal/mixed/ambiguous/negation/approval/duplicate/safety/delivery cases and a deliberate regression.
+
+Dependencies: A-02, W-02, M-03, B-02.
+
+Files: `evals/*.json`, `scripts/run_evals.py`, `tests/evals/test_regressions.py`, `docs/STATUS.md`.
+
+Scope: M.
+
+### R-03: Add observability and operational controls
+
+Acceptance: structured logs, traces, metrics, alerts, dead-letter inspection, and run/activity links are available in staging.
+
+Verify: staging smoke and trace correlation test.
+
+Dependencies: E-01, S-01, W-01.
+
+Files: `app/observability/*`, `app/api/health.py`, `infra/monitoring.*`, `tests/integration/test_observability.py`.
+
+Scope: M.
+
+### R-04: Verify load, backup, restore, and recovery objectives
+
+Acceptance: the baseline capacity in `SLOS.md` passes without state corruption; Firestore/Storage protection is enabled; an isolated restore and projection rebuild meet RTO/RPO targets.
+
+Verify: load report, backup job evidence, restore rehearsal, and projection rebuild timing.
+
+Dependencies: F-05, E-01, S-01, R-03.
+
+Files: `tests/load/*`, `scripts/verify_backups.py`, `scripts/rebuild_projections.py`, `docs/SLOS.md`, `docs/STATUS.md`.
+
+Scope: M.
+
+### L-01: Reproducible Cloud deployment
+
+Acceptance: infrastructure and IAM are reviewed/checkable; API and worker deploy separately; smoke and rollback are documented and tested.
+
+Verify: staging deployment and rollback rehearsal.
+
+Dependencies: F-02, E-02, R-03, R-04.
+
+Files: `infra/*`, `Dockerfile`, `.github/workflows/*`, `docs/DEPLOYMENT.md`.
+
+Scope: M.
+
+### L-02: Rehearsable demo and launch evidence
+
+Acceptance: `reset-demo` is safe/idempotent; demo script passes repeatedly; release evidence and known limitations are recorded.
+
+Verify: three consecutive demo runs, including rejection and worker restart rehearsal.
+
+Dependencies: R-01, R-02, R-03, L-01.
+
+Files: `scripts/seed_demo.py`, `scripts/reset_demo.py`, `scripts/run_demo.py`, `docs/DEMO.md`, `README.md`.
+
+Scope: M.
+
+### L-03: Release documentation and known-limitations handoff
+
+Acceptance: README quick start matches implemented commands; status, operations, deployment, and known limitations describe the released revision.
+
+Verify: clean-checkout quick start and docs link scan.
+
+Dependencies: L-02.
+
+Files: `README.md`, `docs/STATUS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`.
+
+Scope: S.
+
+## Checkpoints
+
+### After F-07
+
+Persistence, identity, upload, and time controls pass.
+
+### After W-04
+
+The canonical site update is durable, replay-safe, auditable, and API-triggered.
+
+### After M-04 and B-02
+
+Approval/rejection, restart/resume, delivery delay, dependency impact, and safety stop pass.
+
+### Before launch
+
+All tests/evals, browser flows, observability, deployment smoke, rollback, and `PR-*` controls pass.

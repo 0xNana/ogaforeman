@@ -1,0 +1,129 @@
+from enum import StrEnum
+from functools import lru_cache
+from typing import Self
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class RuntimeEnvironment(StrEnum):
+    LOCAL = "local"
+    TEST = "test"
+    PREVIEW = "preview"
+    STAGING = "staging"
+    PRODUCTION = "production"
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    oga_env: RuntimeEnvironment = RuntimeEnvironment.LOCAL
+    demo_mode: bool = True
+    use_fake_model: bool = True
+    default_project_timezone: str = "Africa/Accra"
+
+    google_cloud_project: str | None = None
+    google_cloud_region: str | None = None
+    firestore_database: str | None = None
+    firestore_emulator_host: str | None = None
+    allow_remote_firestore_in_local: bool = False
+    media_bucket: str | None = None
+
+    pubsub_site_events_topic: str | None = None
+    pubsub_dead_letter_topic: str | None = None
+    pubsub_worker_subscription: str | None = None
+
+    gemini_model_id: str | None = None
+    gemini_fallback_model_id: str | None = None
+    gemini_location: str | None = None
+    gemini_api_key: SecretStr | None = None
+
+    event_claim_lease_seconds: int = Field(default=60, ge=30, le=600)
+    event_claim_max_attempts: int = Field(default=3, ge=1, le=10)
+    agent_workflow_timeout_seconds: int = Field(default=45, ge=5, le=300)
+
+    auth_issuer: str | None = None
+    auth_audience: str | None = None
+
+    signed_upload_ttl_seconds: int = Field(default=900, ge=60, le=3_600)
+    max_upload_bytes: int = Field(default=52_428_800, gt=0, le=524_288_000)
+    max_attachment_count: int = Field(default=10, ge=1, le=25)
+    max_event_text_chars: int = Field(default=20_000, ge=256, le=1_000_000)
+    rate_limit_per_user: int = Field(default=30, ge=1, le=10_000)
+    rate_limit_per_project: int = Field(default=300, ge=1, le=100_000)
+    approval_policy_version: str = Field(default="v1", min_length=1, max_length=64)
+
+    @field_validator("default_project_timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("default_project_timezone must be a valid IANA timezone") from exc
+        return value
+
+    @model_validator(mode="after")
+    def validate_environment_requirements(self) -> Self:
+        if self.agent_workflow_timeout_seconds >= self.event_claim_lease_seconds:
+            raise ValueError(
+                "agent_workflow_timeout_seconds must be shorter than event_claim_lease_seconds"
+            )
+        if self.allow_remote_firestore_in_local:
+            if self.oga_env is not RuntimeEnvironment.LOCAL:
+                raise ValueError("allow_remote_firestore_in_local is valid only in local mode")
+            if not self.google_cloud_project:
+                raise ValueError(
+                    "google_cloud_project is required when local remote Firestore is enabled"
+                )
+            if self.firestore_emulator_host:
+                raise ValueError(
+                    "firestore_emulator_host and local remote Firestore are mutually exclusive"
+                )
+            if self.demo_mode:
+                raise ValueError("demo_mode must be false when local remote Firestore is enabled")
+
+        if self.oga_env is RuntimeEnvironment.PRODUCTION and self.demo_mode:
+            raise ValueError("demo_mode must be false in production")
+
+        if self.oga_env is RuntimeEnvironment.PRODUCTION and self.use_fake_model:
+            raise ValueError("use_fake_model must be false in production")
+
+        if self.oga_env in {
+            RuntimeEnvironment.PREVIEW,
+            RuntimeEnvironment.STAGING,
+            RuntimeEnvironment.PRODUCTION,
+        }:
+            if self.firestore_emulator_host:
+                raise ValueError("deployed environments cannot use FIRESTORE_EMULATOR_HOST")
+            required_fields = (
+                "google_cloud_project",
+                "google_cloud_region",
+                "firestore_database",
+                "media_bucket",
+                "pubsub_site_events_topic",
+                "pubsub_dead_letter_topic",
+                "pubsub_worker_subscription",
+                "gemini_model_id",
+                "gemini_location",
+                "auth_issuer",
+                "auth_audience",
+            )
+            missing_fields = [
+                field_name for field_name in required_fields if not getattr(self, field_name)
+            ]
+            if missing_fields:
+                raise ValueError("Deployed environments require: " + ", ".join(missing_fields))
+
+        return self
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()

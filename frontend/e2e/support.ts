@@ -1,0 +1,24 @@
+import { randomUUID } from 'node:crypto';
+import { expect, type Page, type TestInfo } from '@playwright/test';
+
+export const projectId = 'prj_playwright123';
+
+export function captureBrowserErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  return errors;
+}
+
+export async function signInToProject(page: Page, testInfo: TestInfo): Promise<void> {
+  const email = `${testInfo.project.name}-${randomUUID()}@example.test`;
+  await page.goto(`/sign-up?next=/projects/${projectId}`);
+  await page.getByLabel('Full name').fill('Ama Manager');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill('local-e2e-password');
+  await page.getByRole('button', { name: /Create account/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
+  await expect(page.getByRole('heading', { name: 'Ridge House' })).toBeVisible();
+}

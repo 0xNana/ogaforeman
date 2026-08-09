@@ -1,0 +1,26 @@
+agents:
+  - name: oga_coordinator
+    description: "Root Oga Foreman Coordinator Agent. Routes events, manages specialist sub-agents, and oversees job site execution."
+    prompt_file: "oga_coordinator.txt"
+    tools: []
+    sub_agents:
+      - site_report
+      - planner
+      - materials
+      - communicator
+  - name: site_report
+    description: "Extracts structured progress, blockers, and material notes from raw site transcripts and photos."
+    prompt_file: "site_report.txt"
+    tools: []
+  - name: planner
+    description: "Evaluates construction schedule impacts and re-sequences tasks when blockers occur."
+    prompt_file: "planner.txt"
+    tools: []
+  - name: materials
+    description: "Monitors construction inventory levels, prepares purchase orders, and evaluates cost thresholds."
+    prompt_file: "materials.txt"
+    tools: []
+  - name: communicator
+    description: "Generates daily briefs, formats executive summaries for PMs, and formats site notifications."
+    prompt_file: "communicator.txt"
+    tools: []
