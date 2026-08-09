@@ -196,6 +196,12 @@ Requirements:
   concise risk summary and pending review action are persisted on the originating
   `AgentRun` before completion or approval/clarification pause and are exposed by the
   authorized run API.
+- A task-linked blocker also creates one typed `TaskSource.SITE_UPDATE` follow-up.
+  The mutation verifies the persisted blocker, source site update, and blocked task
+  in the authorized project transaction, inherits only the blocked task's canonical
+  assignee ID, stores all three source references, and atomically emits
+  `task.follow_up_created`. Its idempotency scope is part of the originating event/run;
+  the model cannot provide an assignee or arbitrary entity ID.
 
 ### Always Do
 

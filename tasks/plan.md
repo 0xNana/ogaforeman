@@ -122,6 +122,35 @@ Status: complete locally on 2026-08-09. All 20 backing-service cases pass with
 fresh Storage clients and the existing Firestore emulator; the six-case mobile intake
 journey passes with the dependency-derived risk visible in Oga's receipt.
 
+### P0.5: Real follow-through actions
+
+Acceptance: each task-linked blocker creates one explicit operational follow-up
+through the typed task service rather than stopping at an `Issue`. The task inherits
+the blocked task's canonical assignee when present, persists source references to the
+site update, blocker issue, and blocked task, and atomically emits an activity. The
+same event/idempotency scope replays without another task. Active follow-ups project
+into both Tasks and Needs You. Material risk continues to calculate its shortage from
+persisted stock/requirements, create one request and approval, and pause the original
+run before any supplier action.
+
+Verify: production-worker and API tests assert the assigned source-linked follow-up,
+activity causality, duplicate suppression, 30-bag calculated request, pending approval,
+and original-run wait. The Firestore/Storage restart case re-reads the follow-up before
+approval and after continuation. Mobile Chromium submits the mixed update, sees the
+follow-up in Tasks and Needs You, approves the material request, and observes the same
+run complete.
+
+Dependencies: P0.1 through P0.4, K-02, K-03, W-01 through W-04, M-01 through M-03,
+B-01, S-01 through S-05.
+
+Files: `app/domain/models.py`, `app/services/tasks.py`, `app/tools/tasks.py`,
+`app/services/site_updates.py`, `app/api/v1/projections.py`, the Tasks/Needs You
+components, and relevant unit/integration/backing/browser tests.
+
+Status: complete locally on 2026-08-09. The non-backing suite passes 285 tests and
+all 20 backing-service cases pass with the new follow-up reloaded through fresh
+Firestore clients; the focused mobile production-path journey also passes.
+
 ## Dependency Graph
 
 ```text

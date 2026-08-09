@@ -50,6 +50,11 @@ real cloud environment, live model credential/billing, or human release gate.
   the persisted dependency graph to create a separate downstream delay-risk issue.
   The source task and supported dependents appear in the daily report and in a
   restart-safe `AgentRun` response; unrelated tasks are excluded without phrase rules.
+- [x] P0.5 A task-linked blocker now creates one assigned, source-linked follow-up
+  through the typed task service and atomically logs it. It is API-backed in Tasks
+  and Needs You, survives Firestore restart, and duplicate event delivery cannot
+  create another action. The same mixed workflow still calculates a 30-bag shortage,
+  creates one request/approval, and pauses the original run before supplier action.
 
 ## Contracts and foundation
 
@@ -194,7 +199,7 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend without backing services: 282 passed, 20 explicitly deselected.
+- [x] Backend without backing services: 285 passed, 20 explicitly deselected.
 - [x] Durable backing services: 20 passed against Firestore and Storage emulators,
   with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
@@ -226,7 +231,10 @@ Vertical slice gate:
   canonical blocked task, direct/transitive dependency risk excludes unrelated work,
   three distinct full-scenario issues survive backing-service restart, and the mobile
   receipt renders the persisted schedule summary and action.
-- [x] Frontend: normal `npm ci`, lint, typecheck, 10 unit tests, and build pass.
+- [x] P0.5 follow-through proof: the same production worker creates one canonical-
+  assignee follow-up linked to the blocker/site update, logs it, survives restart,
+  and renders it in Tasks and Needs You before the material approval resumes.
+- [x] Frontend: normal `npm ci`, lint, typecheck, 11 unit tests, and build pass.
 - [x] Playwright: 17 passed, 13 intentional cross-device skips, including a real
   Firestore-backed approval/resume journey with no workflow request interception.
 - [x] Production dependency audit: `npm audit --omit=dev` reports zero

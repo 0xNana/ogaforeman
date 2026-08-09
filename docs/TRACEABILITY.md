@@ -8,7 +8,7 @@
 | Structured interpretation | ExtractedFactSet | fact contract | Daily Site Update | run/activity views | evals normal/mixed/ambiguous | A-02, A-03, W-01 |
 | Progress accuracy | Task invariants | `TASK_COMPLETED` | Progress branch | task view | negation/precision | A-04, W-01 |
 | Materials follow-through | Material ledger/request | material events | Material Shortage | materials/approvals | approval/resume/rejection | M-01..M-04 |
-| Blocker impact | Issue, dependencies | blocker/delay events | Blocker and Delay | issues/tasks/activity | safety/delivery evals | B-01..B-03 |
+| Blocker impact and follow-through | Issue, dependencies, source-linked Task | blocker/delay events | Blocker and Delay | issues/tasks/Needs You/activity | worker/replay/restart/browser | B-01..B-03, P0.4, P0.5 |
 | Daily brief | DailyReport | `DAILY_BRIEF_REQUESTED` | Daily Brief | report/notification views | scheduled brief | D-01, D-02 |
 | Human approval | Approval state machine | granted/rejected | Materials/impact | approval decision route/UI | restart and conflict | M-03, M-04 |
 | Auditability | ActivityEvent | all | all | activity/run routes | mutation contract | R-02 |

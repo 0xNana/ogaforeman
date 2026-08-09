@@ -36,6 +36,14 @@ creates a distinct downstream delay-risk issue, and projects both facts into the
 daily report. The concise impact and pending schedule review persist on the same
 `AgentRun`, are returned by the run API, and appear in the site-update receipt.
 
+Blocker handling now performs the operational follow-through as well. A typed task
+mutation verifies the blocker, source update, and blocked task together, creates one
+`TaskSource.SITE_UPDATE` follow-up, inherits the blocked task's canonical assignee,
+and atomically logs `task.follow_up_created`. The task survives fresh Firestore
+clients and is visible from persisted snapshot state in Tasks and Needs You. The
+mixed workflow still calculates 30 missing cement bags from recorded stock and
+upcoming requirement, creates the request/approval, and pauses the original run.
+
 This is still a **release candidate under construction**, not a deployable
 public beta. Every coordinator event route now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
@@ -49,7 +57,7 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend without backing services: 282 passed, 20 deselected
+- Backend without backing services: 285 passed, 20 deselected
 - Firestore/Storage backing-service gate: 20 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
@@ -64,7 +72,9 @@ configured model, or human release review. The canonical evidence checklist is
 - P0.2 Firestore-backed worker/attachment proof: 2 focused tests passed
 - P0.4 production-worker blocker/dependency proof: passed, including direct,
   transitive, and unrelated task assertions
-- Frontend install, checks, and build: passed with 10 unit tests
+- P0.5 production-worker follow-up/replay proof: passed; the full backing-service
+  gate and focused mobile approval/resume journey also pass
+- Frontend install, checks, and build: passed with 11 unit tests
 - Playwright desktop/mobile: 17 passed, 13 intentional device skips
 - Production npm audit: zero vulnerabilities
 - Documentation links/tests: passed
@@ -128,6 +138,15 @@ electrical schedule impact and cement shortage as distinct causes. Issue creatio
 task state, report projection, and the run response are replay-safe and audited by
 the existing typed mutation/lifecycle services.
 
+P0.5 closes the gap between detecting a blocker and creating work to resolve it.
+The worker now creates one deterministic follow-up task after the blocker transition,
+links it to the source update, blocker issue, and blocked task, and carries forward
+the blocked task's canonical assignee when present. Creation and activity commit
+atomically and replay returns the existing task even if the source task is later
+reassigned. Snapshot projections mark the active follow-up for Tasks and Needs You;
+the canonical Firestore restart and mobile browser paths verify persistence and
+visibility before the existing material approval resumes the same run.
+
 ## Confirmed implementation
 
 - Production code has no _PROJECT_DB or datetime.utcnow() dependency.
@@ -135,6 +154,8 @@ the existing typed mutation/lifecycle services.
   cached read versions for cross-collection mutation sets.
 - Task, issue, material, request, report, attachment, approval, run, and activity
   state are durably projected by the canonical Daily Site Update path.
+- Task-linked blockers create one authorized, idempotent, audited follow-up task
+  with persisted site-update/issue/task sources and canonical assignee inheritance.
 - Audio transcription is a durable, idempotent `SiteUpdate` enrichment with an
   atomic `site_update.transcribed` activity; the original attachment remains
   linked and replay skips already-transcribed audio.

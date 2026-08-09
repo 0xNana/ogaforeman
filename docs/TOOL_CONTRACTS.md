@@ -40,6 +40,7 @@ Read tools never accept an arbitrary collection path and never return records fr
 record_site_update(input, context) -> SiteUpdate + ProjectEvent
 update_task_progress(input, context) -> TaskChange
 complete_task(input, context) -> TaskChange
+create_blocker_follow_up(input, context) -> TaskChange
 create_issue(input, context) -> IssueChange
 update_material_quantity(input, context) -> MaterialLedgerChange
 create_material_request(input, context) -> MaterialRequestChange
@@ -53,6 +54,9 @@ record_activity(input, context) -> ActivityEvent
 ## Policy Examples
 
 - `complete_task` requires explicit positive evidence, a known task ID, valid version, and a non-blocked task.
+- `create_blocker_follow_up` accepts only persisted blocker/task/site-update IDs from
+  the authorized workflow, verifies their links transactionally, inherits the task's
+  canonical assignee, and creates one audited source-linked task per idempotency scope.
 - `update_material_quantity` uses canonical material ID/unit and a ledger event; it cannot make stock negative.
 - `create_material_request` deduplicates open equivalent requests and creates an approval for purchases in V1.
 - `resolve_approval` requires manager/admin role and a transactionally pending approval; a second decision returns a conflict/no-op.

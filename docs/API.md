@@ -69,6 +69,11 @@ activities, and latest report. A newly created project therefore returns empty
 resource lists plus its persisted `project.created` activity rather than a
 hard-coded empty projection.
 
+Task entries in the snapshot expose `needsAttention` and `sourceRefs`. A current
+site-update follow-up is therefore visible in Tasks and Needs You from persisted API
+state, while its source site update, blocker issue, and blocked task remain
+reconstructable without frontend session memory.
+
 ## Endpoint Catalog
 
 ### Projects

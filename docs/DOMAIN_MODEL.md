@@ -71,6 +71,7 @@ planned_end: datetime | null
 actual_start: datetime | null
 actual_completion: datetime | null
 dependency_ids: string[]
+source_refs: string[]
 completion_percent: number [0, 100]
 source: manual | site_update | workflow | import
 version: integer

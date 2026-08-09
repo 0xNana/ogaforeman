@@ -33,7 +33,9 @@ Canonical acceptance input:
 
 > First-floor blockwork is done. Electrician did not come. We have ten bags of cement left. Plastering is tomorrow.
 
-Expected: blockwork complete; electrical blocker open; plastering risk; cement shortage/request; approval where required; report and activity updates; one mutation set after replay.
+Expected: blockwork complete; electrical blocker open; assigned source-linked
+follow-up; plastering risk; cement shortage/request; approval where required; report
+and activity updates; one mutation set after replay.
 
 ## Material Shortage
 
@@ -58,6 +60,7 @@ All purchases require approval in V1, even when a cost threshold would otherwise
 TASK_BLOCKED/TASK_OVERDUE/DELIVERY_DELAYED
   -> merge or create Issue
   -> resolve affected task IDs
+  -> create/assign one source-linked follow-up task
   -> traverse dependency graph
   -> calculate projected impact and assumptions
   -> apply low-impact notifications/issue updates
