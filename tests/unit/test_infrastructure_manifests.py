@@ -15,9 +15,11 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     source = (ROOT / "infra" / "deploy.sh").read_text(encoding="utf-8")
 
     assert ': "${FIRESTORE_LOCATION:?Set FIRESTORE_LOCATION}"' in source
+    assert ': "${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS as a JSON origin list}"' in source
     assert "FIRESTORE_LOCATION:=nam5" not in source
     assert 'gcloud run deploy "${API_SERVICE}"' in source
     assert 'gcloud run deploy "${WORKER_SERVICE}"' in source
+    assert 'gcloud run deploy "${WEB_SERVICE}"' in source
     assert "--push-auth-service-account" in source
     assert "--dead-letter-topic" in source
     assert "--max-delivery-attempts 5" in source
@@ -29,6 +31,7 @@ def test_deploy_script_contains_release_critical_resources() -> None:
         "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" in source
     )
     assert "--config cloudbuild.yaml" in source
+    assert "--config frontend/cloudbuild.yaml" in source
     assert "--versioning" in source
     assert "--soft-delete-duration 30d" in source
     assert 'BACKUP_BUCKET="${BACKUP_BUCKET:-${GOOGLE_CLOUD_PROJECT}-oga-backups}"' in source
@@ -45,6 +48,7 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "--delete-protection" in source
     assert "firebase-tools@${FIREBASE_CLI_VERSION}" in source
     assert "--only firestore" in source
+    assert "--only hosting" in source
     assert '--project "${GOOGLE_CLOUD_PROJECT}"' in source
     assert "--startup-probe" in source
     assert "--liveness-probe" in source
@@ -74,6 +78,14 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
                 "GEMINI_LOCATION=global",
                 "AUTH_ISSUER=https://securetoken.google.com/dotenv-project",
                 "AUTH_AUDIENCE=dotenv-project",
+                'CORS_ALLOWED_ORIGINS=["https://dotenv.example"]',
+                "NEXT_PUBLIC_API_BASE_URL=https://api.dotenv.example",
+                "NEXT_PUBLIC_FIREBASE_API_KEY=public-web-key",
+                "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=dotenv.firebaseapp.com",
+                "NEXT_PUBLIC_FIREBASE_PROJECT_ID=dotenv-project",
+                "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=dotenv.firebasestorage.app",
+                "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789",
+                "NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:dotenv",
                 'SCHEDULE_CRON="15 6 * * *"',
                 f"PATH=$(touch {marker})",
             )
@@ -91,6 +103,14 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
         "GEMINI_LOCATION",
         "AUTH_ISSUER",
         "AUTH_AUDIENCE",
+        "CORS_ALLOWED_ORIGINS",
+        "NEXT_PUBLIC_API_BASE_URL",
+        "NEXT_PUBLIC_FIREBASE_API_KEY",
+        "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+        "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+        "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+        "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+        "NEXT_PUBLIC_FIREBASE_APP_ID",
     ):
         environment.pop(key, None)
     environment.update(
@@ -129,6 +149,23 @@ def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes()
         }
     ]
     assert "allow read, write: if false;" in rules
+    assert manifest["hosting"]["rewrites"] == [
+        {
+            "source": "**",
+            "run": {"serviceId": "oga-web", "region": "europe-west1"},
+        }
+    ]
+
+
+def test_frontend_container_is_standalone_and_non_root() -> None:
+    dockerfile = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    config = (ROOT / "frontend" / "next.config.mjs").read_text(encoding="utf-8")
+
+    assert "output: 'standalone'" in config
+    assert "npm ci" in dockerfile
+    assert "npm run build" in dockerfile
+    assert "USER nextjs" in dockerfile
+    assert 'CMD ["node", "server.js"]' in dockerfile
 
 
 def test_abandoned_firebase_scaffolds_are_removed() -> None:

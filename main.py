@@ -6,6 +6,7 @@ import argparse
 
 from fastapi import FastAPI
 
+from app.api.cors import install_cors_middleware
 from app.api.dead_letters import router as dead_letter_router
 from app.api.errors import install_error_handlers, install_request_id_middleware
 from app.api.events import router as event_router
@@ -18,6 +19,7 @@ from app.infrastructure.pubsub import PubSubClient
 from app.infrastructure.storage import create_storage_adapter
 from app.services.attachments import AttachmentService
 from app.observability.logging import configure_logging
+from app.observability.tracing import cloud_trace_exporter
 from app.services.site_update_intake import SiteUpdateIntakeService
 
 
@@ -44,7 +46,14 @@ if settings.auth_audience:
             create_storage_adapter(settings),
             settings,
         )
-install_request_id_middleware(app)
+trace_exporter = (
+    cloud_trace_exporter(settings.google_cloud_project)
+    if settings.google_cloud_project
+    and settings.oga_env.value in {"preview", "staging", "production"}
+    else None
+)
+install_request_id_middleware(app, trace_exporter=trace_exporter)
+install_cors_middleware(app, settings.cors_allowed_origins)
 install_error_handlers(app)
 app.include_router(create_runtime_health_router(settings))
 app.include_router(api_router, prefix="/api/v1")

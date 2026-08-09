@@ -20,6 +20,7 @@ from app.observability.context import bind_context, new_correlation_context
 from app.observability.logging import log_event
 from app.observability.metrics import metrics
 from app.observability.tracing import TraceSpan
+from app.observability.tracing import cloud_trace_exporter
 from app.repositories.interfaces import EntityNotFoundError, RepositoryStore
 from app.services.event_claims import ClaimOutcome, EventClaimService, InvalidEventClaim
 from app.services.external_actions import ExternalActionService
@@ -77,11 +78,18 @@ async def process_event_async(
         lease_seconds=runtime.event_claim_lease_seconds,
         max_attempts=runtime.event_claim_max_attempts,
     )
+    trace_exporter = (
+        cloud_trace_exporter(runtime.google_cloud_project)
+        if runtime.google_cloud_project
+        and runtime.oga_env.value in {"preview", "staging", "production"}
+        else None
+    )
     with (
         bind_context(context),
         TraceSpan(
             "worker.process_event",
             trace_id=context.trace_id,
+            exporter=trace_exporter,
             event_type=event.event_type.value,
         ),
     ):

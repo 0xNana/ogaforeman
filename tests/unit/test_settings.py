@@ -26,6 +26,7 @@ PRODUCTION_CONFIG: Mapping[str, object] = {
     "gemini_location": "global",
     "auth_issuer": "https://securetoken.google.com/oga-production",
     "auth_audience": "oga-production",
+    "cors_allowed_origins": ["https://oga-production.web.app"],
 }
 
 
@@ -39,6 +40,7 @@ def test_local_defaults_are_explicit_and_safe() -> None:
     assert settings.google_cloud_project is None
     assert settings.allow_remote_firestore_in_local is False
     assert settings.firestore_emulator_host is None
+    assert settings.cors_allowed_origins == ()
     assert settings.agent_workflow_timeout_seconds < settings.event_claim_lease_seconds
 
 
@@ -74,6 +76,40 @@ def test_complete_production_configuration_is_valid() -> None:
     assert settings.demo_mode is False
     assert settings.use_fake_model is False
     assert settings.google_cloud_project == "oga-production"
+    assert settings.cors_allowed_origins == ("https://oga-production.web.app",)
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "*",
+        "https://oga.example/path",
+        "https://oga.example?query=yes",
+        "http://oga.example",
+    ],
+)
+def test_cors_origins_reject_wildcards_paths_and_insecure_remote_hosts(origin: str) -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config["cors_allowed_origins"] = [origin]
+
+    with pytest.raises(ValidationError, match="CORS_ALLOWED_ORIGINS"):
+        Settings(_env_file=None, **config)
+
+
+def test_settings_load_cors_origins_from_json_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS",
+        '["https://ogaforeman.example","http://127.0.0.1:3100"]',
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.cors_allowed_origins == (
+        "https://ogaforeman.example",
+        "http://127.0.0.1:3100",
+    )
 
 
 def test_production_rejects_missing_cloud_model_and_auth_configuration() -> None:
@@ -99,6 +135,7 @@ def test_production_rejects_missing_cloud_model_and_auth_configuration() -> None
         "gemini_location",
         "auth_issuer",
         "auth_audience",
+        "cors_allowed_origins",
     ):
         assert field_name in message
 

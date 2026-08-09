@@ -10,15 +10,17 @@ from .health import HealthCheck, HealthRegistry, create_health_router
 from .logging import configure_logging, log_event
 from .metrics import MetricRegistry, metrics
 from .probes import configuration_probe, firestore_probe, storage_probe
-from .tracing import TraceSpan, new_trace_id
+from .tracing import CloudTraceExporter, TraceSpan, cloud_trace_exporter, new_trace_id
 
 __all__ = [
     "CorrelationContext",
+    "CloudTraceExporter",
     "HealthCheck",
     "HealthRegistry",
     "MetricRegistry",
     "TraceSpan",
     "bind_context",
+    "cloud_trace_exporter",
     "configure_logging",
     "create_health_router",
     "current_context",

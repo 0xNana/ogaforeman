@@ -1,6 +1,7 @@
 from enum import StrEnum
 from functools import lru_cache
 from typing import Self
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -51,6 +52,7 @@ class Settings(BaseSettings):
 
     auth_issuer: str | None = None
     auth_audience: str | None = None
+    cors_allowed_origins: tuple[str, ...] = ()
 
     signed_upload_ttl_seconds: int = Field(default=900, ge=60, le=3_600)
     max_upload_bytes: int = Field(default=52_428_800, gt=0, le=524_288_000)
@@ -68,6 +70,36 @@ class Settings(BaseSettings):
         except ZoneInfoNotFoundError as exc:
             raise ValueError("default_project_timezone must be a valid IANA timezone") from exc
         return value
+
+    @field_validator("cors_allowed_origins")
+    @classmethod
+    def validate_cors_origins(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        normalized: list[str] = []
+        for raw_origin in values:
+            origin = raw_origin.strip()
+            parsed = urlsplit(origin)
+            is_local_http = parsed.scheme == "http" and parsed.hostname in {
+                "127.0.0.1",
+                "localhost",
+            }
+            if (
+                origin == "*"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+                or (parsed.scheme != "https" and not is_local_http)
+                or origin != f"{parsed.scheme}://{parsed.netloc}"
+            ):
+                raise ValueError(
+                    "CORS_ALLOWED_ORIGINS entries must be exact HTTPS origins "
+                    "or loopback HTTP origins"
+                )
+            if origin not in normalized:
+                normalized.append(origin)
+        return tuple(normalized)
 
     @model_validator(mode="after")
     def validate_environment_requirements(self) -> Self:
@@ -114,6 +146,7 @@ class Settings(BaseSettings):
                 "gemini_location",
                 "auth_issuer",
                 "auth_audience",
+                "cors_allowed_origins",
             )
             missing_fields = [
                 field_name for field_name in required_fields if not getattr(self, field_name)

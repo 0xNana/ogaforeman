@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from contextlib import nullcontext
 from time import monotonic
 from dataclasses import dataclass
 from secrets import token_hex
@@ -47,6 +48,7 @@ from .limits import RateLimitExceededError
 from app.observability.context import bind_context, new_correlation_context
 from app.observability.logging import log_event
 from app.observability.metrics import metrics
+from app.observability.tracing import TraceExporter, TraceSpan
 
 
 logger = logging.getLogger("ogaforeman.api")
@@ -174,7 +176,11 @@ def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, cast(ExceptionHandler, _handle_unexpected_error))
 
 
-def install_request_id_middleware(app: FastAPI) -> None:
+def install_request_id_middleware(
+    app: FastAPI,
+    *,
+    trace_exporter: TraceExporter | None = None,
+) -> None:
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next) -> Response:
         try:
@@ -187,12 +193,26 @@ def install_request_id_middleware(app: FastAPI) -> None:
         started = monotonic()
         correlation = request.headers.get("X-Correlation-ID") or request_id
         trace_id = request.headers.get("X-Trace-ID")
-        with bind_context(
-            new_correlation_context(
-                request_id=request_id,
-                correlation_id=correlation,
+        span_scope = (
+            TraceSpan(
+                "http.request",
                 trace_id=trace_id,
+                exporter=trace_exporter,
+                method=request.method,
+                route=request.url.path,
             )
+            if trace_exporter is not None
+            else nullcontext()
+        )
+        with (
+            bind_context(
+                new_correlation_context(
+                    request_id=request_id,
+                    correlation_id=correlation,
+                    trace_id=trace_id,
+                )
+            ),
+            span_scope,
         ):
             try:
                 response = await call_next(request)

@@ -6,6 +6,19 @@
       "indexes": "firebase/firestore.indexes.json"
     }
   ],
+  "hosting": {
+    "public": "firebase/hosting",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "oga-web",
+          "region": "europe-west1"
+        }
+      }
+    ]
+  },
   "emulators": {
     "auth": {
       "host": "127.0.0.1",

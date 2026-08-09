@@ -2,13 +2,29 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime
 from io import StringIO
+from typing import Any
 
 from app.observability.context import bind_context, current_context, new_correlation_context
 from app.observability.health import HealthCheck, HealthRegistry
 from app.observability.logging import JsonLogFormatter, log_event
 from app.observability.metrics import MetricRegistry, metrics
-from app.observability.tracing import TraceSpan
+from app.observability.tracing import CloudTraceExporter, TraceRecord, TraceSpan, cloud_trace_id
+
+
+class FakeTraceClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def batch_write_spans(
+        self,
+        *,
+        request: dict[str, object],
+        retry: object,
+        timeout: float,
+    ) -> None:
+        self.calls.append({"request": request, "retry": retry, "timeout": timeout})
 
 
 def test_context_is_scoped_and_contains_correlation_ids() -> None:
@@ -77,6 +93,39 @@ def test_trace_span_records_error_status_and_trace_id() -> None:
     assert span.record is not None
     assert span.record.trace_id == "trc_test123"
     assert span.record.duration_ms >= 0
+
+
+def test_cloud_trace_exporter_writes_bounded_v2_span() -> None:
+    client = FakeTraceClient()
+    exporter = CloudTraceExporter("oga-staging", client=client)
+    record = TraceRecord(
+        trace_id="trc_0123456789abcdef0123456789abcdef",
+        span_id="spn_0123456789abcdef",
+        name="http.request",
+        started_at=datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
+        duration_ms=125.0,
+        status="ok",
+        attributes={"method": "GET", "route": "/health/ready"},
+    )
+
+    exporter.export(record)
+
+    call = client.calls[0]
+    request = call["request"]
+    assert request["name"] == "projects/oga-staging"
+    span = request["spans"][0]
+    assert span["name"].endswith("/traces/0123456789abcdef0123456789abcdef/spans/0123456789abcdef")
+    assert span["display_name"] == {"value": "http.request"}
+    assert span["attributes"]["attribute_map"]["oga.status"] == {"string_value": {"value": "ok"}}
+    assert call["retry"] is None
+    assert call["timeout"] == 2.0
+
+
+def test_cloud_trace_id_hashes_noncanonical_context_ids_deterministically() -> None:
+    first = cloud_trace_id("cor_site-update-123")
+    assert first == cloud_trace_id("cor_site-update-123")
+    assert len(first) == 32
+    assert all(character in "0123456789abcdef" for character in first)
 
 
 def test_health_and_readiness_report_dependency_state() -> None:
