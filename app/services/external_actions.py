@@ -2,14 +2,15 @@ import logging
 from datetime import UTC, datetime
 from hashlib import sha256
 
-from app.domain.activity import ActivitySpec, MutationContext
+from app.domain.activity import ActivitySpec, MutationContext, WorkflowActivityAction
 from app.domain.enums import ActorType, ApprovalActionType, MaterialRequestStatus
 from app.domain.events import EventType, ProjectEvent
-from app.domain.models import Approval, MaterialRequest, OutboxMessage, OutboxStatus
+from app.domain.models import AgentRun, Approval, MaterialRequest, OutboxMessage, OutboxStatus
 from app.domain.policies import ensure_material_request_transition
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.infrastructure.supplier_simulator import SupplierSimulator
 from app.services.activity import ActivityService
+from app.services.workflow_audit import WorkflowAuditService
 from app.services.outbox import OutboxService
 
 logger = logging.getLogger(__name__)
@@ -74,17 +75,54 @@ class ExternalActionService:
 
                 if approval and request:
                     request_id = request.id
+                    run_id = self._run_id_for_request(project_id, request)
                     submitted = self._mark_submitted(
                         project_id,
                         request,
                         message,
                         event,
+                        run_id=run_id,
                     )
                     occurred_at = event.occurred_at if event is not None else datetime.now(UTC)
                     delay_event = self._simulator.submit_order(
                         submitted,
                         occurred_at=occurred_at,
                     )
+                    if run_id is not None:
+                        source_event_id = event.event_id if event is not None else message.id
+                        WorkflowAuditService(self._store).record(
+                            MutationContext(
+                                project_id=project_id,
+                                actor_type=ActorType.SYSTEM,
+                                source_event_id=source_event_id,
+                                agent_run_id=run_id,
+                                idempotency_key=(
+                                    "workflow-audit:external-action:"
+                                    + sha256(message.id.encode("utf-8")).hexdigest()[:32]
+                                ),
+                                occurred_at=occurred_at,
+                            ),
+                            action=WorkflowActivityAction.EXTERNAL_ACTION_EXECUTED,
+                            entity_type="material_request",
+                            entity_id=submitted.id,
+                            summary="Executed the approved supplier simulator action.",
+                            metadata={
+                                "status": "executed",
+                                "adapter": "supplier_simulator",
+                                "external_status": submitted.status.value,
+                                "outcome": (
+                                    "delivery_delay_reported"
+                                    if delay_event is not None
+                                    else "accepted"
+                                ),
+                                "approval_id": submitted.approval_id,
+                                "material_request_id": submitted.id,
+                                "outbox_message_id": message.id,
+                                "delivery_event_id": (
+                                    delay_event.event_id if delay_event is not None else None
+                                ),
+                            },
+                        )
                     if delay_event:
                         self._outbox.queue(
                             project_id=project_id,
@@ -142,6 +180,8 @@ class ExternalActionService:
         request: MaterialRequest,
         message: OutboxMessage,
         event: ProjectEvent | None,
+        *,
+        run_id: str | None,
     ) -> MaterialRequest:
         occurred_at = event.occurred_at if event is not None else datetime.now(UTC)
         source_event_id = event.event_id if event is not None else message.id
@@ -152,6 +192,7 @@ class ExternalActionService:
             project_id=project_id,
             actor_type=ActorType.SYSTEM,
             source_event_id=source_event_id,
+            agent_run_id=run_id,
             idempotency_key=f"supplier-submit:{key_digest}",
             occurred_at=occurred_at,
         )
@@ -178,6 +219,20 @@ class ExternalActionService:
         if result.value is None:
             raise RuntimeError("supplier submission did not resolve the material request")
         return result.value
+
+    def _run_id_for_request(
+        self,
+        project_id: str,
+        request: MaterialRequest,
+    ) -> str | None:
+        matches = [
+            run.id
+            for run in self._store.repository(AgentRun).list(project_id)
+            if run.trigger_event_id == request.source_event_id
+        ]
+        if len(matches) > 1:
+            raise RuntimeError("material request source is linked to more than one agent run")
+        return matches[0] if matches else None
 
     @staticmethod
     def _submit_request(

@@ -17,6 +17,7 @@ from app.domain.enums import ActorType, ApprovalActionType, ApprovalStatus, Mate
 from app.domain.events import EventActor, EventActorType, EventSource, EventType, ProjectEvent
 from app.domain.models import (
     ActivityEvent,
+    AgentRun,
     Approval,
     MaterialRequest,
     OutboxMessage,
@@ -72,6 +73,11 @@ class ApprovalService:
         ensure_permission(access, ProjectPermission.APPROVE)
         if context.actor_type is ActorType.USER and context.actor_id != access.actor.user_id:
             raise PermissionError("mutation actor does not match the authorized user")
+        context, request_id = self._enrich_workflow_causality(
+            command.project_id,
+            command.approval_id,
+            context,
+        )
 
         spec = ActivitySpec(
             action=f"approval.{status.value}",
@@ -80,6 +86,10 @@ class ApprovalService:
             summary=f"Approval {status.value}",
             metadata={
                 "notes": command.notes,
+                "status": status.value,
+                "approval_id": command.approval_id,
+                "material_request_id": request_id,
+                "reason": "human_approval_decision",
             },
         )
 
@@ -97,6 +107,47 @@ class ApprovalService:
             approval=result.value,
             activity=result.activity,
             duplicate=result.duplicate,
+        )
+
+    def _enrich_workflow_causality(
+        self,
+        project_id: str,
+        approval_id: str,
+        context: MutationContext,
+    ) -> tuple[MutationContext, str | None]:
+        approval = self._store.repository(Approval).require(project_id, approval_id)
+        if approval.action_type is not ApprovalActionType.PURCHASE:
+            return context, None
+        requests = [
+            request
+            for request in self._store.repository(MaterialRequest).list(project_id)
+            if request.approval_id == approval_id
+        ]
+        if len(requests) > 1:
+            raise ApprovalError("Approval is linked to more than one material request")
+        if not requests:
+            return context, None
+        request = requests[0]
+        runs = [
+            run
+            for run in self._store.repository(AgentRun).list(project_id)
+            if run.trigger_event_id == request.source_event_id
+        ]
+        if len(runs) > 1:
+            raise ApprovalError("Material request source is linked to more than one agent run")
+        if not runs:
+            return context, request.id
+        run = runs[0]
+        if context.agent_run_id is not None and context.agent_run_id != run.id:
+            raise ApprovalError("Approval context does not match the linked agent run")
+        return (
+            context.model_copy(
+                update={
+                    "source_event_id": context.source_event_id or request.source_event_id,
+                    "agent_run_id": run.id,
+                }
+            ),
+            request.id,
         )
 
     def approve(

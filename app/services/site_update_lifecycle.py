@@ -7,12 +7,13 @@ from datetime import UTC, datetime
 from collections.abc import Callable, Sequence
 from hashlib import sha256
 
-from app.domain.activity import ActivitySpec, MutationContext
+from app.domain.activity import ActivitySpec, MutationContext, WorkflowActivityAction
 from app.domain.authorization import ProjectAccessContext
 from app.domain.enums import ActorType, AgentRunStatus, ProcessingStatus, WorkflowName
 from app.domain.models import AgentRun, SiteUpdate
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.services.activity import ActivityService
+from app.services.workflow_audit import workflow_audit_activity
 
 
 TransitionMutation = Callable[[RepositorySession, datetime], SiteUpdate]
@@ -92,6 +93,7 @@ class SiteUpdateExecutionStateService:
                         "pending_actions": [],
                         "error_code": None,
                         "error_summary": None,
+                        "updated_at": now,
                     }
                 ),
                 expected_version=run_version,
@@ -149,6 +151,10 @@ class SiteUpdateExecutionStateService:
             summary="Site update processing completed.",
             target=ProcessingStatus.COMPLETED,
             mutation=mutation,
+            workflow_action=WorkflowActivityAction.WORKFLOW_COMPLETED,
+            workflow_step="completed",
+            workflow_reason_code="site_update_processing_succeeded",
+            workflow_outcome="succeeded",
         )
 
     def persist_transcript(
@@ -274,6 +280,7 @@ class SiteUpdateExecutionStateService:
                         "step": step,
                         "result_summary": result_summary,
                         "pending_actions": list(pending_actions),
+                        "updated_at": now,
                     }
                 ),
                 expected_version=run_version,
@@ -291,6 +298,11 @@ class SiteUpdateExecutionStateService:
             summary="Site update requires clarification.",
             target=ProcessingStatus.WAITING_FOR_CLARIFICATION,
             mutation=mutation,
+            workflow_action=WorkflowActivityAction.WORKFLOW_PAUSED,
+            workflow_step=step,
+            workflow_reason_code=(
+                "safety_review_required" if step == "safety_stop" else "clarification_required"
+            ),
         )
 
     def wait_for_approval(
@@ -338,6 +350,7 @@ class SiteUpdateExecutionStateService:
                         "step": step,
                         "result_summary": result_summary,
                         "pending_actions": list(pending_actions),
+                        "updated_at": now,
                     }
                 ),
                 expected_version=run_version,
@@ -355,6 +368,9 @@ class SiteUpdateExecutionStateService:
             summary="Site update requires manager approval.",
             target=ProcessingStatus.WAITING_FOR_APPROVAL,
             mutation=mutation,
+            workflow_action=WorkflowActivityAction.WORKFLOW_PAUSED,
+            workflow_step=step,
+            workflow_reason_code="approval_required",
         )
 
     def fail(
@@ -443,11 +459,17 @@ class SiteUpdateExecutionStateService:
             run.model_copy(
                 update={
                     "status": run_status,
+                    "step": (
+                        "completed"
+                        if run_status is AgentRunStatus.COMPLETED
+                        else "processing_failed"
+                    ),
                     "completed_at": now,
                     "result_summary": result_summary,
                     "pending_actions": list(pending_actions),
                     "error_code": error_code,
                     "error_summary": error_summary,
+                    "updated_at": now,
                 }
             ),
             expected_version=run_version,
@@ -467,6 +489,10 @@ class SiteUpdateExecutionStateService:
         summary: str,
         target: ProcessingStatus,
         mutation: TransitionMutation,
+        workflow_action: WorkflowActivityAction | None = None,
+        workflow_step: str | None = None,
+        workflow_reason_code: str | None = None,
+        workflow_outcome: str | None = None,
     ) -> SiteUpdateExecutionState:
         now = datetime.now(UTC)
         context = MutationContext(
@@ -477,6 +503,38 @@ class SiteUpdateExecutionStateService:
             agent_run_id=run_id,
             idempotency_key=idempotency_key,
             occurred_at=now,
+        )
+        semantic_activity = (
+            workflow_audit_activity(
+                context,
+                action=workflow_action,
+                entity_type="agent_run",
+                entity_id=run_id,
+                summary=(
+                    "Paused the workflow for a required human decision."
+                    if workflow_action is WorkflowActivityAction.WORKFLOW_PAUSED
+                    else "Completed the site-update workflow."
+                ),
+                metadata={
+                    "workflow": WorkflowName.DAILY_SITE_UPDATE.value,
+                    "processing_status": target.value,
+                    "run_status": (
+                        AgentRunStatus.WAITING_FOR_APPROVAL.value
+                        if target is ProcessingStatus.WAITING_FOR_APPROVAL
+                        else (
+                            AgentRunStatus.WAITING_FOR_CLARIFICATION.value
+                            if target is ProcessingStatus.WAITING_FOR_CLARIFICATION
+                            else AgentRunStatus.COMPLETED.value
+                        )
+                    ),
+                    "step": workflow_step,
+                    "attempt": attempt,
+                    "reason_code": workflow_reason_code,
+                    "outcome": workflow_outcome,
+                },
+            )
+            if workflow_action is not None
+            else None
         )
         result = self._activities.mutate(
             context,
@@ -491,6 +549,7 @@ class SiteUpdateExecutionStateService:
             replay=lambda session, _activity: session.repository(SiteUpdate).require(
                 access.project_id, update_id
             ),
+            additional_activities=(semantic_activity,) if semantic_activity else (),
         )
         if result.value is None:
             raise RuntimeError("site update transition replay did not resolve persisted state")

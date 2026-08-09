@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from hashlib import sha256
 
-from app.domain.activity import ActivitySpec, MutationContext
+from app.domain.activity import ActivitySpec, MutationContext, WorkflowActivityAction
 from app.domain.authorization import (
     ProjectAccessContext,
     ProjectPermission,
@@ -18,6 +18,7 @@ from app.domain.models import DailyReport, ReportFact, ReportStatus, SiteUpdate
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.reports import ReportRepository
 from app.services.activity import ActivityService
+from app.services.workflow_audit import workflow_audit_activity
 
 
 class ReportService:
@@ -54,6 +55,23 @@ class ReportService:
                 separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()
+        semantic_activity = workflow_audit_activity(
+            context,
+            action=WorkflowActivityAction.REPORT_UPDATED,
+            entity_type="daily_report",
+            entity_id=report_id,
+            summary="Updated the daily report with observable site-update outcomes.",
+            metadata={
+                "status": "updated",
+                "source_site_update_id": site_update.id,
+                "report_id": report_id,
+                "report_date": report_date.isoformat(),
+                "completed_work_count": len(completed_work),
+                "active_blocker_count": len(active_blockers),
+                "material_risk_count": len(material_risks),
+                "next_focus_count": len(next_focus),
+            },
+        )
         result = self._activities.mutate(
             context,
             ActivitySpec(
@@ -86,6 +104,7 @@ class ReportService:
             replay=lambda session, _activity: session.repository(DailyReport).require(
                 access.project_id, report_id
             ),
+            additional_activities=(semantic_activity,) if semantic_activity else (),
         )
         if result.value is None:
             raise RuntimeError("report replay did not resolve persisted state")

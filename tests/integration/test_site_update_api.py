@@ -196,10 +196,15 @@ async def test_site_update_is_persisted_audited_published_and_started_once() -> 
     assert len(store.repository(SiteUpdate).list("prj_readiness123")) == 1
     activities = store.repository(ActivityEvent).list("prj_readiness123")
     assert {activity.action for activity in activities} == {
+        "project.context_retrieved",
         "report.projected",
+        "report.updated",
         "site_update.received",
+        "site_update.media_processed",
+        "site_update.interpreted",
         "site_update.processing_started",
         "site_update.processing_completed",
+        "workflow.completed",
     }
     assert len(store.repository(OutboxMessage).list("prj_readiness123")) == 1
     run = store.repository(AgentRun).require(
@@ -372,10 +377,36 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
     assert run.status is AgentRunStatus.WAITING_FOR_APPROVAL
     assert run.step == "approval_required"
     assert run_response.status_code == 200
-    assert "First-floor plastering" in run_response.json()["result_summary"]
-    assert any(
-        "schedule impact" in action.casefold() for action in run_response.json()["pending_actions"]
-    )
+    run_body = run_response.json()
+    assert {
+        "id",
+        "run_id",
+        "project_id",
+        "trigger_event_id",
+        "workflow",
+        "status",
+        "step",
+        "attempt",
+        "trace_id",
+        "started_at",
+        "updated_at",
+        "completed_at",
+        "result_summary",
+        "pending_actions",
+        "error_code",
+        "error_summary",
+    } <= run_body.keys()
+    assert run_body["id"] == run_body["run_id"] == run.id
+    assert run_body["project_id"] == project_id
+    assert run_body["trigger_event_id"] == accepted["event_id"]
+    assert run_body["workflow"] == "daily_site_update"
+    assert run_body["attempt"] == 1
+    assert run_body["trace_id"] == accepted["event_id"]
+    assert run_body["started_at"] is not None
+    assert run_body["updated_at"] is not None
+    assert run_body["completed_at"] is None
+    assert "First-floor plastering" in run_body["result_summary"]
+    assert any("schedule impact" in action.casefold() for action in run_body["pending_actions"])
     assert attachment.site_update_id == update.id
     assert task.status is TaskStatus.COMPLETED
     assert material.available_quantity == Decimal("10")
@@ -407,14 +438,22 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
     assert len(reports[0].next_focus) == 1
     assert {activity.action for activity in activities} >= {
         "attachment.linked",
+        "site_update.media_processed",
+        "project.context_retrieved",
+        "site_update.interpreted",
         "task.completed",
         "task.follow_up_created",
         "issue.created",
+        "blocker.detected",
+        "schedule.risk_detected",
         "material.quantity_updated",
+        "material.risk_detected",
         "material.requested",
         "approval.requested",
         "report.projected",
+        "report.updated",
         "site_update.approval_requested",
+        "workflow.paused",
     }
 
 

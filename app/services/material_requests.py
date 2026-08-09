@@ -8,7 +8,7 @@ from typing import Self
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.activity import ActivitySpec, MutationContext
+from app.domain.activity import ActivitySpec, MutationContext, WorkflowActivityAction
 from app.domain.authorization import (
     ProjectAccessContext,
     ProjectPermission,
@@ -26,6 +26,7 @@ from app.repositories.activity import ActivityRepository
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.material_requests import MaterialRequestRepository
 from app.services.activity import ActivityService
+from app.services.workflow_audit import workflow_audit_activity
 from app.services.materials import MaterialService
 
 
@@ -57,6 +58,7 @@ class MaterialShortageCommand(BaseModel):
     reason: str = Field(min_length=1, max_length=5_000)
     supplier: str | None = Field(default=None, max_length=500)
     estimated_unit_cost: Decimal | None = None
+    affected_task_ids: list[str] = Field(default_factory=list, max_length=100)
     occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
@@ -142,6 +144,26 @@ class MaterialRequestService:
                 "reason_digest": sha256(command.reason.encode("utf-8")).hexdigest()[:16],
             },
         )
+        request_id = _request_id(context)
+        semantic_activity = workflow_audit_activity(
+            context,
+            action=WorkflowActivityAction.MATERIAL_RISK_DETECTED,
+            entity_type="material_request",
+            entity_id=request_id,
+            summary="Detected material stock below the supported project requirement.",
+            metadata={
+                "status": MaterialRequestStatus.AWAITING_APPROVAL.value,
+                "reason_code": "available_stock_below_requirement",
+                "material_id": material.id,
+                "available_quantity": str(available_net),
+                "required_quantity": str(command.required_quantity),
+                "shortage_quantity": str(shortage),
+                "unit": canonical_unit,
+                "affected_task_ids": command.affected_task_ids,
+                "material_request_id": request_id,
+                "approval_id": _approval_id(request_id),
+            },
+        )
 
         result = self._activities.mutate(
             context,
@@ -150,6 +172,7 @@ class MaterialRequestService:
                 session, access, canonical_command, context, material.id, shortage, total_cost
             ),
             replay=lambda session, activity: self._replay(session, access, context),
+            additional_activities=(semantic_activity,) if semantic_activity else (),
         )
 
         if result.value is None:

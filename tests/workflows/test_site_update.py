@@ -23,6 +23,7 @@ from app.services.materials import MaterialService
 from app.services.reports import ReportService
 from app.services.site_updates import SiteUpdateService
 from app.services.tasks import TaskService
+from app.services.workflow_audit import WorkflowAuditService
 from app.tools.materials import MaterialTools
 from app.tools.tasks import TaskTools
 from app.workflows.runtime import RuntimeManager
@@ -91,6 +92,7 @@ async def test_canonical_mixed_update_mutates_each_entity_once() -> None:
         material_request_service=MaterialRequestService(store),
         report_service=ReportService(store),
         runtime_manager=runtime,
+        workflow_audit=WorkflowAuditService(store),
     )
 
     result = await run_site_update_workflow(
@@ -111,7 +113,14 @@ async def test_canonical_mixed_update_mutates_each_entity_once() -> None:
     assert result["materials_updated"] == 1
     assert task.status is TaskStatus.COMPLETED
     assert material.available_quantity == Decimal("10")
-    assert len(activities) == 3
+    assert {activity.action for activity in activities} == {
+        "project.context_retrieved",
+        "site_update.interpreted",
+        "task.completed",
+        "material.quantity_updated",
+        "report.projected",
+        "report.updated",
+    }
     assert len(ledger) == 1
     assert len(store.repository(DailyReport).list("prj_testproject123")) == 1
 
@@ -148,6 +157,7 @@ async def test_unknown_task_pauses_for_clarification_without_mutation() -> None:
         material_request_service=MaterialRequestService(store),
         report_service=ReportService(store),
         runtime_manager=runtime,
+        workflow_audit=WorkflowAuditService(store),
     )
 
     result = await run_site_update_workflow(
@@ -163,4 +173,9 @@ async def test_unknown_task_pauses_for_clarification_without_mutation() -> None:
     assert result["tasks_updated"] == 0
     assert {
         activity.action for activity in store.repository(ActivityEvent).list("prj_testproject123")
-    } == {"report.projected"}
+    } == {
+        "project.context_retrieved",
+        "site_update.interpreted",
+        "report.projected",
+        "report.updated",
+    }

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from app.domain.activity import ActivitySpec, MutationContext
+from app.domain.activity import ActivitySpec, MutationContext, WorkflowActivityAction
 from app.domain.enums import (
     ActorType,
     AgentRunStatus,
@@ -61,12 +61,29 @@ class ResumeWorkflow:
                 summary="Resumed the workflow after approval.",
                 phase="resumed",
             )
+            workflow_activity = self._prepare_workflow_activity(
+                session,
+                project_id=project_id,
+                run=run,
+                approval=approval,
+                request=request,
+                source_event_id=source_event_id or approval.id,
+                occurred_at=transition_at,
+                action=WorkflowActivityAction.WORKFLOW_RESUMED,
+                phase="workflow-resumed",
+                summary="Resumed the workflow after the persisted approval decision.",
+                run_status=AgentRunStatus.RUNNING,
+                step="supplier_submission",
+                reason_code="approval_granted",
+                outcome="resumed",
+            )
             if run.status is AgentRunStatus.WAITING_FOR_APPROVAL:
                 run = session.repository(AgentRun).save(
                     run.model_copy(
                         update={
                             "status": AgentRunStatus.RUNNING,
                             "step": "supplier_submission",
+                            "updated_at": transition_at,
                         }
                     ),
                     expected_version=run.version,
@@ -74,6 +91,7 @@ class ResumeWorkflow:
             elif run.status not in {AgentRunStatus.RUNNING, AgentRunStatus.COMPLETED}:
                 raise RuntimeError(f"cannot continue material run in status {run.status.value}")
             self._create_prepared_activity(session, resumed_activity)
+            self._create_prepared_activity(session, workflow_activity)
             return ApprovalContinuation(run_id=run.id, request_id=request.id)
 
         return self._store.run_transaction(_resume)
@@ -120,6 +138,22 @@ class ResumeWorkflow:
                 summary="Completed the approved material workflow.",
                 phase="completed",
             )
+            workflow_activity = self._prepare_workflow_activity(
+                session,
+                project_id=project_id,
+                run=run,
+                approval=approval,
+                request=request,
+                source_event_id=source_event_id or approval.id,
+                occurred_at=transition_at,
+                action=WorkflowActivityAction.WORKFLOW_COMPLETED,
+                phase="workflow-completed",
+                summary="Completed the workflow after the approved external action.",
+                run_status=AgentRunStatus.COMPLETED,
+                step="completed",
+                reason_code="approved_external_action_succeeded",
+                outcome="succeeded",
+            )
             if run.status is AgentRunStatus.RUNNING:
                 run = session.repository(AgentRun).save(
                     run.model_copy(
@@ -127,6 +161,7 @@ class ResumeWorkflow:
                             "status": AgentRunStatus.COMPLETED,
                             "step": "completed",
                             "completed_at": transition_at,
+                            "updated_at": transition_at,
                         }
                     ),
                     expected_version=run.version,
@@ -134,6 +169,7 @@ class ResumeWorkflow:
             elif run.status is not AgentRunStatus.COMPLETED:
                 raise RuntimeError(f"cannot complete material run in status {run.status.value}")
             self._create_prepared_activity(session, completed_activity)
+            self._create_prepared_activity(session, workflow_activity)
             return ApprovalContinuation(run_id=run.id, request_id=request.id)
 
         return self._store.run_transaction(_complete)
@@ -200,6 +236,23 @@ class ResumeWorkflow:
                 summary="Closed the workflow after the approval was rejected.",
                 phase="rejected",
             )
+            workflow_activity = self._prepare_workflow_activity(
+                session,
+                project_id=project_id,
+                run=run,
+                approval=approval,
+                request=request,
+                source_event_id=source_event_id or approval.id,
+                occurred_at=transition_at,
+                action=WorkflowActivityAction.WORKFLOW_COMPLETED,
+                phase="workflow-rejected",
+                summary="Closed the workflow without an external action after rejection.",
+                run_status=AgentRunStatus.FAILED,
+                step="approval_rejected",
+                reason_code="approval_rejected",
+                outcome="rejected",
+                error_code="APPROVAL_REJECTED",
+            )
 
             if should_cancel_request:
                 request = request_repo.save(
@@ -226,6 +279,7 @@ class ResumeWorkflow:
                             "error_code": "APPROVAL_REJECTED",
                             "error_summary": "The required approval was rejected.",
                             "completed_at": transition_at,
+                            "updated_at": transition_at,
                         }
                     ),
                     expected_version=run.version,
@@ -236,6 +290,7 @@ class ResumeWorkflow:
                 raise RuntimeError(f"cannot reject material run in status {run.status.value}")
             self._create_prepared_activity(session, request_activity)
             self._create_prepared_activity(session, rejected_activity)
+            self._create_prepared_activity(session, workflow_activity)
             return ApprovalContinuation(run_id=run.id, request_id=request.id)
 
         return self._store.run_transaction(_reject)
@@ -332,6 +387,51 @@ class ResumeWorkflow:
             entity_id=request.id,
             summary="Cancelled the material request after approval rejection.",
             metadata={"approval_id": approval.id},
+        )
+        return ResumeWorkflow._prepare_activity(session, context, spec)
+
+    @staticmethod
+    def _prepare_workflow_activity(
+        session: RepositorySession,
+        *,
+        project_id: str,
+        run: AgentRun,
+        approval: Approval,
+        request: MaterialRequest,
+        source_event_id: str,
+        occurred_at: datetime,
+        action: WorkflowActivityAction,
+        phase: str,
+        summary: str,
+        run_status: AgentRunStatus,
+        step: str,
+        reason_code: str,
+        outcome: str,
+        error_code: str | None = None,
+    ) -> ActivityEvent | None:
+        context = MutationContext(
+            project_id=project_id,
+            actor_type=ActorType.SYSTEM,
+            source_event_id=source_event_id,
+            agent_run_id=run.id,
+            idempotency_key=f"approval-continuation:{approval.id}:{phase}",
+            occurred_at=occurred_at,
+        )
+        spec = ActivitySpec(
+            action=action.value,
+            entity_type="agent_run",
+            entity_id=run.id,
+            summary=summary,
+            metadata={
+                "approval_id": approval.id,
+                "material_request_id": request.id,
+                "workflow": run.workflow.value,
+                "run_status": run_status.value,
+                "step": step,
+                "reason_code": reason_code,
+                "outcome": outcome,
+                "error_code": error_code,
+            },
         )
         return ResumeWorkflow._prepare_activity(session, context, spec)
 

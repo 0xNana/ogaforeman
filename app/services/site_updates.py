@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from hashlib import sha256
 import json
@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from collections.abc import Sequence
 
 from app.agents.interpreter import MediaEvidence, SiteInterpreter
-from app.domain.activity import MutationContext
+from app.domain.activity import MutationContext, WorkflowActivityAction
 from app.domain.authorization import ProjectAccessContext
 from app.domain.enums import (
     ActorType,
@@ -40,6 +40,7 @@ from app.services.reports import ReportService
 from app.services.schedule_impact import calculate_impact
 from app.tools.materials import MaterialQuantityCommand, MaterialTools
 from app.services.tasks import CreateBlockerFollowUpCommand
+from app.services.workflow_audit import WorkflowAuditService
 from app.tools.tasks import TaskTools, UpdateTaskCommand
 
 if TYPE_CHECKING:
@@ -77,6 +78,7 @@ class SiteUpdateService:
         material_request_service: MaterialRequestService,
         report_service: ReportService,
         runtime_manager: RuntimeManager,
+        workflow_audit: WorkflowAuditService,
     ) -> None:
         self._interpreter = interpreter
         self._context_service = context_service
@@ -86,6 +88,7 @@ class SiteUpdateService:
         self._material_requests = material_request_service
         self._reports = report_service
         self._runtime = runtime_manager
+        self._workflow_audit = workflow_audit
 
     async def process_update(
         self,
@@ -95,6 +98,7 @@ class SiteUpdateService:
         trace_id: str,
         source_event_id: str | None = None,
         images: Sequence[MediaEvidence] = (),
+        attempt: int = 1,
     ) -> SiteUpdateResult:
         del trace_id
         causal_event_id = source_event_id or site_update.id
@@ -102,6 +106,32 @@ class SiteUpdateService:
             part for part in (site_update.raw_text, site_update.transcript) if part
         )
         project_context = self._context_service.get_context(access)
+        self._workflow_audit.record(
+            _workflow_audit_context(
+                access,
+                site_update,
+                causal_event_id,
+                run_id,
+                f"context-retrieved:{attempt}",
+            ),
+            action=WorkflowActivityAction.PROJECT_CONTEXT_RETRIEVED,
+            entity_type="site_update",
+            entity_id=site_update.id,
+            summary="Retrieved authorized project context for the site update.",
+            metadata={
+                "status": "retrieved",
+                "attempt": attempt,
+                "task_count": len(project_context.active_tasks),
+                "material_count": len(project_context.materials),
+                "issue_count": len(project_context.open_issues),
+                "pending_approval_count": len(project_context.pending_approvals),
+                "dependency_edge_count": sum(
+                    len(task.dependency_ids) for task in project_context.active_tasks
+                ),
+                "active_task_ids": [task.id for task in project_context.active_tasks[:100]],
+                "material_ids": [material.id for material in project_context.materials[:100]],
+            },
+        )
         fact_set = await self._interpreter.extract_facts(
             text_corpus,
             images=images,
@@ -110,6 +140,33 @@ class SiteUpdateService:
         if images:
             fact_set = _guard_visual_task_completions(fact_set, text_corpus)
         routed = route_facts(fact_set)
+        self._workflow_audit.record(
+            _workflow_audit_context(
+                access,
+                site_update,
+                causal_event_id,
+                run_id,
+                f"interpreted:{attempt}",
+            ),
+            action=WorkflowActivityAction.SITE_UPDATE_INTERPRETED,
+            entity_type="site_update",
+            entity_id=site_update.id,
+            summary="Structured site-update facts were validated and routed.",
+            metadata={
+                "status": "interpreted",
+                "attempt": attempt,
+                "text_input_present": bool(text_corpus.strip()),
+                "image_attachment_ids": [image.attachment_id for image in images],
+                "task_fact_count": len(fact_set.tasks),
+                "issue_fact_count": len(fact_set.issues),
+                "material_fact_count": len(fact_set.materials),
+                "next_focus_fact_count": len(fact_set.next_focus),
+                "safety_fact_count": len(fact_set.safety_issues),
+                "clarification_count": len(routed.clarifications),
+                "observation_count": len(routed.observations),
+                "safety_stop_count": len(routed.safety_stops),
+            },
+        )
 
         has_clarifications = bool(routed.clarifications)
         completed_work: list[ReportFact] = []
@@ -217,6 +274,11 @@ class SiteUpdateService:
                         description=issue_fact.description,
                         evidence_refs=_evidence_refs(site_update),
                         task_ids=task_ids,
+                        audit_reason_code=(
+                            "reported_task_blocker"
+                            if issue_fact.issue_type is IssueType.BLOCKER
+                            else "reported_project_issue"
+                        ),
                         occurred_at=site_update.submitted_at,
                     ),
                     _mutation_context(
@@ -297,6 +359,8 @@ class SiteUpdateService:
                         description=risk_description,
                         evidence_refs=_evidence_refs(site_update),
                         task_ids=impacted_ids,
+                        audit_reason_code="project_dependency_impact",
+                        audit_blocked_task_id=blocked_task.id,
                         occurred_at=site_update.submitted_at,
                     ),
                     _mutation_context(
@@ -368,6 +432,7 @@ class SiteUpdateService:
                         ),
                         supplier=material.default_supplier,
                         estimated_unit_cost=material.estimated_unit_cost,
+                        affected_task_ids=[task.id for task, _fact in resolved_focus],
                         occurred_at=site_update.submitted_at,
                     ),
                     _mutation_context(
@@ -417,6 +482,8 @@ class SiteUpdateService:
                             ),
                             evidence_refs=_evidence_refs(site_update),
                             task_ids=[focus_task.id],
+                            audit_reason_code="material_shortage_impact",
+                            audit_material_id=material.id,
                             occurred_at=site_update.submitted_at,
                         ),
                         _mutation_context(
@@ -484,6 +551,24 @@ def _mutation_context(
         source_event_id=source_event_id,
         idempotency_key=f"site-update:{site_update.id}:{scope_digest}",
         occurred_at=site_update.submitted_at,
+        agent_run_id=run_id,
+    )
+
+
+def _workflow_audit_context(
+    access: ProjectAccessContext,
+    site_update: SiteUpdate,
+    source_event_id: str,
+    run_id: str,
+    scope: str,
+) -> MutationContext:
+    scope_digest = sha256(scope.encode("utf-8")).hexdigest()[:20]
+    return MutationContext(
+        project_id=access.project_id,
+        actor_type=ActorType.SYSTEM,
+        source_event_id=source_event_id,
+        idempotency_key=f"workflow-audit:{site_update.id}:{scope_digest}",
+        occurred_at=datetime.now(UTC),
         agent_run_id=run_id,
     )
 

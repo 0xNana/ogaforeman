@@ -598,6 +598,44 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
     assert not any(
         message.message_type == "supplier:submit_material_request" for message in waiting_outbox
     )
+    waiting_action_counts = {
+        action: sum(
+            activity.action == action and activity.agent_run_id == run.id
+            for activity in waiting_activities
+        )
+        for action in {
+            "site_update.received",
+            "site_update.media_processed",
+            "project.context_retrieved",
+            "site_update.interpreted",
+            "task.completed",
+            "blocker.detected",
+            "material.quantity_updated",
+            "material.risk_detected",
+            "material.requested",
+            "approval.requested",
+            "report.updated",
+            "workflow.paused",
+        }
+    }
+    assert set(waiting_action_counts.values()) == {1}
+    assert (
+        sum(
+            activity.action == "schedule.risk_detected" and activity.agent_run_id == run.id
+            for activity in waiting_activities
+        )
+        >= 1
+    )
+    for activity in waiting_activities:
+        if activity.agent_run_id == run.id and (
+            activity.action in waiting_action_counts or activity.action == "schedule.risk_detected"
+        ):
+            assert activity.agent_run_id == run.id
+            assert activity.source_event_id is not None
+            serialized_metadata = str(activity.metadata).casefold()
+            assert VOICE_TRANSCRIPT.casefold() not in serialized_metadata
+            assert "chain_of_thought" not in serialized_metadata
+            assert "raw_prompt" not in serialized_metadata
     processing_activity = next(
         activity
         for activity in waiting_activities
@@ -661,6 +699,15 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
     assert decided_request.status is expected_decision_request_status
     assert decided_approval.status is expected_approval_status
     assert decided_approval.resolution_notes == notes
+    decision_action = f"approval.{decision}"
+    decision_activities = [
+        activity
+        for activity in decided_activities
+        if activity.action == decision_action and activity.entity_id == approval.id
+    ]
+    assert len(decision_activities) == 1
+    assert decision_activities[0].agent_run_id == run.id
+    assert decision_activities[0].source_event_id is not None
     assert not any(
         activity.action == "material_request.submitted" for activity in decided_activities
     )
@@ -715,6 +762,8 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
     if decision == "approved":
         assert final_run.status is AgentRunStatus.COMPLETED
         assert final_run.step == "completed"
+        assert final_run.updated_at >= run.updated_at
+        assert final_run.completed_at is not None
         assert final_request.status is MaterialRequestStatus.SUBMITTED
         assert final_approval.status is ApprovalStatus.APPROVED
         assert sum(activity.action == "agent_run.resumed" for activity in final_activities) == 1
@@ -733,6 +782,11 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
             == 1
         )
         assert sum(activity.action == "agent_run.completed" for activity in final_activities) == 1
+        assert sum(activity.action == "workflow.resumed" for activity in final_activities) == 1
+        assert (
+            sum(activity.action == "external_action.executed" for activity in final_activities) == 1
+        )
+        assert sum(activity.action == "workflow.completed" for activity in final_activities) == 1
         assert (
             sum(
                 message.message_type == "supplier:submit_material_request"
@@ -743,11 +797,20 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
     else:
         assert final_run.status is AgentRunStatus.FAILED
         assert final_run.step == "approval_rejected"
+        assert final_run.updated_at >= run.updated_at
         assert final_run.error_code == "APPROVAL_REJECTED"
         assert final_request.status is MaterialRequestStatus.CANCELLED
         assert final_approval.status is ApprovalStatus.REJECTED
         assert final_approval.resolution_notes == notes
         assert sum(activity.action == "agent_run.rejected" for activity in final_activities) == 1
+        rejected_terminal = [
+            activity
+            for activity in final_activities
+            if activity.action == "workflow.completed" and activity.agent_run_id == run.id
+        ]
+        assert len(rejected_terminal) == 1
+        assert rejected_terminal[0].metadata["outcome"] == "rejected"
+        assert rejected_terminal[0].metadata["error_code"] == "APPROVAL_REJECTED"
         assert (
             next(
                 activity for activity in final_activities if activity.action == "agent_run.rejected"
@@ -755,7 +818,13 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
             is ActorType.SYSTEM
         )
         assert not any(
-            activity.action in {"agent_run.resumed", "material_request.submitted"}
+            activity.action
+            in {
+                "agent_run.resumed",
+                "workflow.resumed",
+                "material_request.submitted",
+                "external_action.executed",
+            }
             for activity in final_activities
         )
         assert not any(

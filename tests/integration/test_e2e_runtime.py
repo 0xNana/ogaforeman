@@ -145,16 +145,63 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
     }
     assert {
         "site_update.received",
+        "site_update.media_processed",
+        "site_update.interpreted",
+        "project.context_retrieved",
         "site_update.processing_started",
         "task.completed",
         "issue.created",
+        "blocker.detected",
+        "schedule.risk_detected",
         "material.quantity_updated",
+        "material.risk_detected",
         "material.requested",
         "approval.requested",
         "report.projected",
+        "report.updated",
         "site_update.approval_requested",
+        "workflow.paused",
         "approval.approved",
+        "workflow.resumed",
+        "external_action.executed",
+        "workflow.completed",
     } <= dynamic_actions
+    required_once = {
+        "site_update.received",
+        "site_update.media_processed",
+        "site_update.interpreted",
+        "project.context_retrieved",
+        "task.completed",
+        "blocker.detected",
+        "material.quantity_updated",
+        "material.risk_detected",
+        "material.requested",
+        "approval.requested",
+        "report.updated",
+        "workflow.paused",
+        "approval.approved",
+        "workflow.resumed",
+        "external_action.executed",
+        "workflow.completed",
+    }
+    for action in required_once:
+        assert (
+            sum(
+                activity.action == action and activity.agent_run_id == run_id
+                for activity in activities
+            )
+            == 1
+        ), action
+    for activity in activities:
+        if activity.agent_run_id == run_id and activity.action in required_once | {
+            "schedule.risk_detected"
+        }:
+            assert activity.agent_run_id == run_id
+            assert activity.source_event_id is not None
+            serialized_metadata = str(activity.metadata).casefold()
+            assert "chain_of_thought" not in serialized_metadata
+            assert "raw_prompt" not in serialized_metadata
+            assert UPDATE_TEXT.casefold() not in serialized_metadata
     assert (
         sum(
             activity.action == "material_request.submitted"

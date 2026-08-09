@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from google.adk.agents import BaseAgent
@@ -25,8 +26,9 @@ from app.domain.authorization import (
     ProjectPermission,
     authorize_project_member,
 )
+from app.domain.activity import MutationContext, WorkflowActivityAction
 from app.agents.interpreter import MediaEvidence
-from app.domain.enums import AgentRunStatus, AttachmentUploadStatus, ProcessingStatus
+from app.domain.enums import ActorType, AgentRunStatus, AttachmentUploadStatus, ProcessingStatus
 from app.domain.events import EventActorType, EventSource, EventType, ProjectEvent
 from app.domain.models import AgentRun, Attachment, ProjectMember, SiteUpdate
 from app.infrastructure.storage import StorageAdapter, create_storage_adapter
@@ -40,6 +42,7 @@ from app.services.reports import ReportService
 from app.services.site_update_lifecycle import SiteUpdateExecutionStateService
 from app.services.site_updates import SiteUpdateService
 from app.services.tasks import TaskService
+from app.services.workflow_audit import WorkflowAuditService
 from app.tools.materials import MaterialTools
 from app.tools.tasks import TaskTools
 from app.workflows.runtime import RuntimeManager, run_id_for_event
@@ -145,6 +148,13 @@ class SiteUpdateEventExecutor:
                 run_id=run_id,
                 trace_id=trace_id,
             )
+            self._record_media_processed(
+                enriched_update,
+                images,
+                source_event_id=event.event_id,
+                run_id=run_id,
+                attempt=claim_attempt,
+            )
             runtime = RuntimeManager(self._store)
             service = SiteUpdateService(
                 interpreter=self._interpreter,
@@ -155,6 +165,7 @@ class SiteUpdateEventExecutor:
                 material_request_service=MaterialRequestService(self._store),
                 report_service=ReportService(self._store),
                 runtime_manager=runtime,
+                workflow_audit=WorkflowAuditService(self._store),
             )
             result = await service.process_update(
                 access=access,
@@ -163,6 +174,7 @@ class SiteUpdateEventExecutor:
                 trace_id=trace_id,
                 source_event_id=event.event_id,
                 images=images,
+                attempt=claim_attempt,
             )
             if result.has_safety_stops or result.has_clarifications:
                 final = self._state.wait_for_clarification(
@@ -350,6 +362,42 @@ class SiteUpdateEventExecutor:
                 attachment_ids=transcribed_ids,
             )
         return update, tuple(images)
+
+    def _record_media_processed(
+        self,
+        update: SiteUpdate,
+        images: tuple[MediaEvidence, ...],
+        *,
+        source_event_id: str,
+        run_id: str,
+        attempt: int,
+    ) -> None:
+        audio_ids = list(update.transcribed_attachment_ids)
+        image_ids = [image.attachment_id for image in images]
+        WorkflowAuditService(self._store).record(
+            MutationContext(
+                project_id=update.project_id,
+                actor_type=ActorType.SYSTEM,
+                source_event_id=source_event_id,
+                agent_run_id=run_id,
+                idempotency_key=(f"workflow-audit:{update.id}:media-processed:{attempt}"),
+                occurred_at=datetime.now(UTC),
+            ),
+            action=WorkflowActivityAction.SITE_UPDATE_MEDIA_PROCESSED,
+            entity_type="site_update",
+            entity_id=update.id,
+            summary="Processed the site update's linked media for interpretation.",
+            metadata={
+                "status": "processed" if audio_ids or image_ids else "not_applicable",
+                "attempt": attempt,
+                "media_attachment_count": len(audio_ids) + len(image_ids),
+                "audio_attachment_count": len(audio_ids),
+                "image_attachment_count": len(image_ids),
+                "audio_attachment_ids": audio_ids,
+                "image_attachment_ids": image_ids,
+                "transcribed_attachment_ids": update.transcribed_attachment_ids,
+            },
+        )
 
     def _load_authorized_state(
         self,

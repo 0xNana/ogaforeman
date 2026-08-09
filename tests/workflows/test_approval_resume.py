@@ -129,6 +129,12 @@ def test_approval_granted_and_resume_after_restart(
     assert resumed_activity.source_event_id == "evt_approval_granted123"
     assert resumed_activity.actor_type is ActorType.SYSTEM
     assert resumed_activity.actor_id is None
+    workflow_activity = next(
+        activity
+        for activity in store.repository(ActivityEvent).list("prj_123")
+        if activity.action == "workflow.resumed"
+    )
+    assert workflow_activity.agent_run_id == "run_123"
 
     # External actions logic check - make sure an outbox message was created for approval event but not immediately executed
     outbox = store.run_transaction(lambda s: list(s.repository(OutboxMessage).list("prj_123")))
@@ -242,8 +248,12 @@ def test_approved_supplier_action_completes_the_same_run_once(
     assert run.id == "run_123"
     assert run.status is AgentRunStatus.COMPLETED
     assert run.step == "completed"
+    assert run.completed_at is not None
+    assert run.updated_at == run.completed_at
     assert sum(activity.action == "agent_run.resumed" for activity in activities) == 1
     assert sum(activity.action == "agent_run.completed" for activity in activities) == 1
+    assert sum(activity.action == "workflow.resumed" for activity in activities) == 1
+    assert sum(activity.action == "workflow.completed" for activity in activities) == 1
 
 
 def test_rejection_continuation_requires_the_persisted_decision_and_resolver(

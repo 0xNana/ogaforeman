@@ -476,7 +476,9 @@ def test_routed_material_and_brief_state_survives_firestore_client_restart() -> 
     reports = second_restart.repository(DailyReport).list(project_id)
     assert len(reports) == 1
     assert len(reports[0].material_risks) == 1
-    assert len(second_restart.repository(ActivityEvent).list(project_id)) == 3
+    activities = second_restart.repository(ActivityEvent).list(project_id)
+    assert len(activities) == 4
+    assert sum(activity.action == "material.risk_detected" for activity in activities) == 1
     assert len(second_restart.repository(OutboxMessage).list(project_id)) == 1
     assert (
         second_restart.repository(AgentRun)
