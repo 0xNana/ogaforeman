@@ -168,6 +168,15 @@ def test_frontend_container_is_standalone_and_non_root() -> None:
     assert 'CMD ["node", "server.js"]' in dockerfile
 
 
+def test_cloud_build_includes_frontend_source_without_local_state() -> None:
+    ignore = (ROOT / ".gcloudignore").read_text(encoding="utf-8")
+
+    assert "!frontend/**" in ignore
+    assert "frontend/.env*" in ignore
+    assert "frontend/node_modules/" in ignore
+    assert "frontend/.next*/" in ignore
+
+
 def test_abandoned_firebase_scaffolds_are_removed() -> None:
     package = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
 

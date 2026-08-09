@@ -10,5 +10,15 @@
 !app/**
 !scripts/
 !scripts/**
+!frontend/
+!frontend/**
+frontend/.env*
+!frontend/.env.example
+frontend/.next*/
+frontend/*-debug.log
+frontend/*.tsbuildinfo
+frontend/node_modules/
+frontend/playwright-report/
+frontend/test-results/
 **/__pycache__/
 **/*.py[cod]
