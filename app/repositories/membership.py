@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Callable, Generic, Protocol, TypeVar
 
-from google.api_core.exceptions import AlreadyExists
+from google.api_core.exceptions import Aborted, AlreadyExists, ResourceExhausted, ServiceUnavailable
+from google.api_core.retry import Retry, if_exception_type
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel
@@ -23,6 +24,15 @@ from .interfaces import ProjectRepository, RepositoryError, RepositoryTransactio
 
 EntityT = TypeVar("EntityT", bound=BaseModel)
 ResultT = TypeVar("ResultT")
+
+
+_IDENTITY_CREATE_RETRY = Retry(
+    predicate=if_exception_type(Aborted, ResourceExhausted, ServiceUnavailable),
+    initial=0.05,
+    maximum=0.5,
+    multiplier=2.0,
+    timeout=5.0,
+)
 
 
 class IdentityRepository(Protocol):
@@ -76,7 +86,10 @@ class FirestoreIdentityRepository(IdentityRepository):
     def provision(self, user: User) -> User:
         reference = self._client.collection("users").document(user.id)
         try:
-            reference.create(user.model_dump(mode="python"))
+            reference.create(
+                user.model_dump(mode="python"),
+                retry=_IDENTITY_CREATE_RETRY,
+            )
             return user
         except AlreadyExists:
             snapshot = reference.get()
