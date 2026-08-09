@@ -32,6 +32,12 @@ export type Task = {
   note?: string;
 };
 
+export type CreateTaskInput = {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+};
+
 export type MaterialStatus = 'OK' | 'LOW' | 'REQUESTED' | 'DELAYED';
 
 export type Material = {
@@ -43,6 +49,14 @@ export type Material = {
   forWork: string;
   status: MaterialStatus;
   note: string;
+};
+
+export type CreateMaterialInput = {
+  name: string;
+  unit: string;
+  available_quantity: number;
+  minimum_required_quantity: number;
+  upcoming_requirement_quantity?: number;
 };
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -418,7 +432,23 @@ export const api = {
     return remote<ProjectSnapshot>(`/api/v1/projects/${id}/snapshot`);
   },
   getTasks: async (projectId: string): Promise<Task[]> => (await api.getProjectSnapshot(projectId)).tasks,
+  createTask: async (projectId: string, input: CreateTaskInput): Promise<Task> => remote<Task>(
+    `/api/v1/projects/${projectId}/tasks`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: { 'Idempotency-Key': `task:${crypto.randomUUID()}` },
+    },
+  ),
   getMaterials: async (projectId: string): Promise<Material[]> => (await api.getProjectSnapshot(projectId)).materials,
+  createMaterial: async (projectId: string, input: CreateMaterialInput): Promise<Material> => remote<Material>(
+    `/api/v1/projects/${projectId}/materials`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: { 'Idempotency-Key': `material:${crypto.randomUUID()}` },
+    },
+  ),
   getApprovals: async (projectId: string): Promise<Approval[]> => (await api.getProjectSnapshot(projectId)).approvals,
   getActivities: async (projectId: string): Promise<Activity[]> => (await api.getProjectSnapshot(projectId)).activities,
   getReport: async (projectId: string): Promise<DailyReport> => (await api.getProjectSnapshot(projectId)).report,

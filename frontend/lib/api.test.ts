@@ -93,6 +93,31 @@ describe('production API boundary', () => {
     });
   });
 
+  it('creates canonical task and material resources with authenticated idempotent requests', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'tsk_new' }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'mat_new' }), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.createTask('prj_ridge', { title: 'First-floor blockwork' });
+    await api.createMaterial('prj_ridge', {
+      name: 'Cement',
+      unit: 'bags',
+      available_quantity: 20,
+      minimum_required_quantity: 10,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1,
+      'https://api.example.test/api/v1/projects/prj_ridge/tasks',
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token', 'Idempotency-Key': expect.any(String) }) }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2,
+      'https://api.example.test/api/v1/projects/prj_ridge/materials',
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token', 'Idempotency-Key': expect.any(String) }) }),
+    );
+  });
+
   it('serves fixture state only when demo mode is explicit', async () => {
     process.env.NEXT_PUBLIC_DEMO_MODE = 'true';
 

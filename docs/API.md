@@ -1,7 +1,7 @@
 # HTTP API Contract
 
 > **Implementation status:** uploads, site-update intake, approvals, project
-> resources, internal event publication, health, and dead-letter inspection have
+> snapshots, task/material setup, internal event publication, health, and dead-letter inspection have
 > typed implementations. Site-update intake reaches the claimed worker and ADK
 > workflow path; endpoints still marked as proposed below remain target contracts.
 
@@ -94,6 +94,7 @@ GET /projects/{project_id}/tasks/{task_id}/dependencies
 GET /projects/{project_id}/issues
 PATCH /projects/{project_id}/issues/{issue_id}
 GET /projects/{project_id}/materials
+POST /projects/{project_id}/materials
 GET /projects/{project_id}/material-requests
 GET /projects/{project_id}/approvals
 GET /projects/{project_id}/reports/{report_date}

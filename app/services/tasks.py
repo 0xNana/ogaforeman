@@ -24,7 +24,7 @@ from app.domain.authorization import (
     ensure_permission,
     ensure_project_scope,
 )
-from app.domain.enums import ActorType, TaskStatus
+from app.domain.enums import ActorType, TaskPriority, TaskSource, TaskStatus
 from app.domain.models import ActivityEvent, CanonicalId, Task
 from app.domain.policies import InvalidTransitionError, ensure_task_transition
 from app.repositories.interfaces import RepositorySession, RepositoryStore
@@ -54,6 +54,23 @@ class TaskDependencyIncompleteError(TaskStateError):
 
 class TaskApprovalRequiredError(TaskMutationError):
     code = "APPROVAL_REQUIRED"
+
+
+class CreateTaskCommand(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    title: str = Field(min_length=1, max_length=300)
+    description: str | None = Field(default=None, max_length=10_000)
+    priority: TaskPriority = TaskPriority.MEDIUM
+    planned_start: AwareDatetime | None = None
+    planned_end: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> Self:
+        if self.planned_start and self.planned_end and self.planned_end < self.planned_start:
+            raise ValueError("planned_end cannot be before planned_start")
+        return self
 
 
 class UpdateTaskCommand(BaseModel):
@@ -125,6 +142,54 @@ class TaskService:
     def __init__(self, store: RepositoryStore) -> None:
         self._tasks = TaskRepository(store)
         self._activities = ActivityService(store)
+
+    def create_task(
+        self,
+        access: ProjectAccessContext,
+        command: CreateTaskCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.MANAGE)
+        if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
+            raise PermissionError("task setup requires the authorized user actor")
+        task_id = _created_task_id(context)
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="task.created",
+                entity_type="task",
+                entity_id=task_id,
+                summary=f"Created task {command.title}.",
+                metadata={"priority": command.priority.value},
+            ),
+            lambda session: session.repository(Task).create(
+                Task(
+                    id=task_id,
+                    project_id=command.project_id,
+                    title=command.title,
+                    description=command.description,
+                    status=TaskStatus.PLANNED,
+                    priority=command.priority,
+                    planned_start=command.planned_start,
+                    planned_end=command.planned_end,
+                    source=TaskSource.MANUAL,
+                    created_at=context.occurred_at,
+                    updated_at=context.occurred_at,
+                )
+            ),
+            replay=lambda session, activity: session.repository(Task).require(
+                command.project_id, activity.entity_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("task creation replay did not resolve persisted state")
+        return TaskChange(
+            task=result.value,
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
 
     def update_task(
         self,
@@ -293,7 +358,13 @@ def _activity_spec(command: UpdateTaskCommand) -> ActivitySpec:
     )
 
 
+def _created_task_id(context: MutationContext) -> str:
+    raw = f"{context.project_id}\x00{context.actor_id}\x00{context.idempotency_key}"
+    return f"tsk_{sha256(raw.encode('utf-8')).hexdigest()[:32]}"
+
+
 __all__ = [
+    "CreateTaskCommand",
     "TaskApprovalRequiredError",
     "TaskBlockedCompletionError",
     "TaskChange",

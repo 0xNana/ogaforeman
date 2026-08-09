@@ -28,6 +28,9 @@ real cloud environment, live model credential/billing, or human release gate.
 - [x] G-06 Firestore auth bootstrap uses atomic document creation instead of a
   contended read/write transaction; the 32-call race, three isolated repeats,
   and the complete 92-test emulator integration suite pass.
+- [x] G-07 New projects expose authorized, idempotent task and material setup
+  APIs and UI forms, so safe agent entity resolution no longer depends on demo
+  seed data; every setup mutation atomically emits an activity.
 
 ## Contracts and foundation
 
@@ -158,10 +161,11 @@ Vertical slice gate:
   managed backup schedule has not produced its first visible backup yet.
 - [!] L-01 Staging deployment, least-privilege workload IAM, public health smoke,
   real Scheduler dispatch, and explicit API/worker rollback rehearsal pass.
-  Firebase browser authentication and authenticated `/api/v1` smoke remain open.
+  Firebase sign-up/bootstrap passes; the post-redeploy authenticated task,
+  material, site-update, run, report, and activity smoke remains open.
 - [!] L-02 Three deterministic dry runs and local browser/API/Firestore evidence
-  pass, including terminal approved-material continuation; live Gemini evidence
-  still needs a working external model route.
+  pass, including terminal approved-material continuation; the configured live
+  Gemini route still needs post-setup mutation evidence and review.
 - [x] L-03 README/status/auth/deployment/operations/demo docs pass, and the
   isolated clean-checkout runner records locked backend/frontend installs,
   static checks, tests, builds, browser journeys, evals, demo, and capacity.

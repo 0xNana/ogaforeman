@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 
 from app.api.errors import install_error_handlers, install_request_id_middleware
 from app.api.v1.router import api_router
+from app.domain.activity import MutationContext
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, ProjectPermission
 from app.domain.enums import (
     ActorType,
@@ -29,6 +30,7 @@ from app.domain.models import (
     Task,
 )
 from app.repositories.memory import InMemoryRepositoryStore
+from app.services.materials import MaterialQuantityCommand, MaterialService
 
 
 PROJECT_ID = "prj_snapshot123"
@@ -63,11 +65,7 @@ class ApiRuntimeStub:
     ) -> ProjectAccessContext:
         del request
         assert project_id == PROJECT_ID
-        if permission is ProjectPermission.APPROVE:
-            role = MemberRole.MANAGER
-        else:
-            role = MemberRole.MANAGER
-        return ProjectAccessContext(actor=self.actor, project_id=project_id, role=role)
+        return ProjectAccessContext(actor=self.actor, project_id=project_id, role=MemberRole.ADMIN)
 
 
 def make_app(store: InMemoryRepositoryStore) -> FastAPI:
@@ -146,6 +144,86 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
             "risks": [],
             "photos": [],
         },
+    }
+
+
+@pytest.mark.asyncio
+async def test_admin_can_create_canonical_resources_before_site_updates() -> None:
+    store = InMemoryRepositoryStore()
+    transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        task = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/tasks",
+            json={"title": "First-floor blockwork"},
+            headers={"Idempotency-Key": "setup:task:blockwork"},
+        )
+        task_replay = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/tasks",
+            json={"title": "First-floor blockwork"},
+            headers={"Idempotency-Key": "setup:task:blockwork"},
+        )
+        material = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/materials",
+            json={
+                "name": "Cement",
+                "unit": "bags",
+                "available_quantity": 0,
+                "minimum_required_quantity": 10,
+                "upcoming_requirement_quantity": 40,
+            },
+            headers={"Idempotency-Key": "setup:material:cement"},
+        )
+        material_id = material.json()["id"]
+        access = ProjectAccessContext(
+            actor=AuthenticatedUser(user_id=ACTOR_ID, subject="firebase-manager"),
+            project_id=PROJECT_ID,
+            role=MemberRole.ADMIN,
+        )
+        MaterialService(store).update_quantity(
+            access,
+            MaterialQuantityCommand(
+                project_id=PROJECT_ID,
+                material_id_or_alias=material_id,
+                quantity_delta=Decimal("5"),
+                unit="bags",
+                expected_version=0,
+                reason="Opening delivery received.",
+            ),
+            MutationContext(
+                project_id=PROJECT_ID,
+                actor_type=ActorType.USER,
+                actor_id=ACTOR_ID,
+                idempotency_key="setup:material:cement:stock",
+            ),
+        )
+        material_replay = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/materials",
+            json={
+                "name": "Cement",
+                "unit": "bags",
+                "available_quantity": 0,
+                "minimum_required_quantity": 10,
+                "upcoming_requirement_quantity": 40,
+            },
+            headers={"Idempotency-Key": "setup:material:cement"},
+        )
+        snapshot = await client.get(f"/api/v1/projects/{PROJECT_ID}/snapshot")
+
+    assert task.status_code == 201
+    assert task_replay.status_code == 201
+    assert task_replay.json() == task.json()
+    assert material.status_code == 201
+    assert material_replay.status_code == 201
+    assert material_replay.json()["id"] == material.json()["id"]
+    assert material_replay.json()["quantity"] == 5
+    assert snapshot.status_code == 200
+    assert snapshot.json()["tasks"][0]["title"] == "First-floor blockwork"
+    assert snapshot.json()["materials"][0]["name"] == "Cement"
+    assert {activity.action for activity in store.repository(ActivityEvent).list(PROJECT_ID)} == {
+        "task.created",
+        "material.created",
+        "material.quantity_updated",
     }
 
 

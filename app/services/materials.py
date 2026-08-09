@@ -70,6 +70,29 @@ class MaterialQuantityCommand(BaseModel):
 UpdateMaterialQuantityCommand = MaterialQuantityCommand
 
 
+class CreateMaterialCommand(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    name: str = Field(min_length=1, max_length=300)
+    unit: str = Field(min_length=1, max_length=100)
+    aliases: list[str] = Field(default_factory=list, max_length=20)
+    available_quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    minimum_required_quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    upcoming_requirement_quantity: Decimal | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> Self:
+        canonicalize_unit(self.unit)
+        normalized_name = normalize_material_name(self.name)
+        normalized_aliases = [normalize_material_name(alias) for alias in self.aliases]
+        if normalized_name in normalized_aliases or len(normalized_aliases) != len(
+            set(normalized_aliases)
+        ):
+            raise ValueError("material aliases must be unique and distinct from its name")
+        return self
+
+
 @dataclass(frozen=True, slots=True)
 class MaterialChange:
     material: Material
@@ -85,13 +108,65 @@ class MaterialChange:
 @dataclass(frozen=True, slots=True)
 class _MaterialMutationValue:
     material: Material
-    ledger_entry: MaterialLedgerEntry
+    ledger_entry: MaterialLedgerEntry | None
+
+
+@dataclass(frozen=True, slots=True)
+class MaterialCreation:
+    material: Material
+    activity: ActivityEvent
+    duplicate: bool = False
 
 
 class MaterialService:
     def __init__(self, store: RepositoryStore) -> None:
         self._materials = MaterialRepository(store)
         self._activities = ActivityService(store)
+
+    def create_material(
+        self,
+        access: ProjectAccessContext,
+        command: CreateMaterialCommand,
+        context: MutationContext,
+    ) -> MaterialCreation:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.MANAGE)
+        if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
+            raise PermissionError("material setup requires the authorized user actor")
+        normalized_name = normalize_material_name(command.name)
+        normalized_aliases = [normalize_material_name(alias) for alias in command.aliases]
+        material_id = _created_material_id(context)
+        canonical_unit = canonicalize_unit(command.unit)
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="material.created",
+                entity_type="material",
+                entity_id=material_id,
+                summary=f"Created material {command.name}.",
+                metadata={"unit": canonical_unit},
+            ),
+            lambda session: _create_material(
+                session,
+                command,
+                context,
+                material_id,
+                normalized_name,
+                normalized_aliases,
+                canonical_unit,
+            ),
+            replay=lambda session, activity: _replay_created_material(
+                session, access, context, activity.entity_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("material creation replay did not resolve persisted state")
+        return MaterialCreation(
+            material=result.value.material,
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
 
     def resolve_material(
         self,
@@ -129,6 +204,8 @@ class MaterialService:
         )
         if result.value is None:
             raise RuntimeError("material replay did not resolve persisted state")
+        if result.value.ledger_entry is None:
+            raise RuntimeError("material quantity replay did not resolve its ledger entry")
         return MaterialChange(
             material=result.value.material,
             ledger_entry=result.value.ledger_entry,
@@ -237,6 +314,73 @@ def _ledger_id(context: MutationContext) -> str:
     return f"mle_{sha256(raw.encode('utf-8')).hexdigest()[:32]}"
 
 
+def _created_material_id(context: MutationContext) -> str:
+    raw = f"{context.project_id}\x00{context.actor_id}\x00{context.idempotency_key}"
+    return f"mat_{sha256(raw.encode('utf-8')).hexdigest()[:32]}"
+
+
+def _create_material(
+    session: RepositorySession,
+    command: CreateMaterialCommand,
+    context: MutationContext,
+    material_id: str,
+    normalized_name: str,
+    normalized_aliases: list[str],
+    canonical_unit: str,
+) -> _MaterialMutationValue:
+    materials = session.repository(Material)
+    requested_names = {normalized_name, *normalized_aliases}
+    for existing in materials.list(command.project_id):
+        existing_names = {existing.normalized_name, *existing.aliases}
+        if requested_names & {normalize_material_name(value) for value in existing_names}:
+            raise MaterialMutationError("material name or alias already exists")
+    material = materials.create(
+        Material(
+            id=material_id,
+            project_id=command.project_id,
+            name=command.name,
+            normalized_name=normalized_name,
+            aliases=normalized_aliases,
+            unit=canonical_unit,
+            available_quantity=command.available_quantity,
+            minimum_required_quantity=command.minimum_required_quantity,
+            upcoming_requirement_quantity=command.upcoming_requirement_quantity,
+            updated_at=context.occurred_at,
+        )
+    )
+    ledger = None
+    if command.available_quantity > 0:
+        ledger = session.repository(MaterialLedgerEntry).create(
+            MaterialLedgerEntry(
+                id=_ledger_id(context),
+                project_id=command.project_id,
+                material_id=material_id,
+                quantity_delta=command.available_quantity,
+                unit=canonical_unit,
+                balance_after=command.available_quantity,
+                reason="Initial project material stock.",
+                actor_id=context.actor_id or "system",
+                idempotency_key=context.idempotency_key,
+                created_at=context.occurred_at,
+            )
+        )
+    return _MaterialMutationValue(material=material, ledger_entry=ledger)
+
+
+def _replay_created_material(
+    session: RepositorySession,
+    access: ProjectAccessContext,
+    context: MutationContext,
+    material_id: str,
+) -> _MaterialMutationValue:
+    material = session.repository(Material).require(access.project_id, material_id)
+    ledger = session.repository(MaterialLedgerEntry).get(access.project_id, _ledger_id(context))
+    return _MaterialMutationValue(
+        material=material,
+        ledger_entry=ledger,
+    )
+
+
 def _activity_spec(command: MaterialQuantityCommand, material_id: str) -> ActivitySpec:
     return ActivitySpec(
         action="material.quantity_updated",
@@ -252,6 +396,8 @@ def _activity_spec(command: MaterialQuantityCommand, material_id: str) -> Activi
 
 
 __all__ = [
+    "CreateMaterialCommand",
+    "MaterialCreation",
     "MaterialChange",
     "MaterialMutationError",
     "MaterialQuantityCommand",
