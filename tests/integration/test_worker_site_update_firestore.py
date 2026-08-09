@@ -719,6 +719,12 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
         assert final_approval.status is ApprovalStatus.APPROVED
         assert sum(activity.action == "agent_run.resumed" for activity in final_activities) == 1
         assert (
+            next(
+                activity for activity in final_activities if activity.action == "agent_run.resumed"
+            ).actor_type
+            is ActorType.SYSTEM
+        )
+        assert (
             sum(
                 activity.action == "material_request.submitted"
                 and activity.entity_id == final_request.id
@@ -742,6 +748,12 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
         assert final_approval.status is ApprovalStatus.REJECTED
         assert final_approval.resolution_notes == notes
         assert sum(activity.action == "agent_run.rejected" for activity in final_activities) == 1
+        assert (
+            next(
+                activity for activity in final_activities if activity.action == "agent_run.rejected"
+            ).actor_type
+            is ActorType.SYSTEM
+        )
         assert not any(
             activity.action in {"agent_run.resumed", "material_request.submitted"}
             for activity in final_activities

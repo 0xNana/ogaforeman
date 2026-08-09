@@ -127,6 +127,8 @@ def test_approval_granted_and_resume_after_restart(
     assert resumed_activity.entity_id == "run_123"
     assert resumed_activity.agent_run_id == "run_123"
     assert resumed_activity.source_event_id == "evt_approval_granted123"
+    assert resumed_activity.actor_type is ActorType.SYSTEM
+    assert resumed_activity.actor_id is None
 
     # External actions logic check - make sure an outbox message was created for approval event but not immediately executed
     outbox = store.run_transaction(lambda s: list(s.repository(OutboxMessage).list("prj_123")))
@@ -182,6 +184,8 @@ def test_approval_rejected_and_closes_request(
     assert rejected_activity.entity_id == "run_123"
     assert rejected_activity.agent_run_id == "run_123"
     assert rejected_activity.source_event_id == "evt_approval_rejected123"
+    assert rejected_activity.actor_type is ActorType.SYSTEM
+    assert rejected_activity.actor_id is None
 
 
 def test_approved_supplier_action_completes_the_same_run_once(
