@@ -25,6 +25,7 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<IntakeState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [runResult, setRunResult] = useState<AgentRunState | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
@@ -109,6 +110,7 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
         return;
       }
       const run = await waitForRun(projectId, result.agent_run_id);
+      setRunResult(run);
       await refresh();
       if (run.status === 'completed') {
         setState('success');
@@ -134,6 +136,7 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
     setText('');
     setFile(null);
     setError(null);
+    setRunResult(null);
     setState('idle');
     mediaRecorder.current?.stop();
     mediaStream.current?.getTracks().forEach((track) => track.stop());
@@ -172,8 +175,8 @@ export function SiteComposer({ projectId }: Readonly<{ projectId: string }>) {
 
         {state === 'error' && <div className="status-banner error" role="alert"><AlertTriangle size={16} /> {error}</div>}
         {state === 'clarification' && <div className="status-banner info" role="status"><AlertTriangle size={16} /> Oga needs a clearer detail before changing the project. Add the task, quantity or timing and send again.</div>}
-        {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} />}
-        {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} />}
+        {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
+        {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
         {(state === 'uploading' || state === 'processing') && <div className="process-state" role="status"><div className={`process-state-row${state === 'uploading' ? ' current' : ''}`}>{state === 'uploading' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Adding your site photos...</div><div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>{state === 'processing' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Checking the project...</div><div className="process-state-row"><CheckCircle2 size={17} /> Updating the site...</div></div>}
 
         <div className={`composer-bottom${terminal ? ' terminal' : ''}`}>

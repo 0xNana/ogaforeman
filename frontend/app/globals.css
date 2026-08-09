@@ -527,6 +527,8 @@ p { font-size: 1.05rem; }
 .workflow-receipt.waiting .workflow-receipt-kicker { color: var(--amber); }
 .workflow-receipt h2 { margin-top: 5px; font-size: 1.25rem; letter-spacing: -0.025em; }
 .workflow-receipt-heading p { margin-top: 6px; color: var(--ink-soft); font-size: 0.8rem; }
+.workflow-receipt-response { margin-top: 14px; color: var(--ink); font-size: 0.82rem; line-height: 1.55; }
+.workflow-receipt-pending { display: grid; gap: 5px; margin: 9px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.45; }
 .workflow-receipt-steps { display: grid; gap: 0; margin: 18px 0 0; padding: 0; list-style: none; }
 .workflow-receipt-steps li { position: relative; display: grid; grid-template-columns: 23px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 33px; color: var(--ink-soft); font-size: 0.77rem; font-weight: 650; }
 .workflow-receipt-steps li:not(:last-child)::after { position: absolute; top: 23px; bottom: -10px; left: 7px; width: 1px; content: ''; background: color-mix(in srgb, var(--green) 28%, transparent); }

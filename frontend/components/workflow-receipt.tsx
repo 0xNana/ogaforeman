@@ -21,7 +21,14 @@ const handledSteps = [
 export function WorkflowReceipt({
   outcome,
   projectId,
-}: Readonly<{ outcome: WorkflowOutcome; projectId: string }>) {
+  summary,
+  pendingActions = [],
+}: Readonly<{
+  outcome: WorkflowOutcome;
+  projectId: string;
+  summary?: string | null;
+  pendingActions?: string[];
+}>) {
   const waiting = outcome === 'waiting_for_approval';
 
   return (
@@ -48,6 +55,13 @@ export function WorkflowReceipt({
           </p>
         </div>
       </div>
+
+      {summary && <p className="workflow-receipt-response" aria-label="Oga response">{summary}</p>}
+      {pendingActions.length > 0 && (
+        <ul className="workflow-receipt-pending" aria-label="Oga pending actions">
+          {pendingActions.map((action) => <li key={action}>{action}</li>)}
+        </ul>
+      )}
 
       <ol className="workflow-receipt-steps" aria-label="Oga workflow progress">
         {handledSteps.map((label, index) => {

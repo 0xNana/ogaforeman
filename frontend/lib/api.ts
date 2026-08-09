@@ -119,6 +119,8 @@ export type AgentRunState = {
   id: string;
   status: 'queued' | 'running' | 'waiting_for_approval' | 'waiting_for_clarification' | 'completed' | 'failed' | 'dead_lettered';
   step: string | null;
+  result_summary: string | null;
+  pending_actions: string[];
   error_code: string | null;
   error_summary: string | null;
   completed_at: string | null;

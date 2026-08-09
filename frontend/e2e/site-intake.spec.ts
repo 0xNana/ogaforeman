@@ -31,6 +31,12 @@ test('runs a site update through real approval and same-run continuation', async
   expect(accepted).toBeTruthy();
   await expect(page.getByRole('heading', { name: 'Oga understood the update.' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('One decision is waiting for a manager');
+  await expect(page.getByLabel('Oga response')).toContainText(
+    'Electrical rough-in is blocked',
+  );
+  await expect(page.getByLabel('Oga pending actions')).toContainText(
+    'Review schedule impact on First-floor plastering',
+  );
   const pausedRun = await request.get(`http://127.0.0.1:8001${accepted.status_url}`, {
     headers: { Authorization: 'Bearer local-e2e-token' },
   });

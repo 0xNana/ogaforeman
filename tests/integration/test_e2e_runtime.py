@@ -76,6 +76,12 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
         run_before_approval = store.repository(AgentRun).require(PROJECT_ID, run_id)
         assert run_before_approval.status is AgentRunStatus.WAITING_FOR_APPROVAL
         assert run_before_approval.step == "approval_required"
+        assert run_before_approval.result_summary is not None
+        assert "Electrical rough-in is blocked" in run_before_approval.result_summary
+        assert any(
+            "schedule impact on First-floor plastering" in action
+            for action in run_before_approval.pending_actions
+        )
 
         assert len(store.repository(SiteUpdate).list(PROJECT_ID)) == 1
         task = store.repository(Task).require(PROJECT_ID, "tsk_blockwork123")
@@ -89,6 +95,7 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
             (IssueType.BLOCKER, ("tsk_electrical123",)),
             (IssueType.DELAY_RISK, ("tsk_plastering123",)),
         }
+        assert len(issues) == 3
         requests = store.repository(MaterialRequest).list(PROJECT_ID)
         assert len(requests) == 1
         material_request = requests[0]
