@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from hashlib import sha256
 
@@ -10,7 +10,7 @@ import pytest
 from fastapi import FastAPI
 from google.cloud import storage as cloud_storage
 
-from app.agents.interpreter import FakeSiteInterpreter
+from app.agents.interpreter import FakeSiteInterpreter, MediaEvidence
 from app.api.v1.router import api_router
 from app.config.settings import RuntimeEnvironment, Settings
 from app.domain.activity import MutationContext
@@ -66,6 +66,10 @@ from scripts.seed_demo import DEMO_FOREMAN_ID, DEMO_MANAGER_ID, DEMO_PROJECT_ID
 
 UPDATE_TEXT = "First-floor blockwork is done. We have ten bags of cement left."
 TRANSCRIPT = "Electrician did not come. Plastering is tomorrow."
+VOICE_TRANSCRIPT = (
+    "First-floor blockwork is done. Electrician did not come. "
+    "We have ten bags of cement left. Plastering is tomorrow."
+)
 PHOTO_BYTES = b"\xff\xd8\xfffirestore-site-photo"
 AUDIO_BYTES = b"OggS-firestore-site-audio"
 
@@ -86,6 +90,35 @@ class CapturingPublisher:
         self.calls += 1
         self.data = data
         return "msg_firestore_worker123"
+
+
+class StateCapturingInterpreter(FakeSiteInterpreter):
+    def __init__(
+        self,
+        store: FirestoreRepositoryStore,
+        responses: dict[str, ExtractedFactSet],
+        *,
+        transcriptions: dict[str, str],
+    ) -> None:
+        super().__init__(responses, transcriptions=transcriptions)
+        self._store = store
+        self.processing_states: list[tuple[ProcessingStatus, AgentRunStatus]] = []
+
+    async def extract_facts(
+        self,
+        text: str,
+        *,
+        images: Sequence[MediaEvidence] = (),
+        project_context: str = "",
+    ) -> ExtractedFactSet:
+        update = self._store.repository(SiteUpdate).list(DEMO_PROJECT_ID)[0]
+        run = self._store.repository(AgentRun).list(DEMO_PROJECT_ID)[0]
+        self.processing_states.append((update.processing_status, run.status))
+        return await super().extract_facts(
+            text,
+            images=images,
+            project_context=project_context,
+        )
 
 
 def _access_provider(
@@ -405,3 +438,314 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
         )
         == 1
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.backing_services
+@pytest.mark.skipif(
+    not os.getenv("FIRESTORE_EMULATOR_HOST") or not os.getenv("STORAGE_EMULATOR_HOST"),
+    reason="Firestore and Storage emulators are required for durable worker integration",
+)
+@pytest.mark.parametrize("decision", ["approved", "rejected"])
+async def test_voice_approval_continuation_survives_restart_and_executes_once(
+    decision: str,
+) -> None:
+    emulator_host = os.environ["FIRESTORE_EMULATOR_HOST"]
+    settings = Settings(
+        _env_file=None,
+        oga_env=RuntimeEnvironment.TEST,
+        demo_mode=True,
+        firestore_emulator_host=emulator_host,
+        google_cloud_project="oga-foreman-worker-test",
+        firestore_database="(default)",
+    )
+    initial_client = create_firestore_client(settings)
+    reset_demo(initial_client, settings=settings)
+    initial_store = FirestoreRepositoryStore(initial_client)
+    attachment_repo = initial_store.repository(Attachment)
+    audio = attachment_repo.require(DEMO_PROJECT_ID, "att_demo002")
+    audio = attachment_repo.save(
+        audio.model_copy(
+            update={
+                "content_type": "audio/ogg",
+                "byte_size": len(AUDIO_BYTES),
+                "sha256": sha256(AUDIO_BYTES).hexdigest(),
+                "metadata": {},
+            }
+        ),
+        expected_version=attachment_repo.version_of(DEMO_PROJECT_ID, audio.id),
+    )
+    bucket_name = "oga-foreman-worker-test.appspot.com"
+    cloud_storage.Client(project=settings.google_cloud_project).bucket(bucket_name).blob(
+        audio.object_path
+    ).upload_from_string(AUDIO_BYTES, content_type=audio.content_type)
+    storage = GoogleCloudStorageAdapter(
+        bucket_name,
+        client=cloud_storage.Client(project=settings.google_cloud_project),
+    )
+    publisher = CapturingPublisher()
+    app = FastAPI()
+    app.state.project_access_provider = _access_provider
+    app.state.site_update_intake = SiteUpdateIntakeService(initial_store, publisher)
+    app.include_router(api_router, prefix="/api/v1")
+    transport = httpx.ASGITransport(app=app)
+    payload = {"input_type": "voice", "attachment_ids": [audio.id]}
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client_http:
+        accepted_response = await client_http.post(
+            f"/api/v1/projects/{DEMO_PROJECT_ID}/site-updates",
+            json=payload,
+            headers={"Idempotency-Key": f"voice-approval-{decision}-123"},
+        )
+        replay_response = await client_http.post(
+            f"/api/v1/projects/{DEMO_PROJECT_ID}/site-updates",
+            json=payload,
+            headers={"Idempotency-Key": f"voice-approval-{decision}-123"},
+        )
+    assert accepted_response.status_code == 202
+    assert replay_response.json() == accepted_response.json()
+    assert publisher.calls == 1
+    assert publisher.data is not None
+    accepted = accepted_response.json()
+    facts = ExtractedFactSet(
+        tasks=[
+            TaskCompletionFact(
+                task_name="First-floor blockwork",
+                is_completed=True,
+                evidence="First-floor blockwork is done",
+                confidence="high",
+            )
+        ],
+        materials=[
+            MaterialQuantityFact(
+                material_name="cement bags",
+                quantity=10,
+                unit="bags",
+                evidence="We have ten bags of cement left",
+                confidence="high",
+            )
+        ],
+        issues=[
+            IssueFact(
+                issue_type=IssueType.BLOCKER,
+                task_name="Electrical rough-in",
+                description="Electrician did not come",
+                severity=Severity.HIGH,
+                evidence="Electrician did not come",
+                confidence="high",
+            )
+        ],
+        next_focus=[
+            NextFocusFact(
+                task_name="First-floor plastering",
+                description="Plastering is planned for tomorrow",
+                evidence="Plastering is tomorrow",
+                confidence="high",
+            )
+        ],
+    )
+    interpreter = StateCapturingInterpreter(
+        initial_store,
+        {VOICE_TRANSCRIPT: facts},
+        transcriptions={audio.id: VOICE_TRANSCRIPT},
+    )
+
+    first = await process_event_async(
+        publisher.data,
+        store=initial_store,
+        settings=settings,
+        site_interpreter=interpreter,
+        storage_adapter=storage,
+    )
+    duplicate_intake = await process_event_async(
+        publisher.data,
+        store=initial_store,
+        settings=settings,
+        site_interpreter=interpreter,
+        storage_adapter=storage,
+    )
+
+    waiting_store = FirestoreRepositoryStore(create_firestore_client(settings))
+    update = waiting_store.repository(SiteUpdate).require(
+        DEMO_PROJECT_ID, accepted["site_update_id"]
+    )
+    run = waiting_store.repository(AgentRun).require(DEMO_PROJECT_ID, accepted["agent_run_id"])
+    requests = waiting_store.repository(MaterialRequest).list(DEMO_PROJECT_ID)
+    approvals = waiting_store.repository(Approval).list(DEMO_PROJECT_ID)
+    waiting_activities = waiting_store.repository(ActivityEvent).list(DEMO_PROJECT_ID)
+    waiting_outbox = waiting_store.repository(OutboxMessage).list(DEMO_PROJECT_ID)
+
+    assert first.result_ref == f"run:{run.id}"
+    assert duplicate_intake.status == "duplicate"
+    assert interpreter.processing_states == [(ProcessingStatus.PROCESSING, AgentRunStatus.RUNNING)]
+    assert interpreter.calls == [VOICE_TRANSCRIPT]
+    assert len(interpreter.transcription_calls) == 1
+    assert interpreter.transcription_calls[0].data == AUDIO_BYTES
+    assert update.input_type.value == "voice"
+    assert update.transcript == VOICE_TRANSCRIPT
+    assert update.transcribed_attachment_ids == [audio.id]
+    assert update.processing_status is ProcessingStatus.WAITING_FOR_APPROVAL
+    assert run.status is AgentRunStatus.WAITING_FOR_APPROVAL
+    assert run.workflow.value == "daily_site_update"
+    assert run.step == "approval_required"
+    assert len(requests) == 1
+    assert requests[0].quantity == Decimal("30")
+    assert requests[0].status is MaterialRequestStatus.AWAITING_APPROVAL
+    assert len(approvals) == 1
+    assert approvals[0].status is ApprovalStatus.PENDING
+    assert not any(
+        activity.action == "material_request.submitted" for activity in waiting_activities
+    )
+    assert not any(
+        message.message_type == "supplier:submit_material_request" for message in waiting_outbox
+    )
+    processing_activity = next(
+        activity
+        for activity in waiting_activities
+        if activity.action == "site_update.processing_started"
+    )
+    waiting_activity = next(
+        activity
+        for activity in waiting_activities
+        if activity.action == "site_update.approval_requested"
+    )
+    assert processing_activity.agent_run_id == run.id
+    assert waiting_activity.agent_run_id == run.id
+    assert processing_activity.created_at <= waiting_activity.created_at
+
+    approval = approvals[0]
+    access = ProjectAccessContext(
+        actor=AuthenticatedUser(user_id=DEMO_MANAGER_ID, subject="demo-manager"),
+        project_id=DEMO_PROJECT_ID,
+        role=MemberRole.MANAGER,
+    )
+    notes = (
+        "Approved for tomorrow's plastering."
+        if decision == "approved"
+        else "Use retained stock and defer plastering."
+    )
+    command = ResolutionCommand(
+        project_id=DEMO_PROJECT_ID,
+        approval_id=approval.id,
+        expected_version=approval.version,
+        notes=notes,
+    )
+    mutation_context = MutationContext(
+        project_id=DEMO_PROJECT_ID,
+        actor_type=ActorType.USER,
+        actor_id=DEMO_MANAGER_ID,
+        source_event_id=f"evt_voice_{decision}_decision123",
+        agent_run_id=run.id,
+        idempotency_key=f"approval:voice:{decision}:restart:123",
+    )
+    approval_service = ApprovalService(waiting_store)
+    if decision == "approved":
+        approval_service.approve(access, command, mutation_context)
+        continuation_type = EventType.APPROVAL_GRANTED
+        expected_approval_status = ApprovalStatus.APPROVED
+        expected_decision_request_status = MaterialRequestStatus.APPROVED
+    else:
+        approval_service.reject(access, command, mutation_context)
+        continuation_type = EventType.APPROVAL_REJECTED
+        expected_approval_status = ApprovalStatus.REJECTED
+        expected_decision_request_status = MaterialRequestStatus.CANCELLED
+
+    decided_store = FirestoreRepositoryStore(create_firestore_client(settings))
+    decided_run = decided_store.repository(AgentRun).require(DEMO_PROJECT_ID, run.id)
+    decided_request = decided_store.repository(MaterialRequest).require(
+        DEMO_PROJECT_ID, requests[0].id
+    )
+    decided_approval = decided_store.repository(Approval).require(DEMO_PROJECT_ID, approval.id)
+    decided_activities = decided_store.repository(ActivityEvent).list(DEMO_PROJECT_ID)
+    decided_outbox = decided_store.repository(OutboxMessage).list(DEMO_PROJECT_ID)
+    assert decided_run.status is AgentRunStatus.WAITING_FOR_APPROVAL
+    assert decided_request.status is expected_decision_request_status
+    assert decided_approval.status is expected_approval_status
+    assert decided_approval.resolution_notes == notes
+    assert not any(
+        activity.action == "material_request.submitted" for activity in decided_activities
+    )
+    assert not any(
+        message.message_type == "supplier:submit_material_request" for message in decided_outbox
+    )
+    continuation_message = next(
+        message for message in decided_outbox if message.message_type == continuation_type.value
+    )
+    continuation_event = ProjectEvent.model_validate(continuation_message.payload)
+
+    resumed_store = FirestoreRepositoryStore(create_firestore_client(settings))
+    resumed = process_event(continuation_event.model_dump_json().encode(), store=resumed_store)
+    duplicate_resume = process_event(
+        continuation_event.model_dump_json().encode(), store=resumed_store
+    )
+
+    final_store = FirestoreRepositoryStore(create_firestore_client(settings))
+    final_run = final_store.repository(AgentRun).require(DEMO_PROJECT_ID, run.id)
+    final_request = final_store.repository(MaterialRequest).require(DEMO_PROJECT_ID, requests[0].id)
+    final_approval = final_store.repository(Approval).require(DEMO_PROJECT_ID, approval.id)
+    final_update = final_store.repository(SiteUpdate).require(DEMO_PROJECT_ID, update.id)
+    final_attachment = final_store.repository(Attachment).require(DEMO_PROJECT_ID, audio.id)
+    final_activities = final_store.repository(ActivityEvent).list(DEMO_PROJECT_ID)
+    final_outbox = final_store.repository(OutboxMessage).list(DEMO_PROJECT_ID)
+    logical_runs = [
+        candidate
+        for candidate in final_store.repository(AgentRun).list(DEMO_PROJECT_ID)
+        if candidate.trigger_event_id == accepted["event_id"]
+    ]
+
+    assert resumed.status == "completed"
+    assert resumed.result_ref == f"run:{run.id}"
+    assert duplicate_resume.status == "duplicate"
+    assert logical_runs == [final_run]
+    assert final_run.id == accepted["agent_run_id"]
+    assert final_update.transcript == VOICE_TRANSCRIPT
+    assert final_attachment.site_update_id == final_update.id
+    restarted_storage = GoogleCloudStorageAdapter(
+        bucket_name,
+        client=cloud_storage.Client(project=settings.google_cloud_project),
+    )
+    assert (
+        restarted_storage.read_bytes(
+            object_path=final_attachment.object_path,
+            expected_sha256=final_attachment.sha256,
+            max_bytes=settings.max_model_media_bytes,
+        )
+        == AUDIO_BYTES
+    )
+
+    if decision == "approved":
+        assert final_run.status is AgentRunStatus.COMPLETED
+        assert final_run.step == "completed"
+        assert final_request.status is MaterialRequestStatus.SUBMITTED
+        assert final_approval.status is ApprovalStatus.APPROVED
+        assert sum(activity.action == "agent_run.resumed" for activity in final_activities) == 1
+        assert (
+            sum(
+                activity.action == "material_request.submitted"
+                and activity.entity_id == final_request.id
+                for activity in final_activities
+            )
+            == 1
+        )
+        assert sum(activity.action == "agent_run.completed" for activity in final_activities) == 1
+        assert (
+            sum(
+                message.message_type == "supplier:submit_material_request"
+                for message in final_outbox
+            )
+            == 1
+        )
+    else:
+        assert final_run.status is AgentRunStatus.FAILED
+        assert final_run.step == "approval_rejected"
+        assert final_run.error_code == "APPROVAL_REJECTED"
+        assert final_request.status is MaterialRequestStatus.CANCELLED
+        assert final_approval.status is ApprovalStatus.REJECTED
+        assert final_approval.resolution_notes == notes
+        assert sum(activity.action == "agent_run.rejected" for activity in final_activities) == 1
+        assert not any(
+            activity.action in {"agent_run.resumed", "material_request.submitted"}
+            for activity in final_activities
+        )
+        assert not any(
+            message.message_type == "supplier:submit_material_request" for message in final_outbox
+        )
