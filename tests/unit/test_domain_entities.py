@@ -98,6 +98,32 @@ def test_site_update_requires_real_input_and_aware_times() -> None:
     assert update.submitted_at.tzinfo is not None
 
 
+def test_site_update_tracks_persisted_transcription_only_for_linked_audio() -> None:
+    update = SiteUpdate(
+        id="sup_update001",
+        project_id="prj_ridge",
+        submitted_by="usr_foreman",
+        input_type=SiteUpdateInputType.VOICE,
+        transcript="Electrician did not come.",
+        attachment_ids=["att_audio001"],
+        transcribed_attachment_ids=["att_audio001"],
+        client_event_id="client-update-1",
+    )
+
+    assert update.transcript == "Electrician did not come."
+
+    with pytest.raises(ValidationError, match="belong to the site update"):
+        SiteUpdate(
+            **{
+                **update.model_dump(),
+                "transcribed_attachment_ids": ["att_audio002"],
+            }
+        )
+
+    with pytest.raises(ValidationError, match="transcript is required"):
+        SiteUpdate(**{**update.model_dump(), "transcript": None})
+
+
 def test_site_update_terminal_processing_state_requires_ordered_processed_time() -> None:
     with pytest.raises(ValidationError, match="processed_at"):
         SiteUpdate(

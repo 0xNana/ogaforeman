@@ -69,6 +69,15 @@ class StorageAdapter(Protocol):
     def sign_read(self, *, object_path: str, expires_in_seconds: int) -> SignedUpload:
         """Return a short-lived read URL for an already authorized object."""
 
+    def read_bytes(
+        self,
+        *,
+        object_path: str,
+        expected_sha256: str,
+        max_bytes: int,
+    ) -> bytes:
+        """Read verified private media bytes with size and checksum enforcement."""
+
 
 class GoogleCloudStorageAdapter(StorageAdapter):
     """Cloud Storage adapter using V4 signed URLs and generation preconditions.
@@ -168,6 +177,33 @@ class GoogleCloudStorageAdapter(StorageAdapter):
             method="GET",
         )
         return SignedUpload(url=url, expires_at=expires_at, required_headers={})
+
+    def read_bytes(
+        self,
+        *,
+        object_path: str,
+        expected_sha256: str,
+        max_bytes: int,
+    ) -> bytes:
+        blob = self._bucket.blob(object_path)
+        digest = hashlib.sha256()
+        content = bytearray()
+        try:
+            with blob.open("rb") as stream:
+                while chunk := stream.read(1024 * 1024):
+                    content.extend(chunk)
+                    if len(content) > max_bytes:
+                        raise StorageObjectValidationError(
+                            "stored media exceeds the model input limit"
+                        )
+                    digest.update(chunk)
+        except NotFound as exc:
+            raise StorageObjectNotFoundError(object_path) from exc
+        if not content:
+            raise StorageObjectValidationError("stored media is empty")
+        if digest.hexdigest().lower() != expected_sha256.lower():
+            raise StorageObjectValidationError("stored media checksum changed after verification")
+        return bytes(content)
 
 
 def create_storage_adapter(settings: Settings | None = None) -> GoogleCloudStorageAdapter:

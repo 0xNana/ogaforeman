@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from collections.abc import Callable
+from hashlib import sha256
 
 from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.authorization import ProjectAccessContext
@@ -143,6 +144,84 @@ class SiteUpdateExecutionStateService:
             target=ProcessingStatus.COMPLETED,
             mutation=mutation,
         )
+
+    def persist_transcript(
+        self,
+        access: ProjectAccessContext,
+        update_id: str,
+        *,
+        source_event_id: str,
+        run_id: str,
+        trace_id: str,
+        transcript: str,
+        attachment_ids: list[str],
+    ) -> SiteUpdate:
+        normalized = transcript.strip()
+        if not normalized:
+            raise ValueError("voice transcription returned no speech")
+
+        now = datetime.now(UTC)
+        context = MutationContext(
+            project_id=access.project_id,
+            actor_type=ActorType.USER,
+            actor_id=access.actor.user_id,
+            source_event_id=source_event_id,
+            agent_run_id=run_id,
+            idempotency_key=f"site-update:{update_id}:transcribed",
+            occurred_at=now,
+        )
+
+        def mutation(session: RepositorySession) -> SiteUpdate:
+            update_repo = session.repository(SiteUpdate)
+            run = session.repository(AgentRun).require(access.project_id, run_id)
+            self._validate_run_contract(run, source_event_id, trace_id)
+            update = update_repo.require(access.project_id, update_id)
+            if update.processing_status is not ProcessingStatus.PROCESSING:
+                raise InvalidSiteUpdateTransition(
+                    f"cannot persist transcript from {update.processing_status}"
+                )
+            if run.status is not AgentRunStatus.RUNNING:
+                raise InvalidSiteUpdateTransition(
+                    "agent run cannot persist a transcript from its current state"
+                )
+            if not set(attachment_ids).issubset(update.attachment_ids):
+                raise InvalidSiteUpdateTransition(
+                    "transcribed attachment does not belong to the site update"
+                )
+            version = update_repo.version_of(access.project_id, update_id)
+            if version is None:
+                raise RuntimeError("site update disappeared during transcription")
+            return update_repo.save(
+                update.model_copy(
+                    update={
+                        "transcript": normalized,
+                        "transcribed_attachment_ids": attachment_ids,
+                        "updated_at": now,
+                    }
+                ),
+                expected_version=version,
+            )
+
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="site_update.transcribed",
+                entity_type="site_update",
+                entity_id=update_id,
+                summary="Voice attachment transcribed.",
+                metadata={
+                    "attachment_ids": attachment_ids,
+                    "transcript_digest": sha256(normalized.encode("utf-8")).hexdigest()[:20],
+                },
+            ),
+            mutation,
+            replay=lambda session, _activity: session.repository(SiteUpdate).require(
+                access.project_id, update_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("transcript persistence replay did not resolve site update")
+        return result.value
 
     def wait_for_clarification(
         self,

@@ -110,6 +110,7 @@ class SiteUpdateIntakeService:
             submitted_by=access.actor.user_id,
             input_type=resolved_input_type,
             raw_text=raw_text,
+            submitted_transcript=transcript,
             transcript=transcript,
             attachment_ids=list(attachment_ids),
             client_event_id=client_event_id or idempotency_key,

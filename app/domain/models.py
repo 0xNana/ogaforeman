@@ -189,8 +189,10 @@ class SiteUpdate(DomainModel):
     submitted_by: CanonicalId
     input_type: SiteUpdateInputType
     raw_text: NonEmptyText | None = Field(default=None, max_length=1_000_000)
+    submitted_transcript: NonEmptyText | None = Field(default=None, max_length=1_000_000)
     transcript: NonEmptyText | None = Field(default=None, max_length=1_000_000)
     attachment_ids: list[CanonicalId] = Field(default_factory=list)
+    transcribed_attachment_ids: list[CanonicalId] = Field(default_factory=list)
     client_event_id: str = Field(min_length=1, max_length=256)
     processing_status: ProcessingStatus = ProcessingStatus.RECEIVED
     submitted_at: AwareDatetime = Field(default_factory=utc_now)
@@ -206,6 +208,12 @@ class SiteUpdate(DomainModel):
             )
         if len(self.attachment_ids) != len(set(self.attachment_ids)):
             raise ValueError("attachment_ids cannot contain duplicates")
+        if len(self.transcribed_attachment_ids) != len(set(self.transcribed_attachment_ids)):
+            raise ValueError("transcribed_attachment_ids cannot contain duplicates")
+        if not set(self.transcribed_attachment_ids).issubset(self.attachment_ids):
+            raise ValueError("transcribed attachments must belong to the site update")
+        if self.transcribed_attachment_ids and not self.transcript:
+            raise ValueError("transcript is required for transcribed attachments")
 
         terminal_statuses = {ProcessingStatus.COMPLETED, ProcessingStatus.FAILED}
         if self.processing_status in terminal_statuses and self.processed_at is None:

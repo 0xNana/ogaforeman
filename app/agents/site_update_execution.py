@@ -25,9 +25,11 @@ from app.domain.authorization import (
     ProjectPermission,
     authorize_project_member,
 )
-from app.domain.enums import AgentRunStatus, ProcessingStatus
+from app.agents.interpreter import MediaEvidence
+from app.domain.enums import AgentRunStatus, AttachmentUploadStatus, ProcessingStatus
 from app.domain.events import EventActorType, EventSource, EventType, ProjectEvent
-from app.domain.models import AgentRun, ProjectMember, SiteUpdate
+from app.domain.models import AgentRun, Attachment, ProjectMember, SiteUpdate
+from app.infrastructure.storage import StorageAdapter, create_storage_adapter
 from app.repositories.context import ContextRepository
 from app.repositories.interfaces import RepositoryStore
 from app.services.context import ContextService
@@ -88,10 +90,12 @@ class SiteUpdateEventExecutor:
         store: RepositoryStore,
         interpreter: SiteInterpreter,
         settings: Settings,
+        storage_adapter: StorageAdapter | None = None,
     ) -> None:
         self._store = store
         self._interpreter = interpreter
         self._settings = settings
+        self._storage = storage_adapter
         self._state = SiteUpdateExecutionStateService(store)
 
     async def execute(self, event: ProjectEvent, *, claim_attempt: int) -> dict[str, Any]:
@@ -134,6 +138,13 @@ class SiteUpdateEventExecutor:
                 trace_id=trace_id,
                 attempt=claim_attempt,
             )
+            enriched_update, images = await self._prepare_media(
+                started.update,
+                access=access,
+                source_event_id=event.event_id,
+                run_id=run_id,
+                trace_id=trace_id,
+            )
             runtime = RuntimeManager(self._store)
             service = SiteUpdateService(
                 interpreter=self._interpreter,
@@ -147,10 +158,11 @@ class SiteUpdateEventExecutor:
             )
             result = await service.process_update(
                 access=access,
-                site_update=started.update,
+                site_update=enriched_update,
                 run_id=run_id,
                 trace_id=trace_id,
                 source_event_id=event.event_id,
+                images=images,
             )
             if result.has_safety_stops or result.has_clarifications:
                 final = self._state.wait_for_clarification(
@@ -253,6 +265,86 @@ class SiteUpdateEventExecutor:
             raise error
         return output
 
+    async def _prepare_media(
+        self,
+        update: SiteUpdate,
+        *,
+        access: ProjectAccessContext,
+        source_event_id: str,
+        run_id: str,
+        trace_id: str,
+    ) -> tuple[SiteUpdate, tuple[MediaEvidence, ...]]:
+        attachments = self._store.repository(Attachment)
+        media_attachments: list[Attachment] = []
+        for attachment_id in update.attachment_ids:
+            attachment = attachments.require(update.project_id, attachment_id)
+            if (
+                attachment.upload_status is not AttachmentUploadStatus.VERIFIED
+                or attachment.site_update_id != update.id
+            ):
+                raise EventPayloadMismatchError(
+                    "site update media is not a verified linked attachment"
+                )
+            if attachment.content_type.startswith(("audio/", "image/")):
+                media_attachments.append(attachment)
+        if not media_attachments:
+            return update, ()
+
+        storage = self._storage or create_storage_adapter(self._settings)
+        total_bytes = 0
+        images: list[MediaEvidence] = []
+        audio_parts: list[MediaEvidence] = []
+        already_transcribed = set(update.transcribed_attachment_ids)
+        for attachment in media_attachments:
+            if (
+                attachment.content_type.startswith("audio/")
+                and attachment.id in already_transcribed
+            ):
+                continue
+            remaining = self._settings.max_model_media_bytes - total_bytes
+            if remaining <= 0:
+                raise ValueError("site update media exceeds the model input limit")
+            data = await asyncio.to_thread(
+                storage.read_bytes,
+                object_path=attachment.object_path,
+                expected_sha256=attachment.sha256,
+                max_bytes=remaining,
+            )
+            if len(data) != attachment.byte_size:
+                raise ValueError("stored media size changed after attachment verification")
+            total_bytes += len(data)
+            media = MediaEvidence(
+                attachment_id=attachment.id,
+                content_type=attachment.content_type,
+                data=data,
+            )
+            if attachment.content_type.startswith("audio/"):
+                audio_parts.append(media)
+            else:
+                images.append(media)
+
+        if audio_parts:
+            transcript_parts = [update.transcript] if update.transcript else []
+            for audio in audio_parts:
+                transcript_parts.append(await self._interpreter.transcribe_audio(audio))
+            transcript = "\n".join(part.strip() for part in transcript_parts if part.strip())
+            if len(transcript) > self._settings.max_event_text_chars:
+                raise ValueError("voice transcription exceeds the model text input limit")
+            transcribed_ids = [
+                *update.transcribed_attachment_ids,
+                *(audio.attachment_id for audio in audio_parts),
+            ]
+            update = self._state.persist_transcript(
+                access,
+                update.id,
+                source_event_id=source_event_id,
+                run_id=run_id,
+                trace_id=trace_id,
+                transcript=transcript,
+                attachment_ids=transcribed_ids,
+            )
+        return update, tuple(images)
+
     def _load_authorized_state(
         self,
         event: ProjectEvent,
@@ -261,10 +353,13 @@ class SiteUpdateEventExecutor:
             raise ValueError("site update executor received an unsupported event")
         update_id = str(event.payload["site_update_id"])
         update = self._store.repository(SiteUpdate).require(event.project_id, update_id)
+        submitted_transcript = update.submitted_transcript
+        if submitted_transcript is None and not update.transcribed_attachment_ids:
+            submitted_transcript = update.transcript
         expected_payload = {
             "site_update_id": update.id,
             "text": update.raw_text,
-            "transcript": update.transcript,
+            "transcript": submitted_transcript,
             "attachment_ids": update.attachment_ids,
         }
         delivered_payload = {

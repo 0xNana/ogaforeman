@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
+from hashlib import sha256
 
 import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.agents.interpreter import FakeSiteInterpreter
+from app.agents.interpreter import FakeSiteInterpreter, MediaEvidence
+from app.api.errors import install_error_handlers
 from app.api.v1.router import api_router
 from app.config.settings import Settings
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, ProjectPermission
@@ -54,9 +57,11 @@ class WorkerPublisher:
         self,
         store: InMemoryRepositoryStore,
         interpreter: FakeSiteInterpreter | None = None,
+        storage: object | None = None,
     ) -> None:
         self._store = store
         self._interpreter = interpreter or FakeSiteInterpreter()
+        self._storage = storage
         self.published_event_ids: list[str] = []
 
     def publish(
@@ -72,9 +77,64 @@ class WorkerPublisher:
             store=self._store,
             settings=Settings(_env_file=None),
             site_interpreter=self._interpreter,
+            storage_adapter=self._storage,
         )
         self.published_event_ids.append(result.event_id)
         return f"msg_{result.event_id}"
+
+
+class MemoryMediaStorage:
+    def __init__(self, objects: dict[str, bytes]) -> None:
+        self.objects = objects
+        self.reads: list[str] = []
+
+    def read_bytes(
+        self,
+        *,
+        object_path: str,
+        expected_sha256: str,
+        max_bytes: int,
+    ) -> bytes:
+        value = self.objects[object_path]
+        assert len(value) <= max_bytes
+        assert sha256(value).hexdigest() == expected_sha256
+        self.reads.append(object_path)
+        return value
+
+
+class RecordingMultimodalInterpreter:
+    def __init__(
+        self,
+        *,
+        transcript: str = "",
+        facts: ExtractedFactSet | None = None,
+        transcription_failures: int = 0,
+        fact_failures: int = 0,
+    ) -> None:
+        self.transcript = transcript
+        self.facts = facts or ExtractedFactSet()
+        self.transcription_failures = transcription_failures
+        self.fact_failures = fact_failures
+        self.transcription_calls: list[MediaEvidence] = []
+        self.fact_calls: list[tuple[str, tuple[MediaEvidence, ...], str]] = []
+
+    async def transcribe_audio(self, media: MediaEvidence) -> str:
+        self.transcription_calls.append(media)
+        if len(self.transcription_calls) <= self.transcription_failures:
+            raise TimeoutError("transcription temporarily unavailable")
+        return self.transcript
+
+    async def extract_facts(
+        self,
+        text: str,
+        *,
+        images: Sequence[MediaEvidence] = (),
+        project_context: str = "",
+    ) -> ExtractedFactSet:
+        self.fact_calls.append((text, tuple(images), project_context))
+        if len(self.fact_calls) <= self.fact_failures:
+            raise TimeoutError("fact extraction temporarily unavailable")
+        return self.facts
 
 
 def access_provider(
@@ -240,18 +300,24 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
             estimated_unit_cost=Decimal("12.50"),
         )
     )
+    progress_photo = b"\xff\xd8\xffsite progress photo"
+    progress_photo_path = f"projects/{project_id}/attachments/att_progress123"
     store.repository(Attachment).create(
         Attachment(
             id="att_progress123",
             project_id=project_id,
-            object_path=f"projects/{project_id}/attachments/att_progress123",
+            object_path=progress_photo_path,
             content_type="image/jpeg",
-            byte_size=512,
-            sha256="a" * 64,
+            byte_size=len(progress_photo),
+            sha256=sha256(progress_photo).hexdigest(),
             upload_status=AttachmentUploadStatus.VERIFIED,
         )
     )
-    publisher = WorkerPublisher(store, interpreter)
+    publisher = WorkerPublisher(
+        store,
+        interpreter,
+        MemoryMediaStorage({progress_photo_path: progress_photo}),
+    )
     app = FastAPI()
     app.state.project_access_provider = access_provider
     app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
@@ -325,6 +391,324 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
         "report.projected",
         "site_update.approval_requested",
     }
+
+
+@pytest.mark.asyncio
+async def test_voice_attachment_is_transcribed_persisted_and_replayed_once() -> None:
+    project_id = "prj_readiness123"
+    audio = b"\x1aE\xdf\xa3voice update bytes"
+    object_path = f"projects/{project_id}/attachments/att_voice123"
+    transcript = "Ground-floor blockwork is complete."
+    interpreter = RecordingMultimodalInterpreter(
+        transcript=transcript,
+        facts=ExtractedFactSet(
+            tasks=[
+                TaskCompletionFact(
+                    task_name="Ground-floor blockwork",
+                    is_completed=True,
+                    evidence=transcript,
+                    confidence="high",
+                )
+            ]
+        ),
+    )
+    storage = MemoryMediaStorage({object_path: audio})
+    store = InMemoryRepositoryStore()
+    store.repository(ProjectMember).create(
+        ProjectMember(
+            project_id=project_id,
+            user_id="usr_foreman123",
+            role=MemberRole.FOREMAN,
+            status=MemberStatus.ACTIVE,
+        )
+    )
+    store.repository(Task).create(
+        Task(
+            id="tsk_groundblockwork123",
+            project_id=project_id,
+            title="Ground-floor blockwork",
+            status=TaskStatus.IN_PROGRESS,
+            completion_percent=Decimal("80"),
+        )
+    )
+    store.repository(Attachment).create(
+        Attachment(
+            id="att_voice123",
+            project_id=project_id,
+            object_path=object_path,
+            content_type="audio/webm",
+            byte_size=len(audio),
+            sha256=sha256(audio).hexdigest(),
+            upload_status=AttachmentUploadStatus.VERIFIED,
+        )
+    )
+    publisher = WorkerPublisher(store, interpreter, storage)
+    app = FastAPI()
+    app.state.project_access_provider = access_provider
+    app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
+    app.include_router(api_router, prefix="/api/v1")
+
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post(
+            f"/api/v1/projects/{project_id}/site-updates",
+            json={"input_type": "voice", "attachment_ids": ["att_voice123"]},
+            headers={"Idempotency-Key": "voice:site-update:123"},
+        )
+        replay = await client.post(
+            f"/api/v1/projects/{project_id}/site-updates",
+            json={"input_type": "voice", "attachment_ids": ["att_voice123"]},
+            headers={"Idempotency-Key": "voice:site-update:123"},
+        )
+
+    assert first.status_code == 202
+    assert replay.json() == first.json()
+    accepted = first.json()
+    update = store.repository(SiteUpdate).require(project_id, accepted["site_update_id"])
+    attachment = store.repository(Attachment).require(project_id, "att_voice123")
+    assert update.transcript == transcript
+    assert update.transcribed_attachment_ids == ["att_voice123"]
+    assert attachment.site_update_id == update.id
+    assert len(store.repository(SiteUpdate).list(project_id)) == 1
+    assert len(interpreter.transcription_calls) == 1
+    assert interpreter.transcription_calls[0].attachment_id == "att_voice123"
+    assert interpreter.transcription_calls[0].content_type == "audio/webm"
+    assert interpreter.transcription_calls[0].data == audio
+    assert interpreter.fact_calls[0][0] == transcript
+    assert storage.reads == [object_path]
+    assert (
+        store.repository(Task).require(project_id, "tsk_groundblockwork123").status
+        is TaskStatus.COMPLETED
+    )
+    assert [
+        activity.action
+        for activity in store.repository(ActivityEvent).list(project_id)
+        if activity.action == "site_update.transcribed"
+    ] == ["site_update.transcribed"]
+
+
+@pytest.mark.asyncio
+async def test_photo_attachment_reaches_interpreter_with_context_and_ambiguous_work_waits() -> None:
+    project_id = "prj_readiness123"
+    photo = b"\x89PNG\r\n\x1a\nsite photo bytes"
+    object_path = f"projects/{project_id}/attachments/att_photo123"
+    interpreter = RecordingMultimodalInterpreter(
+        facts=ExtractedFactSet(
+            tasks=[
+                TaskCompletionFact(
+                    task_name="Ground-floor blockwork",
+                    is_completed=True,
+                    evidence="The visible wall appears substantially built.",
+                    confidence="high",
+                )
+            ]
+        )
+    )
+    storage = MemoryMediaStorage({object_path: photo})
+    store = InMemoryRepositoryStore()
+    store.repository(ProjectMember).create(
+        ProjectMember(
+            project_id=project_id,
+            user_id="usr_foreman123",
+            role=MemberRole.FOREMAN,
+            status=MemberStatus.ACTIVE,
+        )
+    )
+    store.repository(Task).create(
+        Task(
+            id="tsk_groundblockwork123",
+            project_id=project_id,
+            title="Ground-floor blockwork",
+            status=TaskStatus.IN_PROGRESS,
+            completion_percent=Decimal("80"),
+        )
+    )
+    store.repository(Attachment).create(
+        Attachment(
+            id="att_photo123",
+            project_id=project_id,
+            object_path=object_path,
+            content_type="image/png",
+            byte_size=len(photo),
+            sha256=sha256(photo).hexdigest(),
+            upload_status=AttachmentUploadStatus.VERIFIED,
+        )
+    )
+    publisher = WorkerPublisher(store, interpreter, storage)
+    app = FastAPI()
+    app.state.project_access_provider = access_provider
+    app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
+    app.include_router(api_router, prefix="/api/v1")
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/projects/{project_id}/site-updates",
+            json={"input_type": "photo", "attachment_ids": ["att_photo123"]},
+            headers={"Idempotency-Key": "photo:site-update:123"},
+        )
+
+    assert response.status_code == 202
+    accepted = response.json()
+    update = store.repository(SiteUpdate).require(project_id, accepted["site_update_id"])
+    run = store.repository(AgentRun).require(project_id, accepted["agent_run_id"])
+    attachment = store.repository(Attachment).require(project_id, "att_photo123")
+    text, images, context = interpreter.fact_calls[0]
+    assert text == ""
+    assert len(images) == 1
+    assert images[0].attachment_id == "att_photo123"
+    assert images[0].content_type == "image/png"
+    assert images[0].data == photo
+    assert "Ground-floor blockwork" in context
+    assert update.processing_status is ProcessingStatus.WAITING_FOR_CLARIFICATION
+    assert run.status is AgentRunStatus.WAITING_FOR_CLARIFICATION
+    assert attachment.site_update_id == update.id
+    assert (
+        store.repository(Task).require(project_id, "tsk_groundblockwork123").status
+        is TaskStatus.IN_PROGRESS
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_voice_transcription_recovers_on_same_persisted_site_update() -> None:
+    project_id = "prj_readiness123"
+    audio = b"\x1aE\xdf\xa3retry voice bytes"
+    object_path = f"projects/{project_id}/attachments/att_retryvoice123"
+    transcript = "The electrician did not come today."
+    interpreter = RecordingMultimodalInterpreter(
+        transcript=transcript,
+        transcription_failures=1,
+    )
+    storage = MemoryMediaStorage({object_path: audio})
+    store = InMemoryRepositoryStore()
+    store.repository(ProjectMember).create(
+        ProjectMember(
+            project_id=project_id,
+            user_id="usr_foreman123",
+            role=MemberRole.FOREMAN,
+            status=MemberStatus.ACTIVE,
+        )
+    )
+    store.repository(Attachment).create(
+        Attachment(
+            id="att_retryvoice123",
+            project_id=project_id,
+            object_path=object_path,
+            content_type="audio/webm",
+            byte_size=len(audio),
+            sha256=sha256(audio).hexdigest(),
+            upload_status=AttachmentUploadStatus.VERIFIED,
+        )
+    )
+    publisher = WorkerPublisher(store, interpreter, storage)
+    app = FastAPI()
+    app.state.project_access_provider = access_provider
+    app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
+    install_error_handlers(app)
+    app.include_router(api_router, prefix="/api/v1")
+
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        failed = await client.post(
+            f"/api/v1/projects/{project_id}/site-updates",
+            json={"input_type": "voice", "attachment_ids": ["att_retryvoice123"]},
+            headers={"Idempotency-Key": "voice:retry:123"},
+        )
+        update_after_failure = store.repository(SiteUpdate).list(project_id)[0]
+        recovered = await client.post(
+            f"/api/v1/projects/{project_id}/site-updates",
+            json={"input_type": "voice", "attachment_ids": ["att_retryvoice123"]},
+            headers={"Idempotency-Key": "voice:retry:123"},
+        )
+
+    assert failed.status_code == 503
+    assert update_after_failure.processing_status is ProcessingStatus.FAILED
+    assert recovered.status_code == 202
+    assert len(store.repository(SiteUpdate).list(project_id)) == 1
+    update = store.repository(SiteUpdate).list(project_id)[0]
+    run = store.repository(AgentRun).list(project_id)[0]
+    assert update.id == update_after_failure.id
+    assert update.transcript == transcript
+    assert update.processing_status is ProcessingStatus.COMPLETED
+    assert run.status is AgentRunStatus.COMPLETED
+    assert run.attempt == 2
+    assert len(interpreter.transcription_calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_voice_retry_reuses_persisted_transcript_after_later_model_failure() -> None:
+    project_id = "prj_readiness123"
+    audio = b"\x1aE\xdf\xa3persisted transcript bytes"
+    object_path = f"projects/{project_id}/attachments/att_persistedvoice123"
+    transcript = "Ground-floor blockwork is complete."
+    interpreter = RecordingMultimodalInterpreter(
+        transcript=transcript,
+        fact_failures=1,
+    )
+    storage = MemoryMediaStorage({object_path: audio})
+    store = InMemoryRepositoryStore()
+    store.repository(ProjectMember).create(
+        ProjectMember(
+            project_id=project_id,
+            user_id="usr_foreman123",
+            role=MemberRole.FOREMAN,
+            status=MemberStatus.ACTIVE,
+        )
+    )
+    store.repository(Attachment).create(
+        Attachment(
+            id="att_persistedvoice123",
+            project_id=project_id,
+            object_path=object_path,
+            content_type="audio/webm",
+            byte_size=len(audio),
+            sha256=sha256(audio).hexdigest(),
+            upload_status=AttachmentUploadStatus.VERIFIED,
+        )
+    )
+    publisher = WorkerPublisher(store, interpreter, storage)
+    app = FastAPI()
+    app.state.project_access_provider = access_provider
+    app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
+    install_error_handlers(app)
+    app.include_router(api_router, prefix="/api/v1")
+
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        failed = await client.post(
+            f"/api/v1/projects/{project_id}/site-updates",
+            json={"input_type": "voice", "attachment_ids": ["att_persistedvoice123"]},
+            headers={"Idempotency-Key": "voice:persisted-retry:123"},
+        )
+        persisted_after_failure = store.repository(SiteUpdate).list(project_id)[0]
+        recovered = await client.post(
+            f"/api/v1/projects/{project_id}/site-updates",
+            json={"input_type": "voice", "attachment_ids": ["att_persistedvoice123"]},
+            headers={"Idempotency-Key": "voice:persisted-retry:123"},
+        )
+
+    assert failed.status_code == 503
+    assert persisted_after_failure.transcript == transcript
+    assert persisted_after_failure.processing_status is ProcessingStatus.FAILED
+    assert recovered.status_code == 202
+    assert len(store.repository(SiteUpdate).list(project_id)) == 1
+    assert (
+        store.repository(SiteUpdate).list(project_id)[0].processing_status
+        is ProcessingStatus.COMPLETED
+    )
+    assert len(interpreter.transcription_calls) == 1
+    assert len(interpreter.fact_calls) == 2
+    assert storage.reads == [object_path]
+    assert (
+        len(
+            [
+                activity
+                for activity in store.repository(ActivityEvent).list(project_id)
+                if activity.action == "site_update.transcribed"
+            ]
+        )
+        == 1
+    )
 
 
 def test_site_update_rejects_unverified_photo_before_persisting_intake() -> None:

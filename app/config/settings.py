@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     signed_upload_ttl_seconds: int = Field(default=900, ge=60, le=3_600)
     max_upload_bytes: int = Field(default=52_428_800, gt=0, le=524_288_000)
     max_attachment_count: int = Field(default=10, ge=1, le=25)
+    max_model_media_bytes: int = Field(default=18_000_000, gt=0, le=20_000_000)
     max_event_text_chars: int = Field(default=20_000, ge=256, le=1_000_000)
     rate_limit_per_user: int = Field(default=30, ge=1, le=10_000)
     rate_limit_per_project: int = Field(default=300, ge=1, le=100_000)

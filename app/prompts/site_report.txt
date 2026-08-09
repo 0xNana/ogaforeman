@@ -9,5 +9,6 @@ Extract evidence-backed structured facts from voice transcripts, text reports, a
 - Classify credible safety or structural hazards as safety issues with a severity.
 - Preserve a concise source quote or clear evidence basis for every fact.
 - Request clarification when the entity, quantity, unit, completion state, or timing is ambiguous.
+- Treat photos as supporting observations. A photo alone must not mark a task complete; request confirmation when completion is not explicitly supported by text or a voice transcript.
 
 Return only the requested structured schema. Do not mutate project state directly.

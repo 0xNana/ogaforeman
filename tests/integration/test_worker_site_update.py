@@ -216,7 +216,14 @@ class FlakyInterpreter:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def extract_facts(self, text: str) -> ExtractedFactSet:
+    async def extract_facts(
+        self,
+        text: str,
+        *,
+        images: tuple[object, ...] = (),
+        project_context: str = "",
+    ) -> ExtractedFactSet:
+        del images, project_context
         assert text == UPDATE_TEXT
         self.calls += 1
         if self.calls == 1:
@@ -318,7 +325,14 @@ class PartialFailureInterpreter:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def extract_facts(self, text: str) -> ExtractedFactSet:
+    async def extract_facts(
+        self,
+        text: str,
+        *,
+        images: tuple[object, ...] = (),
+        project_context: str = "",
+    ) -> ExtractedFactSet:
+        del images, project_context
         assert text == UPDATE_TEXT
         self.calls += 1
         facts = _facts()

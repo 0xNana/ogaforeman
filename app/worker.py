@@ -16,6 +16,7 @@ from app.config.settings import Settings, get_settings
 from app.domain.authorization import ProjectForbiddenError, RoleRequiredError
 from app.domain.events import EventType, ProjectEvent
 from app.infrastructure.gemini import GeminiSiteInterpreter
+from app.infrastructure.storage import StorageAdapter
 from app.observability.context import bind_context, new_correlation_context
 from app.observability.logging import log_event
 from app.observability.metrics import metrics
@@ -48,6 +49,7 @@ async def process_event_async(
     event_coordinator: OgaCoordinator = coordinator,
     settings: Settings | None = None,
     site_interpreter: SiteInterpreter | None = None,
+    storage_adapter: StorageAdapter | None = None,
 ) -> WorkerResult:
     """Validate, claim, route, and finalize one at-least-once event delivery."""
 
@@ -127,6 +129,7 @@ async def process_event_async(
                     store,
                     interpreter,
                     runtime,
+                    storage_adapter,
                 ).execute(
                     event,
                     claim_attempt=claim.attempts,
@@ -146,6 +149,7 @@ async def process_event_async(
                         event_coordinator=event_coordinator,
                         settings=runtime,
                         site_interpreter=site_interpreter,
+                        storage_adapter=storage_adapter,
                     )
                 RuntimeManager(store).complete_run(event.project_id, continuation.run_id)
                 result_ref = f"run:{continuation.run_id}"
@@ -220,6 +224,7 @@ def process_event(
     event_coordinator: OgaCoordinator = coordinator,
     settings: Settings | None = None,
     site_interpreter: SiteInterpreter | None = None,
+    storage_adapter: StorageAdapter | None = None,
 ) -> WorkerResult:
     """Compatibility wrapper; production HTTP delivery uses ``process_event_async``."""
 
@@ -229,6 +234,7 @@ def process_event(
         event_coordinator=event_coordinator,
         settings=settings,
         site_interpreter=site_interpreter,
+        storage_adapter=storage_adapter,
     )
     try:
         asyncio.get_running_loop()

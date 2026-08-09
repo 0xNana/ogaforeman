@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from hashlib import sha256
+import json
 from typing import TYPE_CHECKING
 from collections.abc import Sequence
 
-from app.agents.interpreter import SiteInterpreter
+from app.agents.interpreter import MediaEvidence, SiteInterpreter
 from app.domain.activity import MutationContext
 from app.domain.authorization import ProjectAccessContext
 from app.domain.enums import (
@@ -19,8 +20,16 @@ from app.domain.enums import (
     MaterialRequestStatus,
     Severity,
 )
-from app.domain.facts import IssueFact, NextFocusFact, SafetyIssueFact
+from app.domain.facts import (
+    ConfidenceLevel,
+    ExtractedFactSet,
+    IssueFact,
+    NextFocusFact,
+    SafetyIssueFact,
+    TaskCompletionFact,
+)
 from app.domain.models import Issue, Material, ReportFact, SiteUpdate, Task
+from app.repositories.context import ProjectContext
 from app.services.context import ContextService
 from app.services.entity_resolution import MatchConfidence, resolve_material, resolve_task
 from app.services.fact_router import route_facts
@@ -32,6 +41,10 @@ from app.tools.tasks import TaskTools, UpdateTaskCommand
 
 if TYPE_CHECKING:
     from app.workflows.runtime import RuntimeManager
+
+
+_MODEL_CONTEXT_ENTITY_LIMIT = 200
+_MODEL_CONTEXT_MAX_CHARS = 100_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,14 +91,21 @@ class SiteUpdateService:
         run_id: str,
         trace_id: str,
         source_event_id: str | None = None,
+        images: Sequence[MediaEvidence] = (),
     ) -> SiteUpdateResult:
         del trace_id
         causal_event_id = source_event_id or site_update.id
         text_corpus = " ".join(
             part for part in (site_update.raw_text, site_update.transcript) if part
         )
-        fact_set = await self._interpreter.extract_facts(text_corpus)
         project_context = self._context_service.get_context(access)
+        fact_set = await self._interpreter.extract_facts(
+            text_corpus,
+            images=images,
+            project_context=_project_context_prompt(project_context),
+        )
+        if images:
+            fact_set = _guard_visual_task_completions(fact_set, text_corpus)
         routed = route_facts(fact_set)
 
         has_clarifications = bool(routed.clarifications)
@@ -442,6 +462,84 @@ def _earliest_focus_date(
 
 def _evidence_refs(site_update: SiteUpdate) -> list[str]:
     return [site_update.id, *site_update.attachment_ids]
+
+
+def _guard_visual_task_completions(
+    fact_set: ExtractedFactSet,
+    text_corpus: str,
+) -> ExtractedFactSet:
+    normalized_text = " ".join(text_corpus.casefold().split())
+    guarded_tasks: list[TaskCompletionFact] = []
+    for fact in fact_set.tasks:
+        normalized_evidence = " ".join(fact.evidence.casefold().split())
+        text_corroborates_completion = bool(
+            normalized_evidence and normalized_evidence in normalized_text
+        )
+        if fact.is_completed and not text_corroborates_completion:
+            fact = fact.model_copy(
+                update={
+                    "confidence": ConfidenceLevel.MEDIUM,
+                    "clarification_needed": (
+                        fact.clarification_needed
+                        or "Confirm task completion reported by the photo."
+                    ),
+                }
+            )
+        guarded_tasks.append(fact)
+    return fact_set.model_copy(update={"tasks": guarded_tasks})
+
+
+def _project_context_prompt(project_context: ProjectContext) -> str:
+    tasks: list[dict[str, object]] = []
+    materials: list[dict[str, object]] = []
+    payload: dict[str, object] = {
+        "project_id": project_context.project_id,
+        "tasks": tasks,
+        "materials": materials,
+    }
+
+    for index, task in enumerate(project_context.active_tasks):
+        if index >= _MODEL_CONTEXT_ENTITY_LIMIT:
+            break
+        tasks.append(
+            {
+                "id": task.id,
+                "title": task.title,
+                "status": task.status.value,
+                "completion_percent": str(task.completion_percent),
+                "dependency_ids": task.dependency_ids,
+            }
+        )
+        if len(_encode_project_context(payload)) > _MODEL_CONTEXT_MAX_CHARS:
+            tasks.pop()
+            continue
+
+    for index, material in enumerate(project_context.materials):
+        if index >= _MODEL_CONTEXT_ENTITY_LIMIT:
+            break
+        materials.append(
+            {
+                "id": material.id,
+                "name": material.name,
+                "aliases": material.aliases,
+                "unit": material.unit,
+                "available_quantity": str(material.available_quantity),
+                "minimum_required_quantity": str(material.minimum_required_quantity),
+                "upcoming_requirement_quantity": (
+                    str(material.upcoming_requirement_quantity)
+                    if material.upcoming_requirement_quantity is not None
+                    else None
+                ),
+            }
+        )
+        if len(_encode_project_context(payload)) > _MODEL_CONTEXT_MAX_CHARS:
+            materials.pop()
+            continue
+    return _encode_project_context(payload)
+
+
+def _encode_project_context(payload: dict[str, object]) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
 def _issue_report_fact(site_update: SiteUpdate, issue: Issue) -> ReportFact:

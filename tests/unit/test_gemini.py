@@ -1,7 +1,9 @@
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from app.agents.interpreter import MediaEvidence
 from app.config.settings import Settings
 from app.infrastructure.gemini import GeminiSiteInterpreter, create_gemini_client
 
@@ -100,3 +102,77 @@ def test_interpreter_requires_configured_model() -> None:
 
     with pytest.raises(RuntimeError, match="GEMINI_MODEL_ID"):
         GeminiSiteInterpreter(settings)
+
+
+@pytest.mark.asyncio
+async def test_gemini_transcription_receives_inline_audio_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(return_value=SimpleNamespace(text="Blockwork is complete."))
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    interpreter = GeminiSiteInterpreter(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+    audio = MediaEvidence(
+        attachment_id="att_voice123",
+        content_type="audio/webm",
+        data=b"voice-bytes",
+    )
+
+    transcript = await interpreter.transcribe_audio(audio)
+
+    assert transcript == "Blockwork is complete."
+    call = generate_content.await_args.kwargs
+    assert call["model"] == "configured-model"
+    assert call["contents"][0].inline_data.data == b"voice-bytes"
+    assert call["contents"][0].inline_data.mime_type == "audio/webm"
+
+
+@pytest.mark.asyncio
+async def test_gemini_fact_extraction_receives_image_bytes_and_project_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(
+        return_value=SimpleNamespace(
+            text='{"tasks":[],"materials":[],"issues":[],"next_focus":[],"safety_issues":[]}'
+        )
+    )
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    interpreter = GeminiSiteInterpreter(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+    image = MediaEvidence(
+        attachment_id="att_photo123",
+        content_type="image/png",
+        data=b"photo-bytes",
+    )
+
+    result = await interpreter.extract_facts(
+        "",
+        images=(image,),
+        project_context='{"tasks":[{"title":"Ground-floor blockwork"}]}',
+    )
+
+    assert result.tasks == []
+    call = generate_content.await_args.kwargs
+    prompt = call["contents"][0].text
+    assert "Ground-floor blockwork" in prompt
+    assert "A photo alone must not prove task completion" in prompt
+    assert call["contents"][1].inline_data.data == b"photo-bytes"
+    assert call["contents"][1].inline_data.mime_type == "image/png"

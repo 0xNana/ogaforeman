@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from decimal import Decimal
+from hashlib import sha256
 
 import httpx
 import pytest
@@ -57,6 +58,27 @@ from scripts.seed_demo import DEMO_FOREMAN_ID, DEMO_PROJECT_ID
 
 UPDATE_TEXT = "First-floor blockwork is done. We have ten bags of cement left."
 TRANSCRIPT = "Electrician did not come. Plastering is tomorrow."
+PHOTO_BYTES = b"\xff\xd8\xfffirestore-site-photo"
+AUDIO_BYTES = b"OggS-firestore-site-audio"
+
+
+class DurableMediaStorage:
+    def __init__(self, objects: dict[str, bytes]) -> None:
+        self.objects = objects
+        self.reads: list[str] = []
+
+    def read_bytes(
+        self,
+        *,
+        object_path: str,
+        expected_sha256: str,
+        max_bytes: int,
+    ) -> bytes:
+        data = self.objects[object_path]
+        assert len(data) <= max_bytes
+        assert sha256(data).hexdigest() == expected_sha256
+        self.reads.append(object_path)
+        return data
 
 
 class CapturingPublisher:
@@ -110,6 +132,36 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
     client = create_firestore_client(settings)
     reset_demo(client, settings=settings)
     store = FirestoreRepositoryStore(client)
+    attachment_repo = store.repository(Attachment)
+    photo = attachment_repo.require(DEMO_PROJECT_ID, "att_demo001")
+    audio = attachment_repo.require(DEMO_PROJECT_ID, "att_demo002")
+    photo = attachment_repo.save(
+        photo.model_copy(
+            update={
+                "byte_size": len(PHOTO_BYTES),
+                "sha256": sha256(PHOTO_BYTES).hexdigest(),
+                "metadata": {},
+            }
+        ),
+        expected_version=attachment_repo.version_of(DEMO_PROJECT_ID, photo.id),
+    )
+    audio = attachment_repo.save(
+        audio.model_copy(
+            update={
+                "content_type": "audio/ogg",
+                "byte_size": len(AUDIO_BYTES),
+                "sha256": sha256(AUDIO_BYTES).hexdigest(),
+                "metadata": {},
+            }
+        ),
+        expected_version=attachment_repo.version_of(DEMO_PROJECT_ID, audio.id),
+    )
+    storage = DurableMediaStorage(
+        {
+            photo.object_path: PHOTO_BYTES,
+            audio.object_path: AUDIO_BYTES,
+        }
+    )
     publisher = CapturingPublisher()
     app = FastAPI()
     app.state.project_access_provider = _access_provider
@@ -119,7 +171,6 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
     payload = {
         "input_type": "mixed",
         "raw_text": UPDATE_TEXT,
-        "transcript": TRANSCRIPT,
         "attachment_ids": ["att_demo001", "att_demo002"],
     }
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client_http:
@@ -177,7 +228,8 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
                     )
                 ],
             )
-        }
+        },
+        transcriptions={"att_demo002": TRANSCRIPT},
     )
 
     first = await process_event_async(
@@ -185,12 +237,14 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
         store=store,
         settings=settings,
         site_interpreter=interpreter,
+        storage_adapter=storage,
     )
     replay = await process_event_async(
         publisher.data,
         store=store,
         settings=settings,
         site_interpreter=interpreter,
+        storage_adapter=storage,
     )
 
     restarted = FirestoreRepositoryStore(create_firestore_client(settings))
@@ -209,9 +263,14 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
     assert first.result_ref == f"run:{accepted['agent_run_id']}"
     assert replay.status == "duplicate"
     assert interpreter.calls == [f"{UPDATE_TEXT} {TRANSCRIPT}"]
+    assert [call.data for call in interpreter.transcription_calls] == [AUDIO_BYTES]
+    assert interpreter.image_calls[0][0].data == PHOTO_BYTES
+    assert storage.reads == [photo.object_path, audio.object_path]
     assert task.status is TaskStatus.COMPLETED
     assert material.available_quantity == Decimal("10")
     assert update.processing_status is ProcessingStatus.WAITING_FOR_APPROVAL
+    assert update.transcript == TRANSCRIPT
+    assert update.transcribed_attachment_ids == [audio.id]
     assert run.status is AgentRunStatus.WAITING_FOR_APPROVAL
     assert run.step == "approval_required"
     assert attachment.site_update_id == update.id
@@ -237,6 +296,7 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
     assert sum(activity.action == "issue.created" for activity in activities) == 2
     assert {activity.action for activity in activities} >= {
         "attachment.linked",
+        "site_update.transcribed",
         "task.completed",
         "issue.created",
         "material.quantity_updated",

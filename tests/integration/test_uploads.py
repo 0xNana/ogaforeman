@@ -358,6 +358,34 @@ def test_gcs_adapter_signs_exact_headers_and_hashes_private_object_bytes() -> No
     assert inspected.sha256 == sha256(payload).hexdigest()
 
 
+def test_gcs_adapter_reads_exact_verified_bytes_for_model_input() -> None:
+    payload = b"\xff\xd8\xff" + b"durable-site-photo"
+    client = FakeStorageClient(payload)
+    adapter = GoogleCloudStorageAdapter("private-media", client=cast(Any, client))
+
+    loaded = adapter.read_bytes(
+        object_path="projects/prj_ridge/attachments/att_photo001",
+        expected_sha256=sha256(payload).hexdigest(),
+        max_bytes=len(payload),
+    )
+
+    assert loaded == payload
+
+    with pytest.raises(StorageObjectValidationError, match="model input limit"):
+        adapter.read_bytes(
+            object_path="projects/prj_ridge/attachments/att_photo001",
+            expected_sha256=sha256(payload).hexdigest(),
+            max_bytes=len(payload) - 1,
+        )
+
+    with pytest.raises(StorageObjectValidationError, match="checksum changed"):
+        adapter.read_bytes(
+            object_path="projects/prj_ridge/attachments/att_photo001",
+            expected_sha256="f" * 64,
+            max_bytes=len(payload),
+        )
+
+
 def test_gcs_adapter_rejects_bytes_that_do_not_match_declared_mime_type() -> None:
     payload = b"<script>alert('not a jpeg')</script>"
     client = FakeStorageClient(payload)

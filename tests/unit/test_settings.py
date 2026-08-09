@@ -146,6 +146,7 @@ def test_production_rejects_missing_cloud_model_and_auth_configuration() -> None
         ("signed_upload_ttl_seconds", 59),
         ("signed_upload_ttl_seconds", 3601),
         ("max_upload_bytes", 0),
+        ("max_model_media_bytes", 20_000_001),
         ("max_event_text_chars", 255),
         ("rate_limit_per_user", 0),
         ("rate_limit_per_project", 0),
@@ -194,6 +195,7 @@ def test_settings_load_documented_environment_names(monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("DEMO_MODE", "false")
     monkeypatch.setenv("USE_FAKE_MODEL", "true")
     monkeypatch.setenv("MAX_UPLOAD_BYTES", "1048576")
+    monkeypatch.setenv("MAX_MODEL_MEDIA_BYTES", "1000000")
 
     settings = Settings(_env_file=None)
 
@@ -201,6 +203,7 @@ def test_settings_load_documented_environment_names(monkeypatch: pytest.MonkeyPa
     assert settings.demo_mode is False
     assert settings.use_fake_model is True
     assert settings.max_upload_bytes == 1_048_576
+    assert settings.max_model_media_bytes == 1_000_000
 
 
 def test_gemini_api_key_is_loaded_as_a_secret(monkeypatch: pytest.MonkeyPatch) -> None:
