@@ -20,6 +20,8 @@ class AgentRunResponse(BaseModel):
     id: str
     status: AgentRunStatus
     step: str | None
+    result_summary: str | None
+    pending_actions: list[str]
     error_code: str | None
     error_summary: str | None
     completed_at: datetime | None
@@ -40,6 +42,8 @@ def get_agent_run(
         id=run.id,
         status=run.status,
         step=run.step,
+        result_summary=run.result_summary,
+        pending_actions=run.pending_actions,
         error_code=run.error_code,
         error_summary=run.error_summary,
         completed_at=run.completed_at,

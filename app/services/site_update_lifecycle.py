@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from hashlib import sha256
 
 from app.domain.activity import ActivitySpec, MutationContext
@@ -88,6 +88,8 @@ class SiteUpdateExecutionStateService:
                         "status": AgentRunStatus.RUNNING,
                         "attempt": attempt,
                         "completed_at": None,
+                        "result_summary": None,
+                        "pending_actions": [],
                         "error_code": None,
                         "error_summary": None,
                     }
@@ -118,6 +120,8 @@ class SiteUpdateExecutionStateService:
         run_id: str,
         trace_id: str,
         attempt: int,
+        result_summary: str,
+        pending_actions: Sequence[str],
     ) -> SiteUpdateExecutionState:
         def mutation(session: RepositorySession, now: datetime) -> SiteUpdate:
             return self._finish(
@@ -130,6 +134,8 @@ class SiteUpdateExecutionStateService:
                 update_status=ProcessingStatus.COMPLETED,
                 run_status=AgentRunStatus.COMPLETED,
                 now=now,
+                result_summary=result_summary,
+                pending_actions=pending_actions,
             )
 
         return self._transition(
@@ -233,6 +239,8 @@ class SiteUpdateExecutionStateService:
         trace_id: str,
         attempt: int,
         step: str,
+        result_summary: str,
+        pending_actions: Sequence[str],
     ) -> SiteUpdateExecutionState:
         def mutation(session: RepositorySession, now: datetime) -> SiteUpdate:
             update_repo = session.repository(SiteUpdate)
@@ -264,6 +272,8 @@ class SiteUpdateExecutionStateService:
                     update={
                         "status": AgentRunStatus.WAITING_FOR_CLARIFICATION,
                         "step": step,
+                        "result_summary": result_summary,
+                        "pending_actions": list(pending_actions),
                     }
                 ),
                 expected_version=run_version,
@@ -293,6 +303,8 @@ class SiteUpdateExecutionStateService:
         trace_id: str,
         attempt: int,
         step: str,
+        result_summary: str,
+        pending_actions: Sequence[str],
     ) -> SiteUpdateExecutionState:
         def mutation(session: RepositorySession, now: datetime) -> SiteUpdate:
             update_repo = session.repository(SiteUpdate)
@@ -324,6 +336,8 @@ class SiteUpdateExecutionStateService:
                     update={
                         "status": AgentRunStatus.WAITING_FOR_APPROVAL,
                         "step": step,
+                        "result_summary": result_summary,
+                        "pending_actions": list(pending_actions),
                     }
                 ),
                 expected_version=run_version,
@@ -397,6 +411,8 @@ class SiteUpdateExecutionStateService:
         now: datetime,
         error_code: str | None = None,
         error_summary: str | None = None,
+        result_summary: str | None = None,
+        pending_actions: Sequence[str] = (),
     ) -> SiteUpdate:
         update_repo = session.repository(SiteUpdate)
         run_repo = session.repository(AgentRun)
@@ -428,6 +444,8 @@ class SiteUpdateExecutionStateService:
                 update={
                     "status": run_status,
                     "completed_at": now,
+                    "result_summary": result_summary,
+                    "pending_actions": list(pending_actions),
                     "error_code": error_code,
                     "error_summary": error_summary,
                 }

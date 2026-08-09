@@ -389,6 +389,8 @@ class AgentRun(DomainModel):
     started_at: AwareDatetime = Field(default_factory=utc_now)
     completed_at: AwareDatetime | None = None
     trace_id: str = Field(min_length=1, max_length=256)
+    result_summary: str | None = Field(default=None, max_length=5_000)
+    pending_actions: list[NonEmptyText] = Field(default_factory=list, max_length=200)
     error_code: str | None = Field(default=None, max_length=128)
     error_summary: str | None = Field(default=None, max_length=5_000)
     version: int = Field(default=0, ge=0)

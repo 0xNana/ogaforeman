@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from hashlib import sha256
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -150,7 +151,7 @@ def access_provider(
     )
     if project_id != access.project_id:
         raise ValueError("cross-project access")
-    assert permission is ProjectPermission.OPERATE
+    assert permission in {ProjectPermission.READ, ProjectPermission.OPERATE}
     return access
 
 
@@ -168,6 +169,7 @@ async def test_site_update_is_persisted_audited_published_and_started_once() -> 
     publisher = WorkerPublisher(store)
     app = FastAPI()
     app.state.project_access_provider = access_provider
+    app.state.auth_runtime = SimpleNamespace(store=store)
     app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
     app.include_router(api_router, prefix="/api/v1")
 
@@ -282,7 +284,7 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
             project_id=project_id,
             title="First-floor plastering",
             status=TaskStatus.PLANNED,
-            dependency_ids=["tsk_blockwork123"],
+            dependency_ids=["tsk_blockwork123", "tsk_electrical123"],
         ),
     ):
         store.repository(Task).create(task)
@@ -320,6 +322,7 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
     )
     app = FastAPI()
     app.state.project_access_provider = access_provider
+    app.state.auth_runtime = SimpleNamespace(store=store)
     app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
     app.include_router(api_router, prefix="/api/v1")
 
@@ -342,6 +345,9 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
             json=request,
             headers={"Idempotency-Key": "canonical:mixed:update:123"},
         )
+        run_response = await client.get(
+            f"/api/v1/projects/{project_id}/agent-runs/{first.json()['agent_run_id']}"
+        )
 
     assert first.status_code == 202
     assert replay.json() == first.json()
@@ -362,6 +368,11 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
     assert update.processing_status is ProcessingStatus.WAITING_FOR_APPROVAL
     assert run.status is AgentRunStatus.WAITING_FOR_APPROVAL
     assert run.step == "approval_required"
+    assert run_response.status_code == 200
+    assert "First-floor plastering" in run_response.json()["result_summary"]
+    assert any(
+        "schedule impact" in action.casefold() for action in run_response.json()["pending_actions"]
+    )
     assert attachment.site_update_id == update.id
     assert task.status is TaskStatus.COMPLETED
     assert material.available_quantity == Decimal("10")
@@ -369,6 +380,7 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
         (IssueType.BLOCKER, ("tsk_electrical123",)),
         (IssueType.DELAY_RISK, ("tsk_plastering123",)),
     }
+    assert len(issues) == 3
     assert len(requests) == 1
     assert requests[0].quantity == Decimal("30")
     assert requests[0].status is MaterialRequestStatus.AWAITING_APPROVAL
@@ -378,7 +390,7 @@ async def test_mixed_api_update_persists_complete_daily_site_update_projection()
     assert len(reports) == 1
     assert reports[0].source_update_ids == [update.id]
     assert len(reports[0].completed_work) == 1
-    assert len(reports[0].active_blockers) == 2
+    assert len(reports[0].active_blockers) == 3
     assert len(reports[0].material_risks) == 1
     assert len(reports[0].next_focus) == 1
     assert {activity.action for activity in activities} >= {

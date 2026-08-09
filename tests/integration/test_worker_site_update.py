@@ -211,6 +211,7 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
     tasks = {task.id: task for task in store.repository(Task).list(PROJECT_ID)}
     issues = store.repository(Issue).list(PROJECT_ID)
     report = store.repository(DailyReport).list(PROJECT_ID)[0]
+    run = store.repository(AgentRun).require(PROJECT_ID, run_id_for_event(EVENT_ID))
     blocker = next(issue for issue in issues if issue.type is IssueType.BLOCKER)
     schedule_risk = next(issue for issue in issues if issue.type is IssueType.DELAY_RISK)
 
@@ -231,6 +232,8 @@ async def test_natural_language_blocker_uses_project_dependencies_for_schedule_r
     assert "Ceiling closure" in result.summary
     assert "First-floor plastering" in result.summary
     assert any("schedule impact" in action.casefold() for action in result.pending_actions)
+    assert run.result_summary == result.summary
+    assert run.pending_actions == list(result.pending_actions)
 
 
 @pytest.mark.asyncio

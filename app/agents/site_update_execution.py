@@ -173,6 +173,8 @@ class SiteUpdateEventExecutor:
                     trace_id=trace_id,
                     attempt=claim_attempt,
                     step="safety_stop" if result.has_safety_stops else "clarification_needed",
+                    result_summary=result.summary,
+                    pending_actions=result.pending_actions,
                 )
                 status = "paused"
             elif result.has_pending_approvals:
@@ -184,6 +186,8 @@ class SiteUpdateEventExecutor:
                     trace_id=trace_id,
                     attempt=claim_attempt,
                     step="approval_required",
+                    result_summary=result.summary,
+                    pending_actions=result.pending_actions,
                 )
                 status = "paused"
             else:
@@ -194,6 +198,8 @@ class SiteUpdateEventExecutor:
                     run_id=run_id,
                     trace_id=trace_id,
                     attempt=claim_attempt,
+                    result_summary=result.summary,
+                    pending_actions=result.pending_actions,
                 )
                 status = "completed"
             return {
