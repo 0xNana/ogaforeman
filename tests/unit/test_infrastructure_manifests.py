@@ -28,6 +28,8 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "--versioning" in source
     assert "--soft-delete-duration 30d" in source
     assert "scheduler jobs create http" in source
+    assert "scheduler jobs update http" in source
+    assert "--update-headers Content-Type=application/json" in source
     assert "monitoring/apply.sh" in source
     assert "identitytoolkit.googleapis.com" in source
     assert "firebaserules.googleapis.com" in source

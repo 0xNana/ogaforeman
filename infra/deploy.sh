@@ -347,7 +347,7 @@ if [[ -n "${SCHEDULE_PROJECT_ID}" ]]; then
       --time-zone "${SCHEDULE_TIMEZONE}" \
       --uri "${WORKER_URL}/scheduler/daily-brief" \
       --http-method POST \
-      --headers Content-Type=application/json \
+      --update-headers Content-Type=application/json \
       --message-body "${SCHEDULE_BODY}" \
       --oidc-service-account-email "${PUSH_SERVICE_ACCOUNT_EMAIL}" \
       --oidc-token-audience "${WORKER_URL}"
