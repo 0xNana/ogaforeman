@@ -146,6 +146,12 @@ Requirements:
 - Every mutation tool has success, authorization, validation, idempotency, and activity tests.
 - Every workflow has happy path, ambiguous input, duplicate event, retry, and terminal failure tests where applicable.
 - External model calls are not used in ordinary unit tests.
+- E2E tests may replace model, object-storage, and event-transport dependencies at
+  their external boundaries. Those substitutes must not create domain state or
+  decide workflow transitions: browser submissions must enter the production event
+  worker and use the production repositories, coordinator, mutation, approval,
+  outbox, and continuation code. Request interception or a parallel state machine
+  is not evidence for workflow status.
 - Release candidates pass the thresholds in `EVALS.md` and the global definition of done below.
 
 ## Engineering Boundaries

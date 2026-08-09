@@ -34,6 +34,37 @@ Status: complete locally on 2026-08-09. Exact inline Gemini media construction i
 covered. A live audio request reached Gemini but was blocked by depleted AI Studio
 prepayment credits (`429 RESOURCE_EXHAUSTED`).
 
+### P0.2: Remove the fake browser E2E workflow
+
+Acceptance: browser site-update submissions use the production worker entry point,
+coordinator, structured fact routing, typed mutation services, approval service,
+outbox continuation, and original-run resume logic against Firestore. The local E2E
+stack may replace Gemini, Cloud Storage, and Pub/Sub delivery at their external
+boundaries, but no adapter may infer domain state, branch on trigger phrases, or
+fabricate run/approval status. Browser tests must observe the persisted approval,
+approve it through the API-backed UI, and prove that the same run completes with one
+guarded supplier submission.
+
+Verify: API-to-worker integration proves duplicate intake, structured mutations,
+durable approval pause, outbox continuation, same-run completion, and exactly-once
+external action against both repository implementations. Firestore attachment
+sign/verify proves atomic audit writes. Mobile Chromium covers text approval/resume,
+real MediaRecorder voice intake, signed photo clarification, invalid media, and a
+recoverable persisted worker failure without request interception.
+
+Dependencies: P0.1, K-01 through K-06, A-02 through A-05, W-01 through W-05,
+M-01 through M-04, S-03 through S-05.
+
+Files: `scripts/run_e2e_api.py`, `tests/integration/test_e2e_runtime.py`,
+`app/services/attachments.py`, `tests/integration/test_uploads.py`,
+`frontend/e2e/site-intake.spec.ts`, `frontend/playwright.config.ts`,
+`frontend/components/site-composer.tsx`.
+
+Status: complete locally on 2026-08-09. The browser stack uses the Firestore
+emulator and deterministic adapters only for model, object storage, and event
+transport boundaries; all workflow state is produced by production application
+code.
+
 ## Dependency Graph
 
 ```text

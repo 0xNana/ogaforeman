@@ -36,6 +36,12 @@ real cloud environment, live model credential/billing, or human release gate.
   existing `SiteUpdate`; images plus authorized project context reach the Gemini
   request; retries reuse the update/transcript; visual-only completion waits for
   clarification; Firestore restart and replay coverage passes.
+- [x] P0.2 The browser site-update backend no longer branches on literal phrases or
+  writes run state itself. Text, voice, photo, approval, and continuation requests
+  execute the production worker, coordinator, fact routing, typed mutations,
+  approval service, outbox claim, original-run resume, and guarded supplier action
+  against the Firestore emulator. Deterministic substitutes are confined to Gemini,
+  object storage, and in-process event delivery boundaries.
 
 ## Contracts and foundation
 
@@ -180,7 +186,7 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend: 280 passed, 18 emulator-dependent skipped.
+- [x] Backend: 281 passed, 19 emulator-dependent skipped.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
   the Firestore restart case also passing separately against `127.0.0.1:8085`.
 - [!] P0.1 live Gemini audio smoke reached the configured API but returned
@@ -199,8 +205,13 @@ Vertical slice gate:
 - [x] Capacity baseline: five scenarios passed.
 - [x] Demo rehearsal: three dry runs passed, including approval, rejection,
   replay suppression, worker restart, and delivery delay.
-- [x] Frontend: normal `npm ci`, lint, typecheck, 9 unit tests, and build pass.
-- [x] Playwright: 15 passed, 11 intentional cross-device skips.
+- [x] P0.2 production-path browser/API proof: the duplicate-safe update pauses on
+  one durable purchase approval, approval completes the same run through one
+  claimed continuation, and the Firestore attachment transaction emits both audit
+  records; 2 focused emulator tests pass.
+- [x] Frontend: normal `npm ci`, lint, typecheck, 10 unit tests, and build pass.
+- [x] Playwright: 17 passed, 13 intentional cross-device skips, including a real
+  Firestore-backed approval/resume journey with no workflow request interception.
 - [x] Production dependency audit: `npm audit --omit=dev` reports zero
   vulnerabilities; the full development tree reports five moderate findings.
 - [x] Ruff, Ruff format, mypy, and documentation checks pass.

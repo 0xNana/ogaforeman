@@ -17,6 +17,12 @@ includes release tooling, a Next.js product UI,
 Firebase Auth emulator browser journeys, deployment scripts, observability
 controls, and recovery utilities.
 
+The browser E2E backend now invokes the canonical event worker instead of a
+phrase-matching state simulator. Its deterministic interpreter replaces Gemini only
+at the model boundary; Firestore holds workflow state, and production coordinator,
+fact routing, mutation, approval, outbox, continuation, and supplier-action code
+drives the journey from submission through the original run's completion.
+
 This is still a **release candidate under construction**, not a deployable
 public beta. Every coordinator event route now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
@@ -30,7 +36,7 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend pytest: 280 passed, 18 emulator-dependent skipped
+- Backend pytest: 281 passed, 19 emulator-dependent skipped
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
 - Full Firestore emulator integration: 92 passed
@@ -41,8 +47,9 @@ configured model, or human release review. The canonical evidence checklist is
 - Deliberate regression eval: forbidden mutation detected as expected
 - Capacity baseline: 5/5 scenarios passed
 - Dry demo rehearsal: 3/3 runs passed
-- Frontend install, checks, and build: passed with 9 unit tests
-- Playwright desktop/mobile: 15 passed, 11 intentional device skips
+- P0.2 Firestore-backed worker/attachment proof: 2 focused tests passed
+- Frontend install, checks, and build: passed with 10 unit tests
+- Playwright desktop/mobile: 17 passed, 13 intentional device skips
 - Production npm audit: zero vulnerabilities
 - Documentation links/tests: passed
 - Isolated clean-checkout command matrix: passed
@@ -73,6 +80,18 @@ reused and an already-persisted transcript is not regenerated. SDK request tests
 verify exact inline media bytes and MIME types; a live billable Gemini request was
 attempted and reached Gemini, but the configured AI Studio project returned
 `429 RESOURCE_EXHAUSTED` because its prepayment credits are depleted.
+
+P0.2 removes the former browser-only workflow state machine. Local event delivery
+calls the same worker entry point as production, then the same coordinator,
+interpreter contract, fact router, mutation services, approval service, outbox
+claim, continuation workflow, and external-action guard. The main mobile journey
+observes a real purchase approval in Firestore, approves it through the product,
+and verifies that the original run completes after exactly one supplier submission.
+Voice and photo use the signed attachment contract and durable bytes; photo-only
+completion evidence reaches the real clarification policy. A PDF-only submission
+proves a recoverable failed run without a magic input phrase. During this migration,
+Firestore execution exposed and fixed a read-after-write transaction ordering bug
+in atomic attachment/activity persistence.
 
 ## Confirmed implementation
 
@@ -106,6 +125,9 @@ attempted and reached Gemini, but the configured AI Studio project returned
   resource projections, approval/rejection persistence, stale conflicts,
   overflow, WCAG 2 AA scans, and mobile text/voice/photo intake with denial,
   invalid-upload, clarification, processing, and failure states.
+- Browser workflow tests do not intercept run or approval requests. Deterministic
+  E2E adapters replace external model, storage, and transport dependencies while
+  production code exclusively owns persisted workflow state and transitions.
 - The browser attachment path uses the production sign, private upload, verify,
   link, and run-status contracts rather than a direct demo upload endpoint.
 - Production API configuration fails closed; deterministic frontend data is
