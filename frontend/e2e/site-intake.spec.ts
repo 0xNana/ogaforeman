@@ -58,6 +58,7 @@ test('hands an approval-waiting update to the manager without reporting a timeou
     'href',
     `/projects/${projectId}/approvals`,
   );
+  await expect(page.getByText('Add photos or file')).toBeHidden();
   expect(browserErrors).toEqual([]);
 });
 

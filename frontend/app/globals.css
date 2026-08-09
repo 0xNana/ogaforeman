@@ -509,6 +509,7 @@ p { font-size: 1.05rem; }
 .composer-textarea { width: 100%; min-height: 170px; margin-top: 24px; padding: 16px; resize: vertical; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; outline: none; font-size: 1rem; line-height: 1.55; }
 .composer-textarea:focus { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
 .composer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 13px; margin-top: 13px; }
+.composer-bottom.terminal { justify-content: flex-end; }
 .attachment-input { display: none; }
 .attachment-button { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; padding: 0 13px; color: var(--ink-soft); background: var(--paper); border: 1px dashed var(--line-strong); border-radius: 10px; cursor: pointer; font-size: 0.8rem; font-weight: 700; }
 .attachment-preview { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px; color: var(--green); background: var(--green-soft); border-radius: 10px; font-size: 0.78rem; font-weight: 700; }
