@@ -144,6 +144,7 @@ def test_valid_upload_is_project_scoped_short_lived_verified_and_audited() -> No
     assert len(store.repository(ActivityEvent).list("prj_ridge")) == 2
 
 
+@pytest.mark.backing_services
 @pytest.mark.skipif(
     not os.getenv("FIRESTORE_EMULATOR_HOST"),
     reason="FIRESTORE_EMULATOR_HOST is required for Firestore upload integration",
@@ -336,6 +337,7 @@ class FakeBlob:
         self.content_type = "image/jpeg"
         self.generation = 3
         self.sign_calls: list[dict[str, Any]] = []
+        self.download_calls: list[dict[str, Any]] = []
 
     def generate_signed_url(self, **kwargs: Any) -> str:
         self.sign_calls.append(kwargs)
@@ -347,6 +349,10 @@ class FakeBlob:
     def open(self, mode: str) -> BytesIO:
         assert mode == "rb"
         return BytesIO(self.payload)
+
+    def download_as_bytes(self, **kwargs: Any) -> bytes:
+        self.download_calls.append(kwargs)
+        return self.payload
 
 
 class FakeBucket:
@@ -409,6 +415,8 @@ def test_gcs_adapter_reads_exact_verified_bytes_for_model_input() -> None:
     )
 
     assert loaded == payload
+    blob = client.bucket_instance.blobs["projects/prj_ridge/attachments/att_photo001"]
+    assert blob.download_calls == [{"if_generation_match": 3}]
 
     with pytest.raises(StorageObjectValidationError, match="model input limit"):
         adapter.read_bytes(

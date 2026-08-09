@@ -39,6 +39,9 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
+markers = [
+    "backing_services: requires Firestore or Storage emulators and proves durable persistence",
+]
 
 [tool.ruff]
 target-version = "py312"

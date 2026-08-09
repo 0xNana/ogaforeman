@@ -8,16 +8,19 @@ from hashlib import sha256
 import httpx
 import pytest
 from fastapi import FastAPI
+from google.cloud import storage as cloud_storage
 
 from app.agents.interpreter import FakeSiteInterpreter
 from app.api.v1.router import api_router
 from app.config.settings import RuntimeEnvironment, Settings
+from app.domain.activity import MutationContext
 from app.domain.authorization import (
     AuthenticatedUser,
     ProjectAccessContext,
     ProjectPermission,
 )
 from app.domain.enums import (
+    ActorType,
     AgentRunStatus,
     ApprovalStatus,
     IssueType,
@@ -27,6 +30,7 @@ from app.domain.enums import (
     Severity,
     TaskStatus,
 )
+from app.domain.events import EventType, ProjectEvent
 from app.domain.facts import (
     ExtractedFactSet,
     IssueFact,
@@ -44,41 +48,25 @@ from app.domain.models import (
     Issue,
     Material,
     MaterialRequest,
+    OutboxMessage,
     ProcessedEvent,
     SiteUpdate,
     Task,
 )
 from app.infrastructure.firestore import create_firestore_client
+from app.infrastructure.storage import GoogleCloudStorageAdapter
 from app.repositories.firestore import FirestoreRepositoryStore
+from app.services.approvals import ApprovalService, ResolutionCommand
 from app.services.site_update_intake import SiteUpdateIntakeService
-from app.worker import process_event_async
+from app.worker import process_event, process_event_async
 from scripts.reset_demo import reset_demo
-from scripts.seed_demo import DEMO_FOREMAN_ID, DEMO_PROJECT_ID
+from scripts.seed_demo import DEMO_FOREMAN_ID, DEMO_MANAGER_ID, DEMO_PROJECT_ID
 
 
 UPDATE_TEXT = "First-floor blockwork is done. We have ten bags of cement left."
 TRANSCRIPT = "Electrician did not come. Plastering is tomorrow."
 PHOTO_BYTES = b"\xff\xd8\xfffirestore-site-photo"
 AUDIO_BYTES = b"OggS-firestore-site-audio"
-
-
-class DurableMediaStorage:
-    def __init__(self, objects: dict[str, bytes]) -> None:
-        self.objects = objects
-        self.reads: list[str] = []
-
-    def read_bytes(
-        self,
-        *,
-        object_path: str,
-        expected_sha256: str,
-        max_bytes: int,
-    ) -> bytes:
-        data = self.objects[object_path]
-        assert len(data) <= max_bytes
-        assert sha256(data).hexdigest() == expected_sha256
-        self.reads.append(object_path)
-        return data
 
 
 class CapturingPublisher:
@@ -115,11 +103,12 @@ def _access_provider(
 
 
 @pytest.mark.asyncio
+@pytest.mark.backing_services
 @pytest.mark.skipif(
-    not os.getenv("FIRESTORE_EMULATOR_HOST"),
-    reason="FIRESTORE_EMULATOR_HOST is required for Firestore worker integration",
+    not os.getenv("FIRESTORE_EMULATOR_HOST") or not os.getenv("STORAGE_EMULATOR_HOST"),
+    reason="Firestore and Storage emulators are required for durable worker integration",
 )
-async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay() -> None:
+async def test_site_update_and_approval_resume_survive_backing_service_restarts() -> None:
     emulator_host = os.environ["FIRESTORE_EMULATOR_HOST"]
     settings = Settings(
         _env_file=None,
@@ -156,11 +145,20 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
         ),
         expected_version=attachment_repo.version_of(DEMO_PROJECT_ID, audio.id),
     )
-    storage = DurableMediaStorage(
-        {
-            photo.object_path: PHOTO_BYTES,
-            audio.object_path: AUDIO_BYTES,
-        }
+    bucket_name = "oga-foreman-worker-test.appspot.com"
+    storage_client = cloud_storage.Client(project=settings.google_cloud_project)
+    storage_bucket = storage_client.bucket(bucket_name)
+    storage_bucket.blob(photo.object_path).upload_from_string(
+        PHOTO_BYTES,
+        content_type=photo.content_type,
+    )
+    storage_bucket.blob(audio.object_path).upload_from_string(
+        AUDIO_BYTES,
+        content_type=audio.content_type,
+    )
+    storage = GoogleCloudStorageAdapter(
+        bucket_name,
+        client=cloud_storage.Client(project=settings.google_cloud_project),
     )
     publisher = CapturingPublisher()
     app = FastAPI()
@@ -265,7 +263,6 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
     assert interpreter.calls == [f"{UPDATE_TEXT} {TRANSCRIPT}"]
     assert [call.data for call in interpreter.transcription_calls] == [AUDIO_BYTES]
     assert interpreter.image_calls[0][0].data == PHOTO_BYTES
-    assert storage.reads == [photo.object_path, audio.object_path]
     assert task.status is TaskStatus.COMPLETED
     assert material.available_quantity == Decimal("10")
     assert update.processing_status is ProcessingStatus.WAITING_FOR_APPROVAL
@@ -305,3 +302,86 @@ async def test_firestore_worker_executes_adk_site_update_and_suppresses_replay()
         "report.projected",
         "site_update.approval_requested",
     }
+
+    approval = approvals[0]
+    ApprovalService(restarted).approve(
+        ProjectAccessContext(
+            actor=AuthenticatedUser(user_id=DEMO_MANAGER_ID, subject="demo-manager"),
+            project_id=DEMO_PROJECT_ID,
+            role=MemberRole.MANAGER,
+        ),
+        ResolutionCommand(
+            project_id=DEMO_PROJECT_ID,
+            approval_id=approval.id,
+            expected_version=approval.version,
+        ),
+        MutationContext(
+            project_id=DEMO_PROJECT_ID,
+            actor_type=ActorType.USER,
+            actor_id=DEMO_MANAGER_ID,
+            source_event_id="evt_restart_approval123",
+            agent_run_id=run.id,
+            idempotency_key="approval:durable-restart:123",
+        ),
+    )
+    continuation_message = next(
+        message
+        for message in restarted.repository(OutboxMessage).list(DEMO_PROJECT_ID)
+        if message.message_type == EventType.APPROVAL_GRANTED.value
+    )
+    continuation_event = ProjectEvent.model_validate(continuation_message.payload)
+
+    resumed_store = FirestoreRepositoryStore(create_firestore_client(settings))
+    resumed = process_event(continuation_event.model_dump_json().encode(), store=resumed_store)
+    duplicate_resume = process_event(
+        continuation_event.model_dump_json().encode(),
+        store=resumed_store,
+    )
+
+    final_store = FirestoreRepositoryStore(create_firestore_client(settings))
+    final_run = final_store.repository(AgentRun).require(DEMO_PROJECT_ID, run.id)
+    final_request = final_store.repository(MaterialRequest).require(
+        DEMO_PROJECT_ID,
+        requests[0].id,
+    )
+    final_approval = final_store.repository(Approval).require(DEMO_PROJECT_ID, approval.id)
+    final_activities = final_store.repository(ActivityEvent).list(DEMO_PROJECT_ID)
+    restarted_storage = GoogleCloudStorageAdapter(
+        bucket_name,
+        client=cloud_storage.Client(project=settings.google_cloud_project),
+    )
+
+    assert resumed.status == "completed"
+    assert duplicate_resume.status == "duplicate"
+    assert final_run.id == accepted["agent_run_id"]
+    assert final_run.status is AgentRunStatus.COMPLETED
+    assert final_request.status is MaterialRequestStatus.SUBMITTED
+    assert final_approval.status is ApprovalStatus.APPROVED
+    assert (
+        restarted_storage.read_bytes(
+            object_path=photo.object_path,
+            expected_sha256=photo.sha256,
+            max_bytes=settings.max_model_media_bytes,
+        )
+        == PHOTO_BYTES
+    )
+    assert (
+        restarted_storage.read_bytes(
+            object_path=audio.object_path,
+            expected_sha256=audio.sha256,
+            max_bytes=settings.max_model_media_bytes,
+        )
+        == AUDIO_BYTES
+    )
+    assert {activity.action for activity in final_activities} >= {
+        "approval.approved",
+        "material_request.submitted",
+    }
+    assert (
+        sum(
+            activity.action == "material_request.submitted"
+            and activity.entity_id == final_request.id
+            for activity in final_activities
+        )
+        == 1
+    )

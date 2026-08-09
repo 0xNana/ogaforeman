@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import NotFound, PreconditionFailed
 from google.cloud.storage import Client
 
 from app.config.settings import Settings, get_settings
@@ -186,24 +186,31 @@ class GoogleCloudStorageAdapter(StorageAdapter):
         max_bytes: int,
     ) -> bytes:
         blob = self._bucket.blob(object_path)
-        digest = hashlib.sha256()
-        content = bytearray()
         try:
-            with blob.open("rb") as stream:
-                while chunk := stream.read(1024 * 1024):
-                    content.extend(chunk)
-                    if len(content) > max_bytes:
-                        raise StorageObjectValidationError(
-                            "stored media exceeds the model input limit"
-                        )
-                    digest.update(chunk)
+            blob.reload()
         except NotFound as exc:
             raise StorageObjectNotFoundError(object_path) from exc
+        size = blob.size
+        if not isinstance(size, int) or size <= 0:
+            raise StorageObjectValidationError("stored media is empty")
+        if size > max_bytes:
+            raise StorageObjectValidationError("stored media exceeds the model input limit")
+        download_options = (
+            {"if_generation_match": blob.generation} if blob.generation is not None else {}
+        )
+        try:
+            content = blob.download_as_bytes(**download_options)
+        except NotFound as exc:
+            raise StorageObjectNotFoundError(object_path) from exc
+        except PreconditionFailed as exc:
+            raise StorageObjectValidationError("stored media changed during verified read") from exc
         if not content:
             raise StorageObjectValidationError("stored media is empty")
-        if digest.hexdigest().lower() != expected_sha256.lower():
+        if len(content) > max_bytes:
+            raise StorageObjectValidationError("stored media exceeds the model input limit")
+        if hashlib.sha256(content).hexdigest().lower() != expected_sha256.lower():
             raise StorageObjectValidationError("stored media checksum changed after verification")
-        return bytes(content)
+        return content
 
 
 def create_storage_adapter(settings: Settings | None = None) -> GoogleCloudStorageAdapter:

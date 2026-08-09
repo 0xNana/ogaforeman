@@ -8,14 +8,17 @@ underlying control is implemented.
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import httpx
 import pytest
 from fastapi import FastAPI
+from google.cloud import firestore
 from pydantic import ValidationError
 
 from app.agents.interpreter import FakeSiteInterpreter
@@ -56,6 +59,8 @@ from app.domain.models import (
     SiteUpdate,
     Task,
 )
+from app.repositories.firestore import FirestoreRepositoryStore
+from app.repositories.interfaces import RepositoryStore
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.approvals import ApprovalService, ResolutionCommand
 from app.services.entity_resolution import MatchConfidence, resolve_task
@@ -94,7 +99,7 @@ def _manager_access(project_id: str = "prj_readiness123") -> ProjectAccessContex
     )
 
 
-def _approval_state(store: InMemoryRepositoryStore) -> None:
+def _approval_state(store: RepositoryStore) -> None:
     store.repository(Approval).create(
         Approval(
             id="app_purchase123",
@@ -222,8 +227,14 @@ def test_pr03_rejection_atomically_closes_linked_request() -> None:
     assert request.status in {MaterialRequestStatus.REJECTED, MaterialRequestStatus.CANCELLED}
 
 
+@pytest.mark.backing_services
+@pytest.mark.skipif(
+    not os.getenv("FIRESTORE_EMULATOR_HOST"),
+    reason="FIRESTORE_EMULATOR_HOST is required for PR-04 restart verification",
+)
 def test_pr04_approval_event_resumes_persisted_run_after_restart() -> None:
-    store = InMemoryRepositoryStore()
+    firestore_project = f"oga-readiness-{uuid4().hex}"
+    store = FirestoreRepositoryStore(firestore.Client(project=firestore_project))
     _approval_state(store)
     ApprovalService(store).approve(
         _manager_access(),
@@ -237,25 +248,33 @@ def test_pr04_approval_event_resumes_persisted_run_after_restart() -> None:
     outbox = store.repository(OutboxMessage).list("prj_readiness123")
     continuation = next(message for message in outbox if message.message_type == "APPROVAL_GRANTED")
 
+    continuation_event = ProjectEvent.model_validate(continuation.payload)
+    restarted_store = FirestoreRepositoryStore(firestore.Client(project=firestore_project))
     process_event(
-        ProjectEvent.model_validate(continuation.payload).model_dump_json().encode(), store=store
+        continuation_event.model_dump_json().encode(),
+        store=restarted_store,
     )
-    restarted_store = store
-    run = restarted_store.repository(AgentRun).require(
+    replay = process_event(
+        continuation_event.model_dump_json().encode(),
+        store=restarted_store,
+    )
+    final_store = FirestoreRepositoryStore(firestore.Client(project=firestore_project))
+    run = final_store.repository(AgentRun).require(
         "prj_readiness123",
         "run_material123",
     )
 
-    request = restarted_store.repository(MaterialRequest).require(
+    request = final_store.repository(MaterialRequest).require(
         "prj_readiness123",
         "mrq_cement123",
     )
-    processed = restarted_store.repository(ProcessedEvent).list("prj_readiness123")
-    actions = restarted_store.repository(OutboxMessage).list("prj_readiness123")
+    processed = final_store.repository(ProcessedEvent).list("prj_readiness123")
+    actions = final_store.repository(OutboxMessage).list("prj_readiness123")
 
+    assert replay.status == "duplicate"
     assert run.status is AgentRunStatus.COMPLETED
     assert request.status is MaterialRequestStatus.DELAYED
-    assert len(restarted_store.repository(Issue).list("prj_readiness123")) == 1
+    assert len(final_store.repository(Issue).list("prj_readiness123")) == 1
     assert {item.event_type for item in processed} == {
         EventType.APPROVAL_GRANTED.value,
         EventType.DELIVERY_DELAYED.value,
