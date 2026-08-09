@@ -190,7 +190,8 @@ Requirements:
   the typed task service; model output never supplies a database path or arbitrary ID.
 - The resolved task ID enters the canonical dependency-impact calculation. A separate
   delay-risk issue contains only graph-supported downstream task IDs; task titles and
-  construction phrases do not decide impact.
+  construction phrases do not decide impact. Completed and cancelled descendants stop
+  traversal and are not presented as future schedule risks.
 - Blocker and delay-risk issues project into the source-linked daily report. The
   concise risk summary and pending review action are persisted on the originating
   `AgentRun` before completion or approval/clarification pause and are exposed by the
