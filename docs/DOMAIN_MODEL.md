@@ -213,6 +213,7 @@ status: queued | running | waiting_for_approval | waiting_for_clarification | co
 attempt: integer
 step: string
 started_at: datetime
+updated_at: datetime
 completed_at: datetime | null
 trace_id: string
 result_summary: string | null
@@ -237,6 +238,11 @@ source_event_id: string | null
 agent_run_id: string | null
 created_at: datetime
 ```
+
+Workflow-transition activities use a typed action registry. Their metadata is a
+bounded allowlist of observable IDs, counts, statuses, quantities, and reason
+codes; prompts, transcripts, raw media, signed URLs, credentials, and hidden model
+reasoning are not valid workflow-audit fields.
 
 ### ProcessedEvent
 

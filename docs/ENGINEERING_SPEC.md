@@ -224,6 +224,26 @@ Requirements:
   rejects the request, and terminalizes the same logical run. Approval replay and
   event redelivery cannot execute the external action or terminal transition twice.
 
+### Workflow Audit Contract
+
+- Existing mutation activities remain stable. Semantic workflow activities add
+  causality without replacing or projecting a second state machine: received media,
+  authorized context, interpreted fact counts, detected risks, pause/resume, external
+  execution, report update, and terminal workflow outcome all reference the original
+  source event and `AgentRun`.
+- Workflow activity names come from a typed registry and their idempotency scopes are
+  deterministic. Redelivery creates no duplicate event; a transactionally completed
+  mutation keeps its original atomic activity even when a separate semantic event is
+  also recorded.
+- Activity metadata is an allowlisted diagnostic envelope containing bounded
+  canonical IDs, counts, statuses, quantities, and observable reason codes. It never
+  contains prompts, transcripts, evidence prose, raw media, object/signed URLs,
+  credentials, secrets, or hidden model reasoning.
+- `AgentRun.updated_at` advances on every persisted lifecycle/checkpoint transition.
+  The authorized run API exposes stable run/project/trigger/workflow identity,
+  status, step, attempt, trace ID, start/update/completion timestamps, and bounded
+  error fields while retaining the existing `id` field for compatibility.
+
 ### Always Do
 
 - read `PRODUCT.md`, `SECURITY_SAFETY.md`, and the active task before coding;

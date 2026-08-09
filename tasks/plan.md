@@ -181,6 +181,37 @@ Status: complete locally on 2026-08-09. The non-backing suite passes 287 tests a
 all 22 backing-service cases pass; the six-case mobile production-path intake suite
 also passes.
 
+### P0.7: Complete auditability
+
+Acceptance: retain every existing mutation activity and add a typed, durable
+workflow timeline for observable intake, media processing, authorized context
+retrieval, structured interpretation, blocker/material/schedule decisions, report
+updates, approval pause, continuation, external execution, and terminal completion.
+Transition events carry only bounded IDs, counts, statuses, quantities, and
+user/debugger-appropriate reasons; prompts, raw media, credentials, signed URLs, and
+private model reasoning never enter the audit record. Every event is source/run
+linked and replay-safe. The authorized AgentRun API exposes its full public lifecycle
+contract, including `updated_at` and stable error fields.
+
+Verify: the canonical multimodal approval and rejection paths assert the required
+semantic event set, safe metadata, causal run/source references, single occurrence
+under replay, and persistence across fresh Firestore/Storage clients. Contract tests
+cover audit-only idempotency and restricted metadata. API tests assert `run_id`,
+project, trigger, workflow, status, step, attempt, trace, start/update/complete times,
+and error fields.
+
+Dependencies: P0.1 through P0.6, K-01, K-02, K-06, A-01, W-01 through W-04,
+M-02 through M-04, B-01, S-01.
+
+Files: `app/domain/activity.py`, `app/domain/models.py`, `app/services/activity.py`,
+site-update/approval/external-action workflow services, `app/api/v1/agent_runs.py`,
+and relevant contract/integration/backing tests.
+
+Status: complete locally on 2026-08-09. The non-backing suite passes 290 tests,
+all 22 Firestore/Storage backing-service cases pass with no skips, and the six-case
+mobile production-path intake journey passes. The restart matrix reconstructs the
+required voice approval/rejection timeline with one event per replay-safe transition.
+
 ## Dependency Graph
 
 ```text

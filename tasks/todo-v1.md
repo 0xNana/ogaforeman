@@ -60,6 +60,12 @@ real cloud environment, live model credential/billing, or human release gate.
   atomically logs resume/reject/complete transitions. Approval submits once and
   completes that run; rejection preserves notes, cancels the request, and produces
   no supplier action. Both continuation events suppress duplicate delivery.
+- [x] P0.7 Existing mutation activities are preserved and the production workflow
+  now emits a typed, replay-safe semantic timeline for media, context, interpretation,
+  blocker/material/schedule decisions, report update, approval pause, continuation,
+  external execution, and terminal outcome. Metadata is allowlisted and excludes
+  raw model/media data; the authorized AgentRun API exposes the complete lifecycle
+  identity, attempt, trace, timestamp, checkpoint, and error contract.
 
 ## Contracts and foundation
 
@@ -204,7 +210,7 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend without backing services: 287 passed, 22 explicitly deselected.
+- [x] Backend without backing services: 290 passed, 22 explicitly deselected.
 - [x] Durable backing services: 22 passed against Firestore and Storage emulators,
   with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
@@ -244,6 +250,10 @@ Vertical slice gate:
   decision-without-execution, and separate approve/reject continuations. Approval
   resumes and completes the exact run with one supplier submission; rejection keeps
   its reason, terminalizes the run, and has zero supplier actions.
+- [x] P0.7 audit proof: the same restart matrix persists the required semantic
+  activities with the original run/source causality, rejects non-allowlisted workflow
+  metadata, suppresses replay duplicates, and exposes stable `updated_at` plus the
+  full public run contract.
 - [x] Frontend: normal `npm ci`, lint, typecheck, 11 unit tests, and build pass.
 - [x] Playwright: 17 passed, 13 intentional cross-device skips, including a real
   Firestore-backed approval/resume journey with no workflow request interception.

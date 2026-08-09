@@ -107,10 +107,35 @@ GET /projects/{project_id}/activity
 GET /projects/{project_id}/agent-runs/{run_id}
 ```
 
-The agent-run response includes the durable workflow status/checkpoint plus
-`result_summary` and `pending_actions`. For site updates these are the concise,
-user-safe Oga response persisted on the exact run before it completes or pauses;
-clients do not reconstruct them from browser state.
+The additive agent-run response exposes `id` and its explicit alias `run_id`,
+`project_id`, `trigger_event_id`, `workflow`, `status`, `step`, `attempt`,
+`trace_id`, `started_at`, `updated_at`, `completed_at`, `result_summary`,
+`pending_actions`, `error_code`, and `error_summary`. For site updates the summary
+and actions are the concise, user-safe Oga response persisted on the exact run
+before it completes or pauses; clients do not reconstruct them from browser state.
+
+Example response:
+
+```json
+{
+  "id": "run_01JEXAMPLE",
+  "run_id": "run_01JEXAMPLE",
+  "project_id": "prj_ridge",
+  "trigger_event_id": "evt_01JEXAMPLE",
+  "workflow": "daily_site_update",
+  "status": "waiting_for_approval",
+  "step": "approval_required",
+  "attempt": 1,
+  "trace_id": "evt_01JEXAMPLE",
+  "started_at": "2026-08-09T10:00:00Z",
+  "updated_at": "2026-08-09T10:00:04Z",
+  "completed_at": null,
+  "result_summary": "Processed the site update and prepared one material request.",
+  "pending_actions": ["Manager approval required for the cement request."],
+  "error_code": null,
+  "error_summary": null
+}
+```
 
 ### Site Update Intake
 

@@ -53,6 +53,16 @@ source run, submits once, and atomically logs resume and completion. Rejection i
 separate restart case: notes persist, the request is cancelled, the original run is
 terminalized and audited, and no supplier action is queued or executed.
 
+Workflow auditability now reconstructs that vertical slice without relying on raw
+reasoning or browser state. Existing atomic mutation activities remain unchanged;
+typed semantic events record media processing, authorized context retrieval,
+validated interpretation counts, blocker/material/schedule decisions, report update,
+approval pause, resume, supplier-simulator execution, and terminal outcome. Every
+event is replay-safe and run/source linked, while an allowlist prevents prompts,
+transcripts, raw media, signed URLs, credentials, or hidden reasoning from entering
+the semantic metadata. `AgentRun.updated_at` advances with every transition and the
+authorized API exposes the full lifecycle/trace/error contract.
+
 This is still a **release candidate under construction**, not a deployable
 public beta. Every coordinator event route now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
@@ -66,7 +76,7 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend without backing services: 287 passed, 22 deselected
+- Backend without backing services: 290 passed, 22 deselected
 - Firestore/Storage backing-service gate: 22 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
@@ -85,6 +95,8 @@ configured model, or human release review. The canonical evidence checklist is
   gate and focused mobile approval/resume journey also pass
 - P0.6 voice approval/rejection restart matrix: 2 passed against fresh Firestore and
   Storage clients; the focused six-case mobile intake suite also passes
+- P0.7 semantic audit timeline: required success/rejection events persist across
+  fresh clients, remain single under replay, and carry no raw voice/model content
 - Frontend install, checks, and build: passed with 11 unit tests
 - Playwright desktop/mobile: 17 passed, 13 intentional device skips
 - Production npm audit: zero vulnerabilities
@@ -166,6 +178,15 @@ supplier action and `agent_run.completed` afterward. The rejection continuation 
 the same source lookup and records `agent_run.rejected`; forged pending decisions or
 resolver mismatches are rejected, decision notes survive restart, and no supplier
 outbox/activity exists on that branch.
+
+P0.7 adds the user/debugger-facing causality between those durable mutations. A
+typed action registry and allowlisted workflow-audit service record only observable
+inputs, outputs, IDs, statuses, quantities, and reason codes. Semantic events paired
+with a domain mutation commit in the same Firestore transaction; Firestore emulator
+coverage specifically verifies all audit reads occur before writes. Approval
+decisions inherit the linked run causality, external execution records the guarded
+supplier adapter outcome, and legacy run documents receive a stable `updated_at`
+fallback derived from their persisted lifecycle timestamps.
 
 ## Confirmed implementation
 
