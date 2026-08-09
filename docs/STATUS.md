@@ -23,6 +23,13 @@ at the model boundary; Firestore holds workflow state, and production coordinato
 fact routing, mutation, approval, outbox, continuation, and supplier-action code
 drives the journey from submission through the original run's completion.
 
+Durability is now an enforced CI gate rather than optional local evidence. The
+backend job starts Firestore and Storage emulators, runs all marked backing-service
+tests with no skips, and separately runs the remaining suite without leaking
+emulator environment into configuration tests. The multimodal restart case persists
+both attachment metadata and real media objects, reconstructs service clients before
+approval and continuation, and completes the original run exactly once.
+
 This is still a **release candidate under construction**, not a deployable
 public beta. Every coordinator event route now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
@@ -36,7 +43,8 @@ configured model, or human release review. The canonical evidence checklist is
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend pytest: 281 passed, 19 emulator-dependent skipped
+- Backend without backing services: 281 passed, 20 deselected
+- Firestore/Storage backing-service gate: 20 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
 - Full Firestore emulator integration: 92 passed
@@ -92,6 +100,17 @@ completion evidence reaches the real clarification policy. A PDF-only submission
 proves a recoverable failed run without a magic input phrase. During this migration,
 Firestore execution exposed and fixed a read-after-write transaction ordering bug
 in atomic attachment/activity persistence.
+
+P0.3 moves restart evidence onto real local backing services. The canonical
+multimodal test writes audio and photo objects through the Cloud Storage client,
+processes the update through the production worker, and then uses fresh Firestore
+and Storage clients to verify the site update, linked attachments, transcript, task,
+issues, material ledger, request, pending approval, waiting run, report, processed
+event, and activities. Approval is resolved after that restart; a second fresh
+Firestore client processes the continuation and a third verifies the same run is
+complete, the supplier action occurred once, and both original media objects remain
+checksum-valid. CI uses the checked-in Firebase CLI and Java 21 to start both
+emulators before running the marked gate.
 
 ## Confirmed implementation
 

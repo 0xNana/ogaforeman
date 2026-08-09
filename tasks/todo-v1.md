@@ -42,6 +42,10 @@ real cloud environment, live model credential/billing, or human release gate.
   approval service, outbox claim, original-run resume, and guarded supplier action
   against the Firestore emulator. Deterministic substitutes are confined to Gemini,
   object storage, and in-process event delivery boundaries.
+- [x] P0.3 CI starts Firestore and Storage emulators and executes every registered
+  `backing_services` test with no skips. The canonical multimodal test reconstructs
+  Firestore and Cloud Storage clients around the approval pause, proves all workflow
+  records plus original media bytes survive, and resumes the same run exactly once.
 
 ## Contracts and foundation
 
@@ -186,7 +190,9 @@ Vertical slice gate:
 
 ## Latest local evidence
 
-- [x] Backend: 281 passed, 19 emulator-dependent skipped.
+- [x] Backend without backing services: 281 passed, 20 explicitly deselected.
+- [x] Durable backing services: 20 passed against Firestore and Storage emulators,
+  with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
   the Firestore restart case also passing separately against `127.0.0.1:8085`.
 - [!] P0.1 live Gemini audio smoke reached the configured API but returned
@@ -209,6 +215,9 @@ Vertical slice gate:
   one durable purchase approval, approval completes the same run through one
   claimed continuation, and the Firestore attachment transaction emits both audit
   records; 2 focused emulator tests pass.
+- [x] P0.3 restart proof: site update, attachments and original bytes, transcript,
+  tasks, issues, materials, approval, waiting/completed agent run, and activities
+  survive fresh clients; post-restart approval continuation executes once.
 - [x] Frontend: normal `npm ci`, lint, typecheck, 10 unit tests, and build pass.
 - [x] Playwright: 17 passed, 13 intentional cross-device skips, including a real
   Firestore-backed approval/resume journey with no workflow request interception.

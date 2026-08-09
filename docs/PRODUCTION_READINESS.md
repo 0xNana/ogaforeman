@@ -20,6 +20,11 @@ This document is normative. The items below are release blockers, not optional h
 | PR-12 | No authorization, upload validation, rate limiting, structured errors, or tenant isolation | Enforce authenticated identity and active project membership in API dependencies, repositories, and tools. Validate signed uploads (type, size, checksum, project path). Add per-user/project rate limits. Return versioned error envelopes. Never query across project boundaries. | Security integration tests attempt cross-project reads/writes, forged upload metadata, oversized/unallowlisted files, burst traffic, and malformed requests. |
 | PR-13 | UI uses hard-coded metrics, inline styles/scripts, and no production state model | Replace static HTML with a typed Next.js client. Read all metrics/activity/approvals from versioned APIs, handle loading/error/empty/stale states, and keep presentation separate from data fetching. | Browser tests seed two projects, verify rendered values come from API responses, and confirm a mutation updates the view after reload. |
 
+The PR-01 and PR-04 restart gates are valid only when run against the Firestore and
+Storage emulators with fresh clients. Their CI job must fail if the backing services
+cannot start. An in-memory repository, process-global object dictionary, conditional
+skip, or reuse of the original service/store instance is not durability evidence.
+
 ## Release Blockers
 
 The following conditions block deployment even if the demo scenario works:

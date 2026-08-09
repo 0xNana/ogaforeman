@@ -152,6 +152,10 @@ Requirements:
   worker and use the production repositories, coordinator, mutation, approval,
   outbox, and continuation code. Request interception or a parallel state machine
   is not evidence for workflow status.
+- Persistence acceptance tests must use fresh clients against the Firestore and
+  Storage emulators; reusing an in-memory store or object dictionary is not restart
+  evidence. CI runs non-backing tests separately, then starts both emulators and
+  executes every `backing_services` test with no conditional skip.
 - Release candidates pass the thresholds in `EVALS.md` and the global definition of done below.
 
 ## Engineering Boundaries

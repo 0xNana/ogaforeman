@@ -65,6 +65,36 @@ emulator and deterministic adapters only for model, object storage, and event
 transport boundaries; all workflow state is produced by production application
 code.
 
+### P0.3: Durable backing services
+
+Acceptance: the production-backed site-update slice persists its `SiteUpdate`,
+attachment metadata and original object bytes, transcript, task changes, issues,
+material state, approval, `AgentRun`, and `ActivityEvent` records across fresh
+Firestore and Cloud Storage clients. A run waiting for approval must be approved
+after one restart and resumed after another, completing the same run exactly once.
+The CI backend gate must start Firestore and Storage emulators and execute every
+backing-service test instead of accepting conditional skips or in-memory restart
+substitutes.
+
+Verify: one multimodal API-to-worker test uploads actual audio/photo objects to the
+Storage emulator, reaches `WAITING_FOR_APPROVAL`, reconstructs both backing-service
+clients, verifies every persisted entity, approves, reconstructs the worker store,
+resumes the original run, suppresses replay, and re-reads both media objects.
+The normal backend suite excludes the registered `backing_services` marker; Firebase
+`emulators:exec --only firestore,storage` then runs that marker with zero skips.
+
+Dependencies: P0.1, P0.2, F-05, F-07, K-01 through K-06, W-01 through W-05,
+M-01 through M-04.
+
+Files: `.github/workflows/ci.yml`, `firebase.json`, `firebase/storage.rules`,
+`app/infrastructure/storage.py`, `tests/integration/test_worker_site_update_firestore.py`,
+`tests/integration/test_*`, `tests/unit/test_infrastructure_manifests.py`,
+`pyproject.toml`.
+
+Status: complete locally on 2026-08-09. The standard suite passes 281 tests with
+20 backing-service cases deselected; the Firestore/Storage emulator gate executes
+all 20 separately with no skips.
+
 ## Dependency Graph
 
 ```text
