@@ -1,7 +1,7 @@
 import pytest
 
 from app.config.settings import Settings
-from app.domain.models import Material
+from app.domain.models import Material, Task
 from scripts.run_live_site_update import _assert_live_local_runtime
 from scripts.seed_demo import seed_entities
 
@@ -9,8 +9,12 @@ from scripts.seed_demo import seed_entities
 def test_demo_seed_represents_pre_update_material_state() -> None:
     _project, _users, entities = seed_entities()
     cement = next(entity for entity in entities if isinstance(entity, Material))
+    plastering = next(
+        entity for entity in entities if isinstance(entity, Task) and entity.id == "tsk_plastering"
+    )
 
     assert str(cement.available_quantity) == "25"
+    assert plastering.dependency_ids == ["tsk_blockwork", "tsk_electrical"]
 
 
 def test_live_rehearsal_rejects_fake_model_mode() -> None:

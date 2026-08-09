@@ -247,6 +247,7 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
 
     restarted = FirestoreRepositoryStore(create_firestore_client(settings))
     task = restarted.repository(Task).require(DEMO_PROJECT_ID, "tsk_blockwork")
+    electrical = restarted.repository(Task).require(DEMO_PROJECT_ID, "tsk_electrical")
     material = restarted.repository(Material).require(DEMO_PROJECT_ID, "mat_cement")
     update = restarted.repository(SiteUpdate).require(DEMO_PROJECT_ID, accepted["site_update_id"])
     run = restarted.repository(AgentRun).require(DEMO_PROJECT_ID, accepted["agent_run_id"])
@@ -264,6 +265,7 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
     assert [call.data for call in interpreter.transcription_calls] == [AUDIO_BYTES]
     assert interpreter.image_calls[0][0].data == PHOTO_BYTES
     assert task.status is TaskStatus.COMPLETED
+    assert electrical.status is TaskStatus.BLOCKED
     assert material.available_quantity == Decimal("10")
     assert update.processing_status is ProcessingStatus.WAITING_FOR_APPROVAL
     assert update.transcript == TRANSCRIPT
@@ -276,6 +278,7 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
         (IssueType.BLOCKER, ("tsk_electrical",)),
         (IssueType.DELAY_RISK, ("tsk_plastering",)),
     }
+    assert len(issues) == 3
     assert len(requests) == 1
     assert requests[0].quantity == Decimal("30")
     assert requests[0].status is MaterialRequestStatus.AWAITING_APPROVAL
@@ -285,12 +288,12 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
     assert len(reports) == 1
     assert reports[0].source_update_ids == [update.id]
     assert len(reports[0].completed_work) == 1
-    assert len(reports[0].active_blockers) == 2
+    assert len(reports[0].active_blockers) == 3
     assert len(reports[0].material_risks) == 1
     assert len(reports[0].next_focus) == 1
     assert len(restarted.repository(MaterialLedgerEntry).list(DEMO_PROJECT_ID)) == 1
     assert len(restarted.repository(ProcessedEvent).list(DEMO_PROJECT_ID)) == 1
-    assert sum(activity.action == "issue.created" for activity in activities) == 2
+    assert sum(activity.action == "issue.created" for activity in activities) == 3
     assert {activity.action for activity in activities} >= {
         "attachment.linked",
         "site_update.transcribed",

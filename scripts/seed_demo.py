@@ -138,7 +138,7 @@ def seed_entities(
             priority=TaskPriority.HIGH,
             planned_start=SEED_TIME + timedelta(days=1),
             planned_end=SEED_TIME + timedelta(days=3),
-            dependency_ids=["tsk_blockwork"],
+            dependency_ids=["tsk_blockwork", "tsk_electrical"],
             source=TaskSource.MANUAL,
             created_at=SEED_TIME,
             updated_at=SEED_TIME,
