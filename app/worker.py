@@ -28,7 +28,6 @@ from app.services.external_actions import ExternalActionService
 from app.services.routed_events import RoutedEventExecutor
 from app.services.site_update_lifecycle import InvalidSiteUpdateTransition
 from app.workflows.resume import ResumeWorkflow
-from app.workflows.runtime import RuntimeManager
 
 
 logger = logging.getLogger("ogaforeman.worker")
@@ -148,10 +147,13 @@ async def process_event_async(
                 ):
                     pending_actions = tuple(execution_actions)
             elif event.event_type is EventType.APPROVAL_GRANTED:
-                continuation = ResumeWorkflow(store).handle_approval_granted(
+                resume_workflow = ResumeWorkflow(store)
+                continuation = resume_workflow.handle_approval_granted(
                     event.project_id,
                     str(event.payload["approval_id"]),
                     str(event.payload["resolver"]),
+                    source_event_id=event.event_id,
+                    occurred_at=event.occurred_at,
                 )
                 delay_event = ExternalActionService(store).continue_approved_purchase(event)
                 if delay_event is not None:
@@ -163,14 +165,22 @@ async def process_event_async(
                         site_interpreter=site_interpreter,
                         storage_adapter=storage_adapter,
                     )
-                RuntimeManager(store).complete_run(event.project_id, continuation.run_id)
-                result_ref = f"run:{continuation.run_id}"
-            elif event.event_type is EventType.APPROVAL_REJECTED:
-                ResumeWorkflow(store).handle_approval_rejected(
+                resume_workflow.complete_approved_purchase(
                     event.project_id,
                     str(event.payload["approval_id"]),
                     str(event.payload["resolver"]),
+                    source_event_id=event.event_id,
                 )
+                result_ref = f"run:{continuation.run_id}"
+            elif event.event_type is EventType.APPROVAL_REJECTED:
+                continuation = ResumeWorkflow(store).handle_approval_rejected(
+                    event.project_id,
+                    str(event.payload["approval_id"]),
+                    str(event.payload["resolver"]),
+                    source_event_id=event.event_id,
+                    occurred_at=event.occurred_at,
+                )
+                result_ref = f"run:{continuation.run_id}"
             else:
                 routed_execution = RoutedEventExecutor(store).execute(event)
                 result_ref = routed_execution.result_ref

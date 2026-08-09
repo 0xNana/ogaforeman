@@ -13,7 +13,7 @@ from app.domain.enums import (
     AgentRunStatus,
     MaterialRequestStatus,
 )
-from app.domain.models import Approval, AgentRun, MaterialRequest, OutboxMessage
+from app.domain.models import ActivityEvent, Approval, AgentRun, MaterialRequest, OutboxMessage
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.approvals import ApprovalService, ResolutionCommand
@@ -111,6 +111,7 @@ def test_approval_granted_and_resume_after_restart(
         project_id="prj_123",
         approval_id="app_123",
         resolver_id=access.actor.user_id,
+        source_event_id="evt_approval_granted123",
     )
     assert continuation.run_id == "run_123"
     assert continuation.request_id == "req_123"
@@ -118,6 +119,14 @@ def test_approval_granted_and_resume_after_restart(
     # Run should be RUNNING
     runs = store.run_transaction(lambda s: list(s.repository(AgentRun).list("prj_123")))
     assert runs[0].status == AgentRunStatus.RUNNING
+    resumed_activity = next(
+        activity
+        for activity in store.repository(ActivityEvent).list("prj_123")
+        if activity.action == "agent_run.resumed"
+    )
+    assert resumed_activity.entity_id == "run_123"
+    assert resumed_activity.agent_run_id == "run_123"
+    assert resumed_activity.source_event_id == "evt_approval_granted123"
 
     # External actions logic check - make sure an outbox message was created for approval event but not immediately executed
     outbox = store.run_transaction(lambda s: list(s.repository(OutboxMessage).list("prj_123")))
@@ -154,6 +163,7 @@ def test_approval_rejected_and_closes_request(
         project_id="prj_123",
         approval_id="app_123",
         resolver_id=access.actor.user_id,
+        source_event_id="evt_approval_rejected123",
     )
 
     # Request should be CANCELLED
@@ -164,6 +174,113 @@ def test_approval_rejected_and_closes_request(
     runs = store.run_transaction(lambda s: list(s.repository(AgentRun).list("prj_123")))
     assert runs[0].status == AgentRunStatus.FAILED
     assert runs[0].error_code == "APPROVAL_REJECTED"
+    rejected_activity = next(
+        activity
+        for activity in store.repository(ActivityEvent).list("prj_123")
+        if activity.action == "agent_run.rejected"
+    )
+    assert rejected_activity.entity_id == "run_123"
+    assert rejected_activity.agent_run_id == "run_123"
+    assert rejected_activity.source_event_id == "evt_approval_rejected123"
+
+
+def test_approved_supplier_action_completes_the_same_run_once(
+    store: RepositoryStore,
+    access: ProjectAccessContext,
+) -> None:
+    setup_state(store)
+    ApprovalService(store).approve(
+        access,
+        ResolutionCommand(
+            project_id="prj_123",
+            approval_id="app_123",
+            expected_version=0,
+        ),
+        MutationContext(
+            project_id="prj_123",
+            actor_type=ActorType.USER,
+            actor_id=access.actor.user_id,
+            idempotency_key="idemp_complete_decision",
+            source_event_id="evt_complete_decision123",
+        ),
+    )
+    workflow = ResumeWorkflow(store)
+    continuation = workflow.handle_approval_granted(
+        project_id="prj_123",
+        approval_id="app_123",
+        resolver_id=access.actor.user_id,
+        source_event_id="evt_complete_continuation123",
+    )
+    request = store.repository(MaterialRequest).require("prj_123", continuation.request_id)
+    store.repository(MaterialRequest).save(
+        request.model_copy(update={"status": MaterialRequestStatus.SUBMITTED}),
+        expected_version=store.repository(MaterialRequest).version_of(
+            "prj_123", continuation.request_id
+        ),
+    )
+
+    first = workflow.complete_approved_purchase(
+        project_id="prj_123",
+        approval_id="app_123",
+        resolver_id=access.actor.user_id,
+        source_event_id="evt_complete_continuation123",
+    )
+    replay = workflow.complete_approved_purchase(
+        project_id="prj_123",
+        approval_id="app_123",
+        resolver_id=access.actor.user_id,
+        source_event_id="evt_complete_continuation123",
+    )
+
+    run = store.repository(AgentRun).require("prj_123", first.run_id)
+    activities = store.repository(ActivityEvent).list("prj_123")
+    assert replay == first
+    assert run.id == "run_123"
+    assert run.status is AgentRunStatus.COMPLETED
+    assert run.step == "completed"
+    assert sum(activity.action == "agent_run.resumed" for activity in activities) == 1
+    assert sum(activity.action == "agent_run.completed" for activity in activities) == 1
+
+
+def test_rejection_continuation_requires_the_persisted_decision_and_resolver(
+    store: RepositoryStore,
+    access: ProjectAccessContext,
+) -> None:
+    setup_state(store)
+    workflow = ResumeWorkflow(store)
+
+    with pytest.raises(RuntimeError, match="rejected decision"):
+        workflow.handle_approval_rejected(
+            project_id="prj_123",
+            approval_id="app_123",
+            resolver_id=access.actor.user_id,
+            source_event_id="evt_forged_rejection123",
+        )
+
+    ApprovalService(store).reject(
+        access,
+        ResolutionCommand(
+            project_id="prj_123",
+            approval_id="app_123",
+            notes="Too expensive",
+            expected_version=0,
+        ),
+        MutationContext(
+            project_id="prj_123",
+            actor_type=ActorType.USER,
+            actor_id=access.actor.user_id,
+            idempotency_key="idemp_rejection_guard",
+            source_event_id="evt_decision_guard123",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="resolver"):
+        workflow.handle_approval_rejected(
+            project_id="prj_123",
+            approval_id="app_123",
+            resolver_id="usr_other123",
+            source_event_id="evt_forged_resolver123",
+        )
 
 
 def test_approval_duplicate_decision(store: RepositoryStore, access: ProjectAccessContext) -> None:
