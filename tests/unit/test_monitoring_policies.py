@@ -43,3 +43,12 @@ def test_monitoring_templates_only_use_documented_placeholders() -> None:
     assert source.count("${API_SERVICE}") == 3
     assert source.count("${WORKER_SUBSCRIPTION}") == 1
     assert source.count("${DEAD_LETTER_SUBSCRIPTION}") == 1
+
+
+def test_monitoring_apply_matches_policy_names_client_side_without_duplicates() -> None:
+    source = (POLICY_DIR / "apply.sh").read_text(encoding="utf-8")
+
+    assert "--format=json" in source
+    assert 'item.get("displayName") == target' in source
+    assert "multiple alert policies matched" in source
+    assert '--filter "displayName=' not in source

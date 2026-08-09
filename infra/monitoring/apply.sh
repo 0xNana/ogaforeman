@@ -30,11 +30,25 @@ for template in "${SCRIPT_DIR}"/*.json; do
   if [[ "${MONITORING_DRY_RUN}" == "true" ]]; then
     policy_name=""
   else
-    policy_name="$(gcloud alpha monitoring policies list \
-      --project "${GOOGLE_CLOUD_PROJECT}" \
-      --filter "displayName=\"${display_name}\"" \
-      --format='value(name)' \
-      --limit 1)"
+    policy_name="$(
+      gcloud alpha monitoring policies list \
+        --project "${GOOGLE_CLOUD_PROJECT}" \
+        --format=json | \
+        python3 -c '
+import json
+import sys
+
+target = sys.argv[1]
+matches = [
+    item.get("name", "")
+    for item in json.load(sys.stdin)
+    if item.get("displayName") == target
+]
+if len(matches) > 1:
+    raise SystemExit(f"multiple alert policies matched {target!r}")
+print(matches[0] if matches else "")
+' "${display_name}"
+    )"
   fi
   if [[ -n "${policy_name}" ]]; then
     run gcloud alpha monitoring policies update "${policy_name}" \
