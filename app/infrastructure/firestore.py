@@ -37,14 +37,21 @@ def create_firestore_client(settings: Settings | None = None) -> firestore.Clien
             "FIRESTORE_EMULATOR_HOST is required unless local remote Firestore is explicitly enabled"
         )
 
-    if emulator_host:
-        environ["FIRESTORE_EMULATOR_HOST"] = emulator_host
-    else:
-        environ.pop("FIRESTORE_EMULATOR_HOST", None)
-
     project_id = runtime.google_cloud_project or LOCAL_FIRESTORE_PROJECT
     database = runtime.firestore_database or DEFAULT_FIRESTORE_DATABASE
-    return firestore.Client(project=project_id, database=database)
+    environment_key = "FIRESTORE_EMULATOR_HOST"
+    previous_host = environ.get(environment_key)
+    try:
+        if emulator_host:
+            environ[environment_key] = emulator_host
+        else:
+            environ.pop(environment_key, None)
+        return firestore.Client(project=project_id, database=database)
+    finally:
+        if previous_host is None:
+            environ.pop(environment_key, None)
+        else:
+            environ[environment_key] = previous_host
 
 
 def assert_demo_environment(settings: Settings | None = None) -> None:

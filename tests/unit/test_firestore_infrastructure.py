@@ -25,11 +25,17 @@ def test_local_client_refuses_network_without_firestore_emulator(
 
 
 def test_client_uses_emulator_and_explicit_local_project(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080")
-    settings = Settings(_env_file=None, oga_env=RuntimeEnvironment.TEST, demo_mode=True)
+    monkeypatch.delenv("FIRESTORE_EMULATOR_HOST", raising=False)
+    settings = Settings(
+        _env_file=None,
+        oga_env=RuntimeEnvironment.TEST,
+        demo_mode=True,
+        firestore_emulator_host="127.0.0.1:8080",
+    )
     captured: dict[str, str] = {}
 
     def fake_client(*, project: str, database: str) -> object:
+        assert os.environ["FIRESTORE_EMULATOR_HOST"] == "127.0.0.1:8080"
         captured.update(project=project, database=database)
         return object()
 
@@ -39,6 +45,7 @@ def test_client_uses_emulator_and_explicit_local_project(monkeypatch: pytest.Mon
 
     assert client is not None
     assert captured == {"project": "oga-foreman-local", "database": "(default)"}
+    assert "FIRESTORE_EMULATOR_HOST" not in os.environ
 
 
 def test_local_client_allows_explicit_remote_project_without_emulator(

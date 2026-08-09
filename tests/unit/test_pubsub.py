@@ -44,6 +44,7 @@ def test_demo_publisher_is_explicit_and_deterministic() -> None:
 
 def test_live_publisher_uses_configured_project_topic_and_attributes() -> None:
     settings = Settings(
+        _env_file=None,
         oga_env=RuntimeEnvironment.LOCAL,
         demo_mode=False,
         use_fake_model=True,
