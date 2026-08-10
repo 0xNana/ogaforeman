@@ -364,7 +364,7 @@ class LocalE2ERuntime:
                 status_code=403,
             )
         actor = self.authenticate(request)
-        role = MemberRole.MANAGER
+        role = MemberRole.ADMIN
         return ProjectAccessContext(actor=actor, project_id=project_id, role=role)
 
     def _seed(self) -> None:
@@ -372,7 +372,7 @@ class LocalE2ERuntime:
             ProjectMember(
                 project_id=PROJECT_ID,
                 user_id=ACTOR_ID,
-                role=MemberRole.MANAGER,
+                role=MemberRole.ADMIN,
                 status=MemberStatus.ACTIVE,
                 created_at=NOW,
                 updated_at=NOW,

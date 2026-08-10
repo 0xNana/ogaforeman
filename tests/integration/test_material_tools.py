@@ -33,9 +33,9 @@ def test_firestore_material_creation_with_initial_stock_is_atomic() -> None:
     now = datetime(2026, 8, 10, 9, 30, tzinfo=UTC)
     store = FirestoreRepositoryStore(firestore.Client(project=cloud_project))
     access = ProjectAccessContext(
-        actor=AuthenticatedUser(user_id="usr_manager", subject="firebase-manager"),
+        actor=AuthenticatedUser(user_id="usr_admin", subject="firebase-admin"),
         project_id=project_id,
-        role=MemberRole.MANAGER,
+        role=MemberRole.ADMIN,
     )
 
     result = MaterialService(store).create_material(
@@ -50,7 +50,7 @@ def test_firestore_material_creation_with_initial_stock_is_atomic() -> None:
         MutationContext(
             project_id=project_id,
             actor_type=ActorType.USER,
-            actor_id="usr_manager",
+            actor_id="usr_admin",
             idempotency_key="setup:material:timber",
             occurred_at=now,
         ),
