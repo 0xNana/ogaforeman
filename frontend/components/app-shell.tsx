@@ -7,15 +7,17 @@ import {
   FileText,
   Home,
   ListTodo,
+  LogOut,
   Menu,
   MessageSquareText,
   Package,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Project } from '@/lib/api';
+import { useAuth } from '@/src/lib/auth';
 
 const navItems = [
   { label: 'Dashboard', suffix: '', icon: Home },
@@ -28,9 +30,26 @@ const navItems = [
 
 export function AppShell({ children, project }: Readonly<{ children: React.ReactNode; project: Project }>) {
   const pathname = usePathname();
+  const router = useRouter();
+  const auth = useAuth();
   const params = useParams<{ id: string }>();
   const projectId = params.id;
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  async function signOut() {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await auth.signOutUser();
+      router.replace('/sign-in');
+    } catch (cause) {
+      setSignOutError(cause instanceof Error ? cause.message : 'Oga could not sign you out. Try again.');
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   const isActive = (suffix: string) => suffix === ''
     ? pathname === `/projects/${projectId}`
@@ -58,9 +77,17 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
         </nav>
         <div className="app-sidebar-footer">
           <Link className="app-nav-link" href={`/projects/${projectId}/approvals`}>
-            <Bell size={18} aria-hidden="true" />
+            <div className="nav-icon-container">
+              <Bell size={18} aria-hidden="true" />
+              <span className="notification-badge pulse-ring">3</span>
+            </div>
             <span>Needs you</span>
           </Link>
+          <button className="app-nav-link app-nav-button" type="button" onClick={() => void signOut()} disabled={signingOut}>
+            <LogOut size={18} aria-hidden="true" />
+            <span>{signingOut ? 'Signing out…' : 'Sign Out'}</span>
+          </button>
+          {signOutError ? <p className="auth-error" role="alert">{signOutError}</p> : null}
           <p>Oga keeps watching unresolved work.</p>
         </div>
       </aside>
@@ -73,14 +100,24 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
           </button>
         </div>
         {mobileOpen && (
-          <div className="mobile-project-menu">
-            <div className="mobile-project-menu-inner">
-              {navItems.map(({ label, suffix, icon: Icon }) => (
-                <Link className={`app-nav-link${isActive(suffix) ? ' active' : ''}`} href={`/projects/${projectId}${suffix}`} key={label} onClick={() => setMobileOpen(false)}>
-                  <Icon size={18} aria-hidden="true" />{label}
+          <div className="mobile-menu-overlay fade-in" onClick={() => setMobileOpen(false)}>
+            <div className="mobile-project-menu slide-in-right glass-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="mobile-project-menu-inner">
+                {navItems.map(({ label, suffix, icon: Icon }) => (
+                  <Link className={`app-nav-link${isActive(suffix) ? ' active' : ''}`} href={`/projects/${projectId}${suffix}`} key={label} onClick={() => setMobileOpen(false)}>
+                    <Icon size={18} aria-hidden="true" />{label}
+                  </Link>
+                ))}
+                <Link className="app-nav-link" href={`/projects/${projectId}/approvals`} onClick={() => setMobileOpen(false)}>
+                  <div className="nav-icon-container">
+                    <Bell size={18} aria-hidden="true" />
+                    <span className="notification-badge pulse-ring">3</span>
+                  </div>
+                  Needs you
                 </Link>
-              ))}
-              <Link className="app-nav-link" href={`/projects/${projectId}/approvals`} onClick={() => setMobileOpen(false)}><Bell size={18} aria-hidden="true" />Needs you</Link>
+                <button className="app-nav-link app-nav-button" type="button" onClick={() => void signOut()} disabled={signingOut}><LogOut size={18} aria-hidden="true" />{signingOut ? 'Signing out…' : 'Sign Out'}</button>
+                {signOutError ? <p className="auth-error" role="alert">{signOutError}</p> : null}
+              </div>
             </div>
           </div>
         )}
@@ -91,11 +128,26 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
 }
 
 function ProjectSwitcher({ project }: Readonly<{ project: Project }>) {
+  const [isOpen, setIsOpen] = useState(false);
   return (
-    <button className="project-switcher" type="button" aria-label="Current project">
-      <span className="avatar oga-avatar"><Home size={14} aria-hidden="true" /></span>
-      <span className="project-switcher-copy"><strong>{project.name}</strong><span>{project.location}</span></span>
-      <ChevronDown size={15} aria-hidden="true" />
-    </button>
+    <div className="project-switcher-container">
+      <button className={`project-switcher ${isOpen ? 'active' : ''}`} type="button" aria-label="Current project" onClick={() => setIsOpen(!isOpen)}>
+        <span className="avatar oga-avatar"><Home size={14} aria-hidden="true" /></span>
+        <span className="project-switcher-copy"><strong>{project.name}</strong><span>{project.location}</span></span>
+        <ChevronDown size={15} aria-hidden="true" className={`project-switcher-chevron ${isOpen ? 'open' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="project-dropdown glass-panel fade-in-up">
+          <div className="dropdown-header">Recent Projects</div>
+          <Link href={`/projects/${project.id}`} className="dropdown-item active" onClick={() => setIsOpen(false)}>
+            <div className="dropdown-item-content">
+              <strong>{project.name}</strong>
+              <span>{project.location}</span>
+            </div>
+          </Link>
+          <button className="dropdown-action" onClick={() => setIsOpen(false)}>+ Create new project</button>
+        </div>
+      )}
+    </div>
   );
 }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -13,7 +13,7 @@ from typing import Any
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.interpreter import SiteInterpreter
+from app.agents.interpreter import SiteInterpreter, MediaEvidence
 from app.config.settings import RuntimeEnvironment, Settings
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
 from app.domain.enums import (
@@ -60,8 +60,16 @@ class RecordingInterpreter(SiteInterpreter):
         self._delegate = delegate
         self.facts: ExtractedFactSet | None = None
 
-    async def extract_facts(self, text: str) -> ExtractedFactSet:
-        self.facts = await self._delegate.extract_facts(text)
+    async def extract_facts(
+        self,
+        text: str,
+        *,
+        images: Sequence[MediaEvidence] = (),
+        project_context: str = "",
+    ) -> ExtractedFactSet:
+        self.facts = await self._delegate.extract_facts(
+            text, images=images, project_context=project_context
+        )
         return self.facts
 
 

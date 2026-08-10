@@ -15,6 +15,7 @@ export function AuthScreen({ mode }: Readonly<{ mode: 'sign-in' | 'sign-up' }>) 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
   const isSignUp = mode === 'sign-up';
 
@@ -22,14 +23,15 @@ export function AuthScreen({ mode }: Readonly<{ mode: 'sign-in' | 'sign-up' }>) 
     event.preventDefault();
     setBusy(true);
     auth.clearError();
+    setSubmitError(null);
     try {
       if (isSignUp) await auth.signUp(email, password, displayName);
       else await auth.signIn(email, password);
       await api.bootstrapUser(isSignUp ? displayName : undefined);
       const next = safeNextPath(searchParams.get('next'));
       router.replace(next ?? '/projects');
-    } catch {
-      // AuthProvider and the API client expose controlled user-facing errors.
+    } catch (cause) {
+      setSubmitError(cause instanceof Error ? cause.message : 'Oga could not complete sign-in. Try again.');
     } finally {
       setBusy(false);
     }
@@ -68,7 +70,7 @@ export function AuthScreen({ mode }: Readonly<{ mode: 'sign-in' | 'sign-up' }>) 
           <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label>Password<input type="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} /></label>
 
-          {auth.error ? <p className="auth-error" role="alert">{auth.error.message}</p> : null}
+          {auth.error || submitError ? <p className="auth-error" role="alert">{auth.error?.message ?? submitError}</p> : null}
           {resetSent ? <p className="auth-success" role="status">Password reset email sent.</p> : null}
 
           <button className="btn btn-primary btn-block" type="submit" disabled={busy || auth.state === 'unavailable'}>
