@@ -18,7 +18,7 @@ import { useState } from 'react';
 import type { Project } from '@/lib/api';
 
 const navItems = [
-  { label: 'Home', suffix: '', icon: Home },
+  { label: 'Dashboard', suffix: '', icon: Home },
   { label: 'Site', suffix: '/site', icon: MessageSquareText },
   { label: 'Tasks', suffix: '/tasks', icon: ListTodo },
   { label: 'Materials', suffix: '/materials', icon: Package },

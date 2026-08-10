@@ -9,6 +9,9 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test('manager views render task, material, report, and approval resources', async ({ page }) => {
   const browserErrors = captureBrowserErrors(page);
+  const materialSuffix = Date.now().toString().slice(-8);
+
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible();
@@ -18,6 +21,20 @@ test('manager views render task, material, report, and approval resources', asyn
   await expect(page.getByRole('heading', { name: 'What you have. What\'s at risk.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Cement' })).toBeVisible();
   await expect(page.getByText('50', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add material' }).click();
+  await page.getByLabel('Material name 1').fill(`Timber ${materialSuffix}`);
+  await page.getByLabel('Unit 1').fill('pieces');
+  await page.getByLabel('Available quantity 1').fill('12');
+  await page.getByLabel('Minimum required 1').fill('8');
+  await page.getByRole('button', { name: 'Add another material' }).click();
+  await page.getByLabel('Material name 2').fill(`Nails ${materialSuffix}`);
+  await page.getByLabel('Unit 2').fill('pieces');
+  await page.getByLabel('Available quantity 2').fill('200');
+  await page.getByLabel('Minimum required 2').fill('100');
+  await page.getByRole('button', { name: 'Add 2 materials' }).click();
+  await expect(page.getByRole('heading', { name: `Timber ${materialSuffix}` })).toBeVisible();
+  await expect(page.getByRole('heading', { name: `Nails ${materialSuffix}` })).toBeVisible();
 
   await page.getByRole('link', { name: 'Reports' }).click();
   await expect(page.getByRole('heading', { name: 'Daily report', exact: true })).toBeVisible();

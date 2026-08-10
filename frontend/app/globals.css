@@ -587,6 +587,17 @@ p { font-size: 1.05rem; }
 .create-project-modal { position: relative; width: min(100%, 480px); padding: 34px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
 .create-project-modal h2 { max-width: 360px; margin-top: 16px; font-size: 2.6rem; }
 .modal-close { position: absolute; top: 15px; right: 17px; width: 36px; height: 36px; color: var(--ink-soft); background: var(--paper); border-radius: 50%; font-size: 1.4rem; cursor: pointer; }
+.material-create-modal { width: min(100%, 760px); max-height: min(90vh, 820px); overflow-y: auto; }
+.material-create-modal h2 { max-width: 560px; }
+.material-create-intro { margin-top: 10px; color: var(--ink-soft); font-size: 0.86rem; }
+.material-create-form { margin-top: 22px; }
+.material-entry-list { display: grid; gap: 12px; }
+.material-entry { padding: 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; }
+.material-entry-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+.material-entry-title { color: var(--ink); font-size: 0.82rem; font-weight: 800; }
+.material-entry-grid { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr 1fr; gap: 10px; }
+.material-remove-button { display: inline-flex; align-items: center; gap: 5px; color: var(--red); background: transparent; font-size: 0.72rem; font-weight: 750; cursor: pointer; }
+.material-add-row { justify-self: start; }
 
 @keyframes breathe { 0%, 100% { opacity: 0.45; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
@@ -647,6 +658,7 @@ p { font-size: 1.05rem; }
   .needs-column { grid-template-columns: 1fr; }
   .approval-list { grid-template-columns: 1fr; }
   .projects-header { align-items: flex-start; flex-direction: column; }
+  .material-entry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 560px) {
@@ -680,6 +692,9 @@ p { font-size: 1.05rem; }
   .resource-row { align-items: stretch; flex-direction: column; }
   .resource-row > .status-pill { align-self: flex-start; }
   .material-grid { grid-template-columns: 1fr; }
+  .material-create-modal { padding: 28px 18px; }
+  .material-create-modal h2 { font-size: 2.25rem; }
+  .material-entry-grid { grid-template-columns: 1fr; }
   .report-paper { padding: 22px 17px; }
   .report-top { align-items: flex-start; flex-direction: column; }
   .report-section-grid { grid-template-columns: 1fr; gap: 24px; }

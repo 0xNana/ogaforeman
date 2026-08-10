@@ -15,7 +15,7 @@ from app.domain.materials import MaterialLedgerEntry
 from app.domain.models import ActivityEvent, Material
 from app.repositories.firestore import FirestoreRepositoryStore
 from app.repositories.interfaces import VersionConflictError
-from app.services.materials import MaterialQuantityCommand, MaterialService
+from app.services.materials import CreateMaterialCommand, MaterialQuantityCommand, MaterialService
 
 
 pytestmark = [
@@ -25,6 +25,40 @@ pytestmark = [
         reason="FIRESTORE_EMULATOR_HOST is required for material integration",
     ),
 ]
+
+
+def test_firestore_material_creation_with_initial_stock_is_atomic() -> None:
+    cloud_project = f"oga-material-create-test-{uuid4().hex}"
+    project_id = "prj_ridge"
+    now = datetime(2026, 8, 10, 9, 30, tzinfo=UTC)
+    store = FirestoreRepositoryStore(firestore.Client(project=cloud_project))
+    access = ProjectAccessContext(
+        actor=AuthenticatedUser(user_id="usr_manager", subject="firebase-manager"),
+        project_id=project_id,
+        role=MemberRole.MANAGER,
+    )
+
+    result = MaterialService(store).create_material(
+        access,
+        CreateMaterialCommand(
+            project_id=project_id,
+            name="Timber",
+            unit="pieces",
+            available_quantity=Decimal("12"),
+            minimum_required_quantity=Decimal("8"),
+        ),
+        MutationContext(
+            project_id=project_id,
+            actor_type=ActorType.USER,
+            actor_id="usr_manager",
+            idempotency_key="setup:material:timber",
+            occurred_at=now,
+        ),
+    )
+
+    assert result.material.available_quantity == 12
+    assert len(store.repository(MaterialLedgerEntry).list(project_id)) == 1
+    assert len(store.repository(ActivityEvent).list(project_id)) == 1
 
 
 def test_firestore_material_concurrency_is_atomic_and_append_only() -> None:
