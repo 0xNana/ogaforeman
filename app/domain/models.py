@@ -379,9 +379,15 @@ class DailyReport(DomainModel):
     project_id: CanonicalId
     report_date: date
     summary: str = Field(min_length=1, max_length=20_000)
+    crew_summary: str | None = Field(default=None, max_length=5_000)
+    weather_summary: str | None = Field(default=None, max_length=5_000)
     completed_work: list[ReportFact] = Field(default_factory=list)
+    in_progress_work: list[ReportFact] = Field(default_factory=list)
     active_blockers: list[ReportFact] = Field(default_factory=list)
     material_risks: list[ReportFact] = Field(default_factory=list)
+    deliveries: list[ReportFact] = Field(default_factory=list)
+    inspections: list[ReportFact] = Field(default_factory=list)
+    photo_refs: list[NonEmptyText] = Field(default_factory=list)
     next_focus: list[ReportFact] = Field(default_factory=list)
     source_update_ids: list[CanonicalId] = Field(default_factory=list)
     status: ReportStatus = ReportStatus.DRAFT

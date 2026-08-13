@@ -53,6 +53,11 @@ test('mobile command center navigation remains usable without overflow', async (
   await expect(page.getByLabel('Schedule timeline')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('link', { name: 'Daily Logs' }).click();
+  await expect(page.getByRole('heading', { name: 'Daily Logs', exact: true })).toBeVisible();
+  await expect(page.getByText('Compiled by OG from 1 site update')).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('link', { name: 'Activity' }).click();
   await expect(page.getByRole('heading', { name: 'What OG has handled' })).toBeVisible();
   await expect(page.getByRole('row', { name: /Cement shortage detected and sent for approval\./ })).toBeVisible();

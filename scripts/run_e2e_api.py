@@ -501,6 +501,7 @@ class LocalE2ERuntime:
                 next_focus=[
                     ReportFact(summary="Prepare plastering", source_refs=["su_playwright123"])
                 ],
+                source_update_ids=["su_playwright123"],
                 status=ReportStatus.PUBLISHED,
                 created_at=NOW,
                 updated_at=NOW,

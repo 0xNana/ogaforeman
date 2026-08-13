@@ -2,12 +2,13 @@
 
 ## Current phase status
 
-- Active phase: Phase 5 — Daily Logs
+- Active phase: Phase 6 — Photos and Documents
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
 - Phase 3 — Operational Registers: complete (2026-08-13)
 - Phase 4 — Schedule: complete (2026-08-13)
+- Phase 5 — Daily Logs: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -17,10 +18,13 @@
   Playwright journeys pass; register axe and mobile overflow checks pass.
 - Phase 4 evidence: 24 frontend unit tests, 307 Python tests, and 18 applicable
   Playwright journeys pass; schedule axe and mobile Gantt overflow checks pass.
-- Product/API contracts changed through Phase 4: yes — the authenticated project
+- Phase 5 evidence: 26 frontend unit tests, 308 Python tests, and the applicable
+  Playwright journeys pass; Daily Log axe and mobile overflow checks pass.
+- Product/API contracts changed through Phase 5: yes — the authenticated project
   snapshot projects viewer identity, task/register/schedule fields, issues, and
-  material requests; tasks now persist an explicit milestone flag.
-- Do not begin Phase 6 until the Phase 5 acceptance gate passes.
+  material requests, plus historical daily logs; tasks persist an explicit milestone
+  flag, and guarded daily-log metadata edits atomically emit activity.
+- Do not begin Phase 7 until the Phase 6 acceptance gate passes.
 
 ## Objective
 
@@ -623,6 +627,13 @@ Daily logs should look client-ready.
 
 Golden Scenario mutations visibly produce a believable Daily Log.
 
+Status: complete (2026-08-13). Persisted reports now produce a searchable,
+client-ready historical register whose completed work, blockers, materials,
+next focus, risks, and source-update provenance remain traceable to the Golden
+Scenario. Crew and weather are explicitly “Not recorded” until supplied. Edit
+is a version-guarded, authorized mutation; Share uses the browser share sheet or
+clipboard, and Export uses a print-ready presentation.
+
 ---
 
 # PHASE 6 — Photos and Documents
@@ -1113,7 +1124,7 @@ Do not declare the overhaul complete unless all are true:
 * [ ] Issues use an issue log.
 * [ ] Materials use inventory/request registers.
 * [ ] Schedule has a professional planning view.
-* [ ] Daily Logs are first-class.
+* [x] Daily Logs are first-class.
 * [ ] Photos are linked to project records.
 * [ ] Activity is a chronological timeline.
 * [ ] OG is available globally via drawer/sheet.

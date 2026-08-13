@@ -140,6 +140,27 @@ export type DailyReport = {
   photos: string[];
 };
 
+export type DailyLog = {
+  id: string;
+  date: string;
+  dateIso: string;
+  summary: string;
+  crew: string | null;
+  weather: string | null;
+  completed: string[];
+  inProgress: string[];
+  blocked: string[];
+  materials: string[];
+  deliveries: string[];
+  inspections: string[];
+  photos: string[];
+  tomorrow: string[];
+  risks: string[];
+  sourceUpdateCount: number;
+  status: string;
+  version: number;
+};
+
 export type ProjectSnapshot = {
   viewerId?: string | null;
   project: Project;
@@ -149,6 +170,7 @@ export type ProjectSnapshot = {
   materialRequests: MaterialRequest[];
   approvals: Approval[];
   activities: Activity[];
+  dailyLogs: DailyLog[];
   report: DailyReport;
 };
 
@@ -364,6 +386,14 @@ export const api = {
   getApprovals: async (projectId: string): Promise<Approval[]> => (await api.getProjectSnapshot(projectId)).approvals,
   getActivities: async (projectId: string): Promise<Activity[]> => (await api.getProjectSnapshot(projectId)).activities,
   getReport: async (projectId: string): Promise<DailyReport> => (await api.getProjectSnapshot(projectId)).report,
+  editDailyLog: async (projectId: string, reportId: string, input: { summary: string; crew_summary?: string; weather_summary?: string; expected_version: number }): Promise<DailyLog> => remote<DailyLog>(
+    `/api/v1/projects/${projectId}/daily-logs/${reportId}/edit`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: { 'Idempotency-Key': `daily-log-edit:${crypto.randomUUID()}` },
+    },
+  ),
   uploadSiteMedia: async (projectId: string, file: File): Promise<{ success: boolean; attachmentId?: string; error?: string }> => {
     if (file.size > 10 * 1024 * 1024) return { success: false, error: 'That file is larger than 10 MB.' };
     if (!file.type.startsWith('image/') && !file.type.startsWith('audio/') && file.type !== 'application/pdf') {

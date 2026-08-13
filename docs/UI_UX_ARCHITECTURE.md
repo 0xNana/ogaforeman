@@ -311,3 +311,18 @@ remove obsolete UI only after its replacement passes the phase gate.
 - Verification passes with 24 frontend unit tests, 307 Python tests, production
   build, 18 applicable Playwright journeys, schedule axe, and mobile Gantt
   overflow coverage.
+
+## Phase 5 acceptance evidence
+
+- Daily Logs is a first-class historical register projected from persisted
+  `DailyReport` records, separate from the single-report presentation route.
+- Each log exposes completed and active work, blockers, materials, deliveries,
+  inspections, photos, tomorrow, risks, and source-update provenance. Missing
+  crew and weather data is labelled rather than inferred.
+- Client-facing summary, crew, and weather edits require manager permission,
+  optimistic version agreement, the authenticated user actor, and an
+  idempotency key; the report update and `daily_log.edited` activity are atomic.
+- Share delegates to the browser share sheet with clipboard fallback and Export
+  uses a print-ready view; neither action creates an unapproved external action.
+- Verification passes with 26 frontend unit tests, 308 Python tests, production
+  build, Daily Log desktop axe checks, and mobile overflow coverage.

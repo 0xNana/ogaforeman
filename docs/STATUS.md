@@ -256,11 +256,11 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–4 are complete; Phase 5 Daily Logs is next.
+- UI Phases 0–5 are complete; Phase 6 Photos and Documents is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
-- Four remaining projection-dependent modules open with honest empty states;
+- Two remaining projection-dependent modules open with honest empty states;
   Phase 1 introduced no client-side demo records or backend contract changes.
 - Phase 2 replaces the card dashboard with projection-backed project metrics,
   a prioritized attention list, today register, task lookahead, and derived OG
@@ -279,6 +279,12 @@ project label, with a production-readiness regression guard.
   inferred from duration; no new schedule-specific mutation was added.
 - Phase 4 verification: 24 frontend unit tests, 307 Python tests, production
   build, 18 Playwright journeys, schedule axe, and mobile Gantt overflow pass.
+- Phase 5 delivers a historical, searchable Daily Logs register from persisted
+  reports. It renders the full client-ready record structure, labels missing
+  crew/weather facts, preserves source-update provenance, and provides guarded
+  metadata editing plus browser-native share and print export actions.
+- Phase 5 verification: 26 frontend unit tests, 308 Python tests, production
+  build, applicable Playwright journeys, Daily Log axe, and mobile overflow pass.
 
 ## Phase 8 state
 

@@ -65,7 +65,7 @@ repository and tool access. Email and display name are never identity keys.
 `main.py` installs the provider when auth settings are present. Local settings
 without an auth audience intentionally fail closed. The project snapshot reads
 the authorized project's persisted tasks, materials, requests, approvals,
-activities, and latest report. A newly created project therefore returns empty
+activities, latest report, and historical `dailyLogs`. A newly created project therefore returns empty
 resource lists plus its persisted `project.created` activity rather than a
 hard-coded empty projection.
 
@@ -103,6 +103,7 @@ POST /projects/{project_id}/materials
 GET /projects/{project_id}/material-requests
 GET /projects/{project_id}/approvals
 GET /projects/{project_id}/reports/{report_date}
+POST /projects/{project_id}/daily-logs/{report_id}/edit
 GET /projects/{project_id}/activity
 GET /projects/{project_id}/agent-runs/{run_id}
 ```

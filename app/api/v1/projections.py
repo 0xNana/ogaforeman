@@ -92,6 +92,10 @@ def project_snapshot_projection(
             activity_projection(activity, timezone)
             for activity in sorted(activities, key=lambda item: item.created_at, reverse=True)
         ],
+        "dailyLogs": [
+            daily_log_projection(report)
+            for report in sorted(reports, key=lambda item: item.report_date, reverse=True)
+        ],
         "report": report_projection(latest_report) if latest_report else empty_report_projection(),
     }
 
@@ -263,12 +267,35 @@ def report_projection(report: DailyReport) -> dict[str, object]:
     return {
         "date": report.report_date.strftime("%A, %-d %B"),
         "completed": [fact.summary for fact in report.completed_work],
-        "inProgress": [],
+        "inProgress": [fact.summary for fact in report.in_progress_work],
         "blocked": [fact.summary for fact in report.active_blockers],
         "materials": [fact.summary for fact in report.material_risks],
         "tomorrow": [fact.summary for fact in report.next_focus],
         "risks": [fact.summary for fact in (*report.active_blockers, *report.material_risks)],
-        "photos": [],
+        "photos": list(report.photo_refs),
+    }
+
+
+def daily_log_projection(report: DailyReport) -> dict[str, object]:
+    return {
+        "id": report.id,
+        "date": report.report_date.strftime("%A, %-d %B"),
+        "dateIso": report.report_date.isoformat(),
+        "summary": report.summary,
+        "crew": report.crew_summary,
+        "weather": report.weather_summary,
+        "completed": [fact.summary for fact in report.completed_work],
+        "inProgress": [fact.summary for fact in report.in_progress_work],
+        "blocked": [fact.summary for fact in report.active_blockers],
+        "materials": [fact.summary for fact in report.material_risks],
+        "deliveries": [fact.summary for fact in report.deliveries],
+        "inspections": [fact.summary for fact in report.inspections],
+        "photos": list(report.photo_refs),
+        "tomorrow": [fact.summary for fact in report.next_focus],
+        "risks": [fact.summary for fact in (*report.active_blockers, *report.material_risks)],
+        "sourceUpdateCount": len(report.source_update_ids),
+        "status": report.status.value.upper(),
+        "version": report.version,
     }
 
 
@@ -323,6 +350,7 @@ __all__ = [
     "activity_projection",
     "approval_projection",
     "empty_report_projection",
+    "daily_log_projection",
     "material_projection",
     "material_request_projection",
     "issue_projection",

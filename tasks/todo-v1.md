@@ -197,6 +197,8 @@ Vertical slice gate:
   placeholder with searchable operational registers and accessible detail drawers.
 - [x] UI Phase 4 replaces the Schedule placeholder with task-backed List and
   Gantt planning views, dependency risk, milestones, filters, and activity detail.
+- [x] UI Phase 5 makes Daily Logs a first-class historical module with persisted
+  report facts, source-update provenance, guarded edits, share, and print export.
 
 ## Reliability and launch
 

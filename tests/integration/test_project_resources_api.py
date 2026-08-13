@@ -133,6 +133,7 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
         "materials": [],
         "materialRequests": [],
         "approvals": [],
+        "dailyLogs": [],
         "activities": [
             {
                 "id": "act_projectcreated123",
@@ -415,6 +416,52 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
     assert snapshot["approvals"][0]["quantity"] == "30 bags"
     assert snapshot["report"]["completed"] == ["First-floor blockwork"]
     assert snapshot["report"]["materials"] == ["Cement stock is low"]
+    assert snapshot["dailyLogs"] == [{
+        "id": "rpt_daily123",
+        "date": "Saturday, 8 August",
+        "dateIso": "2026-08-08",
+        "summary": "Blockwork completed; cement is low.",
+        "crew": None,
+        "weather": None,
+        "completed": ["First-floor blockwork"],
+        "inProgress": [],
+        "blocked": [],
+        "materials": ["Cement stock is low"],
+        "deliveries": [],
+        "inspections": [],
+        "photos": [],
+        "tomorrow": [],
+        "risks": ["Cement stock is low"],
+        "sourceUpdateCount": 0,
+        "status": "PUBLISHED",
+        "version": 0,
+    }]
+
+
+@pytest.mark.asyncio
+async def test_admin_edits_daily_log_metadata_with_activity_and_idempotency() -> None:
+    store = InMemoryRepositoryStore()
+    store.repository(DailyReport).create(DailyReport(
+        id="rpt_edit123",
+        project_id=PROJECT_ID,
+        report_date=date(2026, 8, 8),
+        summary="Initial summary.",
+        created_at=NOW,
+        updated_at=NOW,
+    ))
+    transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
+    headers = {"Idempotency-Key": "daily-log:edit:123"}
+    payload = {"summary": "Client-ready summary.", "crew_summary": "12 workers", "weather_summary": "Dry", "expected_version": 0}
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        edited = await client.post(f"/api/v1/projects/{PROJECT_ID}/daily-logs/rpt_edit123/edit", json=payload, headers=headers)
+        replay = await client.post(f"/api/v1/projects/{PROJECT_ID}/daily-logs/rpt_edit123/edit", json=payload, headers=headers)
+
+    assert edited.status_code == 200
+    assert replay.json() == edited.json()
+    assert edited.json()["crew"] == "12 workers"
+    assert edited.json()["weather"] == "Dry"
+    assert edited.json()["version"] == 1
+    assert [event.action for event in store.repository(ActivityEvent).list(PROJECT_ID)] == ["daily_log.edited"]
 
 
 @pytest.mark.asyncio

@@ -6,6 +6,9 @@ import json
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from hashlib import sha256
+from dataclasses import dataclass
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.activity import ActivitySpec, MutationContext, WorkflowActivityAction
 from app.domain.authorization import (
@@ -14,8 +17,9 @@ from app.domain.authorization import (
     ensure_permission,
     ensure_project_scope,
 )
-from app.domain.models import DailyReport, ReportFact, ReportStatus, SiteUpdate
-from app.repositories.interfaces import RepositorySession, RepositoryStore
+from app.domain.enums import ActorType
+from app.domain.models import ActivityEvent, CanonicalId, DailyReport, ReportFact, ReportStatus, SiteUpdate
+from app.repositories.interfaces import RepositorySession, RepositoryStore, VersionConflictError
 from app.repositories.reports import ReportRepository
 from app.services.activity import ActivityService
 from app.services.workflow_audit import workflow_audit_activity
@@ -26,6 +30,35 @@ class ReportService:
         self._reports = ReportRepository(store)
         self._store = store
         self._activities = ActivityService(store)
+
+    def edit_daily_log(
+        self,
+        access: ProjectAccessContext,
+        command: EditDailyLogCommand,
+        context: MutationContext,
+    ) -> DailyLogChange:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.MANAGE)
+        if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
+            raise PermissionError("daily log editing requires the authorized user actor")
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="daily_log.edited",
+                entity_type="daily_report",
+                entity_id=command.report_id,
+                summary="Edited daily log client-facing details.",
+                metadata={"report_id": command.report_id},
+            ),
+            lambda session: _edit_daily_log(session, command, context.occurred_at),
+            replay=lambda session, _activity: session.repository(DailyReport).require(
+                command.project_id, command.report_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("daily log edit replay did not resolve persisted state")
+        return DailyLogChange(report=result.value, activity=result.activity, duplicate=result.duplicate)
 
     def project_site_update(
         self,
@@ -193,11 +226,51 @@ class ReportService:
         return self._store.run_transaction(_append)
 
 
-__all__ = ["ReportService"]
+class EditDailyLogCommand(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    report_id: CanonicalId
+    summary: str = Field(min_length=1, max_length=20_000)
+    crew_summary: str | None = Field(default=None, max_length=5_000)
+    weather_summary: str | None = Field(default=None, max_length=5_000)
+    expected_version: int = Field(ge=0)
+
+
+@dataclass(frozen=True, slots=True)
+class DailyLogChange:
+    report: DailyReport
+    activity: ActivityEvent
+    duplicate: bool = False
+
+
+__all__ = ["DailyLogChange", "EditDailyLogCommand", "ReportService"]
 
 
 def _report_id(project_id: str, report_date: date) -> str:
     return f"rpt_{project_id}_{report_date.isoformat()}"
+
+
+def _edit_daily_log(
+    session: RepositorySession,
+    command: EditDailyLogCommand,
+    occurred_at: datetime,
+) -> DailyReport:
+    reports = session.repository(DailyReport)
+    current = reports.require(command.project_id, command.report_id)
+    if current.version != command.expected_version:
+        raise VersionConflictError(
+            f"expected_version {command.expected_version} does not match current version {current.version}"
+        )
+    return reports.save(
+        current.model_copy(update={
+            "summary": command.summary,
+            "crew_summary": command.crew_summary or None,
+            "weather_summary": command.weather_summary or None,
+            "updated_at": occurred_at,
+        }),
+        expected_version=command.expected_version,
+    )
 
 
 def _apply_site_update_projection(

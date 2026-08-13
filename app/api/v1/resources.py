@@ -12,9 +12,10 @@ from app.domain.authorization import ProjectAccessContext, ProjectPermission
 from app.domain.enums import ActorType, TaskPriority
 from app.services.materials import CreateMaterialCommand, MaterialQuantityCommand, MaterialService
 from app.services.tasks import CreateTaskCommand, TaskService
+from app.services.reports import EditDailyLogCommand, ReportService
 
 from .projects import auth_runtime
-from .projections import material_projection, task_projection
+from .projections import daily_log_projection, material_projection, task_projection
 
 
 router = APIRouter()
@@ -42,6 +43,13 @@ class AdjustMaterialQuantityRequest(BaseModel):
     unit: str = Field(min_length=1, max_length=100)
     expected_version: int = Field(ge=0)
     reason: str = Field(min_length=1, max_length=5_000)
+
+
+class EditDailyLogRequest(BaseModel):
+    summary: str = Field(min_length=1, max_length=20_000)
+    crew_summary: str | None = Field(default=None, max_length=5_000)
+    weather_summary: str | None = Field(default=None, max_length=5_000)
+    expected_version: int = Field(ge=0)
 
 
 def mutation_context(
@@ -112,6 +120,23 @@ def adjust_material_quantity(
         .material
     )
     return material_projection(material, None)
+
+
+@router.post("/{project_id}/daily-logs/{report_id}/edit")
+def edit_daily_log(
+    project_id: str, report_id: str, payload: EditDailyLogRequest, request: Request
+) -> dict[str, object]:
+    access, context = mutation_context(request, project_id)
+    report = ReportService(auth_runtime(request).store).edit_daily_log(
+        access,
+        EditDailyLogCommand(
+            project_id=project_id,
+            report_id=report_id,
+            **payload.model_dump(),
+        ),
+        context,
+    ).report
+    return daily_log_projection(report)
 
 
 __all__ = ["router"]

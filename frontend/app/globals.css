@@ -506,6 +506,35 @@ p { font-size: 1.05rem; }
 .gantt-bar.milestone { min-width: 18px; padding: 0; transform: rotate(45deg); }
 .gantt-bar.milestone span { display: none; }
 .gantt-unscheduled { padding: 16px 0 0 230px; color: var(--ink-faint); font-size: 0.75rem; }
+.daily-log-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; }
+.daily-log-index { display: grid; gap: 8px; position: sticky; top: 20px; }
+.daily-log-index .register-search { min-width: 0; margin-bottom: 4px; }
+.daily-log-index > button { display: grid; gap: 4px; padding: 13px 14px; text-align: left; background: transparent; border-left: 3px solid transparent; cursor: pointer; }
+.daily-log-index > button:hover { background: var(--surface-muted); }
+.daily-log-index > button.active { background: var(--surface); border-left-color: var(--orange); }
+.daily-log-index > button strong { font-size: 0.8rem; }
+.daily-log-index > button span { overflow: hidden; color: var(--ink-soft); font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
+.daily-log-index-empty { display: grid; gap: 7px; padding: 24px 14px; color: var(--ink-soft); font-size: 0.78rem; }
+.daily-log-paper { min-width: 0; padding: 34px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+.daily-log-paper > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 22px; border-bottom: 2px solid var(--ink); }
+.daily-log-paper > header h2 { margin-top: 8px; font-size: 2rem; letter-spacing: -0.04em; }
+.daily-log-paper > header p { margin-top: 8px; color: var(--ink-soft); font-size: 0.86rem; }
+.daily-log-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.daily-log-context { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.daily-log-context dt { color: var(--ink-faint); font-size: 0.68rem; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+.daily-log-context dd { margin: 5px 0 0; font-size: 0.86rem; font-weight: 650; }
+.daily-log-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 0 34px; }
+.daily-log-sections section { padding: 22px 0; border-bottom: 1px solid var(--line); }
+.daily-log-sections h3 { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.daily-log-sections ul { display: grid; gap: 7px; margin: 12px 0 0; padding-left: 17px; color: var(--ink-soft); font-size: 0.84rem; }
+.daily-log-sections p { margin-top: 10px; color: var(--ink-faint); font-size: 0.8rem; }
+.daily-log-paper > footer { display: flex; justify-content: space-between; gap: 16px; padding-top: 22px; color: var(--ink-faint); font-size: 0.74rem; }
+.daily-log-edit { display: grid; gap: 16px; padding-top: 22px; }
+.daily-log-edit label { display: grid; gap: 7px; font-size: 0.75rem; font-weight: 700; }
+.daily-log-edit input, .daily-log-edit textarea { padding: 11px 12px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; }
+.daily-log-edit textarea { min-height: 110px; resize: vertical; }
+.daily-log-edit > div { display: flex; justify-content: flex-end; gap: 10px; }
+.daily-log-empty { margin: 0; }
 .report-paper { max-width: 960px; padding: 34px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
 .report-top { display: flex; align-items: start; justify-content: space-between; gap: 22px; padding-bottom: 25px; border-bottom: 1px solid var(--line); }
 .report-top h2 { margin-top: 14px; font-size: 2.35rem; }
@@ -724,6 +753,9 @@ p { font-size: 1.05rem; }
   .overview-grid { grid-template-columns: 1fr; gap: 38px; }
   .schedule-controls { align-items: stretch; flex-direction: column; }
   .schedule-controls .register-search { width: 100%; }
+  .daily-log-layout { grid-template-columns: 1fr; }
+  .daily-log-index { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .daily-log-index .register-search, .daily-log-index-empty { grid-column: 1 / -1; }
 }
 
 @media (max-width: 560px) {
@@ -771,6 +803,12 @@ p { font-size: 1.05rem; }
   .register-count { margin-left: 0; }
   .record-drawer { padding: 18px 16px max(28px, env(safe-area-inset-bottom)); border-left: 0; }
   .record-details > div { grid-template-columns: 1fr; gap: 5px; }
+  .daily-log-index { grid-template-columns: 1fr; }
+  .daily-log-paper { padding: 24px 16px; }
+  .daily-log-paper > header, .daily-log-paper > footer { flex-direction: column; }
+  .daily-log-actions { flex-wrap: wrap; }
+  .daily-log-actions .btn { width: auto; flex: 1; }
+  .daily-log-sections { grid-template-columns: 1fr; }
   .report-paper { padding: 22px 17px; }
   .report-top { align-items: flex-start; flex-direction: column; }
   .report-section-grid { grid-template-columns: 1fr; gap: 24px; }
@@ -784,6 +822,13 @@ p { font-size: 1.05rem; }
   .approval-resource-details { grid-template-columns: 1fr; }
   .site-composer-page .page-heading p { font-size: 0.96rem; }
   .loading-grid { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .app-sidebar, .app-topbar, .mobile-bottom-nav, .page-heading, .daily-log-index, .daily-log-actions { display: none !important; }
+  .app-content { width: 100%; padding: 0; }
+  .daily-log-layout { display: block; }
+  .daily-log-paper { border: 0; box-shadow: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

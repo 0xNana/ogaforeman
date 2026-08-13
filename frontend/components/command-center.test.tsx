@@ -33,6 +33,7 @@ const snapshot = {
     date: `0${index + 1}:00`,
     user: 'OG',
   })),
+  dailyLogs: [],
   report: {
     date: 'Today',
     completed: [],

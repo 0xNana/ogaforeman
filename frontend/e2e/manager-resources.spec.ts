@@ -23,6 +23,19 @@ test('manager views render task, material, report, and approval resources', asyn
   const scheduleAccessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(scheduleAccessibility.violations).toEqual([]);
 
+  await page.getByRole('link', { name: 'Daily Logs' }).click();
+  await expect(page.getByRole('heading', { name: 'Daily Logs', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saturday, 8 August' })).toBeVisible();
+  await expect(page.getByText('First-floor blockwork')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Delays / blockers' }).locator('..').getByText('Electrician absent')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Materials', exact: true }).locator('..').getByText('Cement stock is low')).toBeVisible();
+  await expect(page.getByText('Compiled by OG from 1 site update')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit daily log' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Share daily log' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Export daily log' })).toBeEnabled();
+  const dailyLogAccessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(dailyLogAccessibility.violations).toEqual([]);
+
   await page.getByRole('link', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible();
   await page.getByRole('button', { name: 'Blocked' }).click();
