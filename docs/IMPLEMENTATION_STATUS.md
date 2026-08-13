@@ -20,15 +20,19 @@ Status: COMPLETE
 
 Phase 4 — Entity Resolution
 
+Status: COMPLETE
+
+Phase 5 — Safe Task Operations
+
 Status: ACTIVE
 
-Phases 5–17
+Phases 6–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 4 implementation.
+- None for local Phase 5 implementation.
 
 ## Known regressions
 
@@ -71,3 +75,14 @@ Status: NOT STARTED
 - Operational destinations such as site updates are rejected by the response service and remain
   owned by their existing workflows.
 - Persisted user-authored text is treated as display data, not as instructions to the formatter.
+
+## Phase 4 evidence
+
+- Typed resolution covers tasks, issues, materials, material requests, schedule activities,
+  active project members, and daily logs.
+- Resolution follows project-scoped ID, exact/alias, normalized partial, revalidated context,
+  and strong unique fuzzy matching without trusting display names as identity.
+- Ambiguous matches return at most five stable clarification candidates and cannot mutate.
+- Unknown references and canonical IDs from another project return no entity information.
+- Resolution performs no repository writes or activity emission; later mutation phases must
+  recheck operation-specific permission before invoking typed tools.

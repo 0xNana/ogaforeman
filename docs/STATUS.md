@@ -344,14 +344,16 @@ project label, with a production-readiness regression guard.
 
 ## Conversational operations
 
-- Phases 0–3 are complete locally as of 2026-08-13.
+- Phases 0–4 are complete locally as of 2026-08-13.
 - The router is typed and non-mutating; low-confidence actions and context-free confirmations
   stop at clarification, while site updates retain the existing Golden workflow destination.
 - Phase 2 adds permission-aware, query-shaped typed projections for all documented context
   domains and corrects the Golden context's empty issue/approval projections.
 - Phase 3 adds concise deterministic replies grounded in the authorized context snapshot, honest
   empty states, and a guard that preserves operational workflow ownership.
-- Phase 4 entity resolution is active and remains unimplemented.
+- Phase 4 adds typed project-scoped resolution for seven entity kinds, canonical aliases,
+  revalidated context, strict fuzzy matching, and non-actionable ambiguity/unknown results.
+- Phase 5 safe task operations is active and remains unimplemented.
 
 ## Phase 8 state
 

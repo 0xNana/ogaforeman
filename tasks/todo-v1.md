@@ -19,7 +19,9 @@ real cloud environment, live model credential/billing, or human release gate.
   mutation and fixes the Golden context's hard-coded issue/approval omissions.
 - [x] C-04 Phase 3 formats grounded context into concise conversational responses, honest empty
   states, and rejects operational destinations that belong to existing workflows.
-- [ ] C-05 Phase 4 resolves project entities and clarifies ambiguous references before mutation.
+- [x] C-05 Phase 4 resolves all documented project entities, rejects cross-project/context-kind
+  mismatches, and clarifies ambiguous references before mutation.
+- [ ] C-06 Phase 5 executes safe task operations through existing typed task services.
 
 ## Audit findings requiring implementation
 

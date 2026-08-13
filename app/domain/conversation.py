@@ -58,6 +58,22 @@ class ReplyKind(StrEnum):
     CLARIFICATION = "clarification"
 
 
+class EntityKind(StrEnum):
+    TASK = "task"
+    ISSUE = "issue"
+    MATERIAL = "material"
+    MATERIAL_REQUEST = "material_request"
+    SCHEDULE_ACTIVITY = "schedule_activity"
+    PROJECT_MEMBER = "project_member"
+    DAILY_LOG = "daily_log"
+
+
+class EntityResolutionStatus(StrEnum):
+    RESOLVED = "resolved"
+    AMBIGUOUS = "ambiguous"
+    NOT_FOUND = "not_found"
+
+
 class ReferencedEntity(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -238,6 +254,29 @@ class ConversationReply(BaseModel):
     cited_record_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
 
 
+class EntityCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    entity_id: str
+    kind: EntityKind
+    display_name: str = Field(min_length=1, max_length=300)
+    match_score: float = Field(ge=0.0, le=1.0)
+
+
+class EntityResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: EntityKind
+    reference: str = Field(min_length=1, max_length=300)
+    status: EntityResolutionStatus
+    entity_id: str | None = None
+    display_name: str | None = None
+    match_method: str | None = Field(default=None, max_length=32)
+    candidates: tuple[EntityCandidate, ...] = Field(default_factory=tuple, max_length=5)
+    clarification: str | None = Field(default=None, max_length=500)
+    can_mutate: bool = False
+
+
 __all__ = [
     "ConversationContext",
     "ConversationReply",
@@ -245,6 +284,10 @@ __all__ = [
     "ContextFocus",
     "ContextQuery",
     "ConversationalProjectContext",
+    "EntityCandidate",
+    "EntityKind",
+    "EntityResolution",
+    "EntityResolutionStatus",
     "IntentDecision",
     "IntentDestination",
     "IntentRoute",

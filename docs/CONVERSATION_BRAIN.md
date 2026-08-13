@@ -4,7 +4,7 @@
 
 **Golden Scenario:** PASS AND LOCKED
 
-**Active phase:** Phase 4 — Entity Resolution
+**Active phase:** Phase 5 — Safe Task Operations
 
 The existing Golden Scenario is the foundation of OG Foreman and must not regress:
 
@@ -1418,6 +1418,9 @@ Phase 3 — Conversational Response Layer
 Status: COMPLETE
 
 Phase 4 — Entity Resolution
+Status: COMPLETE
+
+Phase 5 — Safe Task Operations
 Status: ACTIVE
 
 ...

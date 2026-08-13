@@ -1,5 +1,18 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 4: Entity Resolution
+
+Acceptance: resolve every documented conversational entity from the authorized project partition
+using canonical ID, aliases/names, normalized partial matches, revalidated context, and a strict
+unique fuzzy threshold; ambiguous or unknown references must remain non-actionable.
+
+Verify: all seven entity kinds, material alias reuse, bounded ambiguity, contextual kind checks,
+cross-project ID isolation, fuzzy thresholds, existing Golden resolution, full backend checks, and
+the canonical mobile Golden Scenario remain green.
+
+Status: complete locally on 2026-08-13. Phase 5 (safe task operations) is active and not
+implemented.
+
 ## Conversational Operations — Phase 3: Response Layer
 
 Acceptance: produce concise casual and project replies grounded only in the authorized Phase 2
@@ -9,7 +22,7 @@ references; and refuse site-update or action destinations owned by other workflo
 Verify: focused response, context, and intent tests pass; static checks and the full non-backing
 suite remain green; the canonical mobile Golden Scenario still passes.
 
-Status: complete locally on 2026-08-13. Phase 4 (entity resolution) is active and not implemented.
+Status: complete locally on 2026-08-13.
 
 ## Conversational Operations — Phase 2: Project Context
 

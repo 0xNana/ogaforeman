@@ -50,3 +50,9 @@ facts into concise deterministic replies with honest empty states and internal g
 It refuses operational destinations, so Golden site updates and future actions cannot be consumed
 as chat responses. Later phases may connect mutation destinations to existing typed services only
 after entity resolution and explicit policy checks exist.
+
+Phase 4 adds a project-scoped entity-resolution boundary for every documented conversational
+entity. Canonical IDs and contextual references are reloaded from the requested entity repository;
+material aliases resolve to the existing canonical material; fuzzy matches require a high score
+and a clear margin. Ambiguous and unknown results are non-actionable and carry only bounded
+clarification candidates. Resolution itself is read-only.
