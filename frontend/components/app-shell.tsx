@@ -21,14 +21,14 @@ import { useAuth } from '@/src/lib/auth';
 
 const navItems = [
   { label: 'Dashboard', suffix: '', icon: Home },
-  { label: 'Site', suffix: '/site', icon: MessageSquareText },
+  { label: 'Tell OG', suffix: '/site', icon: MessageSquareText },
   { label: 'Tasks', suffix: '/tasks', icon: ListTodo },
   { label: 'Materials', suffix: '/materials', icon: Package },
   { label: 'Reports', suffix: '/reports', icon: FileText },
   { label: 'Activity', suffix: '/activity', icon: Activity },
 ];
 
-export function AppShell({ children, project }: Readonly<{ children: React.ReactNode; project: Project }>) {
+export function AppShell({ children, project, pendingApprovalCount = 0 }: Readonly<{ children: React.ReactNode; project: Project; pendingApprovalCount?: number }>) {
   const pathname = usePathname();
   const router = useRouter();
   const auth = useAuth();
@@ -45,7 +45,7 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
       await auth.signOutUser();
       router.replace('/sign-in');
     } catch (cause) {
-      setSignOutError(cause instanceof Error ? cause.message : 'Oga could not sign you out. Try again.');
+      setSignOutError(cause instanceof Error ? cause.message : 'OG could not sign you out. Try again.');
     } finally {
       setSigningOut(false);
     }
@@ -58,8 +58,8 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
   return (
     <div className="app-shell">
       <aside className="app-sidebar" aria-label="Project navigation">
-        <Link className="logo-lockup" href="/" aria-label="Oga Foreman home">
-          <span className="logo-mark" aria-hidden="true" />Oga Foreman
+        <Link className="logo-lockup" href="/" aria-label="OG Foreman home">
+          <span className="logo-mark" aria-hidden="true" />OG Foreman
         </Link>
         <ProjectSwitcher project={project} />
         <nav className="app-nav" aria-label="Project sections">
@@ -79,7 +79,7 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
           <Link className="app-nav-link" href={`/projects/${projectId}/approvals`}>
             <div className="nav-icon-container">
               <Bell size={18} aria-hidden="true" />
-              <span className="notification-badge pulse-ring">3</span>
+              {pendingApprovalCount > 0 && <span className="notification-badge pulse-ring">{pendingApprovalCount}</span>}
             </div>
             <span>Needs you</span>
           </Link>
@@ -88,13 +88,13 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
             <span>{signingOut ? 'Signing out…' : 'Sign Out'}</span>
           </button>
           {signOutError ? <p className="auth-error" role="alert">{signOutError}</p> : null}
-          <p>Oga keeps watching unresolved work.</p>
+          <p>OG keeps watching unresolved work.</p>
         </div>
       </aside>
 
       <div className="app-main">
         <div className="app-topbar">
-          <Link className="logo-lockup" href="/" aria-label="Oga Foreman home"><span className="logo-mark" aria-hidden="true" />Oga</Link>
+          <Link className="logo-lockup" href="/" aria-label="OG Foreman home"><span className="logo-mark" aria-hidden="true" />OG</Link>
           <button className="app-topbar-button" type="button" aria-label={mobileOpen ? 'Close project menu' : 'Open project menu'} aria-expanded={mobileOpen} onClick={() => setMobileOpen((value) => !value)}>
             {mobileOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
@@ -111,7 +111,7 @@ export function AppShell({ children, project }: Readonly<{ children: React.React
                 <Link className="app-nav-link" href={`/projects/${projectId}/approvals`} onClick={() => setMobileOpen(false)}>
                   <div className="nav-icon-container">
                     <Bell size={18} aria-hidden="true" />
-                    <span className="notification-badge pulse-ring">3</span>
+                    {pendingApprovalCount > 0 && <span className="notification-badge pulse-ring">{pendingApprovalCount}</span>}
                   </div>
                   Needs you
                 </Link>

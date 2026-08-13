@@ -3,53 +3,119 @@
 import { ArrowRight, CircleSlash2, ListTodo, Plus, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, type Task } from '@/lib/api';
+import { TaskCreateDialog } from '@/components/task-create-dialog';
+import { Pagination } from '@/components/pagination';
 
-type TaskFilter = 'TODAY' | 'UPCOMING' | 'BLOCKED' | 'DONE';
+type TaskFilter = 'ACTIVE' | 'UPCOMING' | 'BLOCKED' | 'DONE';
 
 const filters: Array<{ label: string; value: TaskFilter }> = [
-  { label: 'Today', value: 'TODAY' },
+  { label: 'Active', value: 'ACTIVE' },
   { label: 'Upcoming', value: 'UPCOMING' },
   { label: 'Blocked', value: 'BLOCKED' },
   { label: 'Done', value: 'DONE' },
 ];
 
 export function TaskBoard({ projectId, tasks, onRefresh }: Readonly<{ projectId: string; tasks: Task[]; onRefresh: () => Promise<void> }>) {
-  const [filter, setFilter] = useState<TaskFilter>('TODAY');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isSetup = searchParams?.get('setup') === '1';
+  const [filter, setFilter] = useState<TaskFilter>('ACTIVE');
   const [showCreate, setShowCreate] = useState(false);
-  const [title, setTitle] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const visibleTasks = useMemo(() => tasks.filter((task) => {
     if (filter === 'BLOCKED') return task.status === 'BLOCKED';
     if (filter === 'DONE') return task.status === 'COMPLETED';
-    if (filter === 'UPCOMING') return task.status === 'PENDING' && !task.dueLabel.toLowerCase().includes('today');
-    return task.dueLabel.toLowerCase().includes('today') || task.status === 'IN_PROGRESS' || task.status === 'BLOCKED' || task.needsAttention === true;
+
+    // For ACTIVE and UPCOMING, strictly exclude completed and blocked tasks
+    if (task.status === 'COMPLETED' || task.status === 'BLOCKED') return false;
+
+    const label = task.dueLabel.toLowerCase();
+    const isFuture = label.includes('tomorrow') || label.includes('upcoming') || label.includes('later');
+
+    if (filter === 'UPCOMING') {
+      return task.status === 'PENDING' && isFuture;
+    }
+
+    // ACTIVE includes IN_PROGRESS, PENDING tasks that are due today/overdue (not future), or anything needing attention
+    return task.status === 'IN_PROGRESS' || (task.status === 'PENDING' && !isFuture) || task.needsAttention === true;
   }), [filter, tasks]);
 
-  async function createTask(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.createTask(projectId, { title: title.trim() });
-      await onRefresh();
-      setTitle('');
-      setFilter('UPCOMING');
-      setShowCreate(false);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The task could not be created.');
-    } finally {
-      setSubmitting(false);
-    }
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
+  const paginatedTasks = useMemo(() => {
+    return visibleTasks.slice((page - 1) * pageSize, page * pageSize);
+  }, [visibleTasks, page, pageSize]);
+
+  function handleFilterChange(newFilter: TaskFilter) {
+    setFilter(newFilter);
+    setPage(1);
   }
 
   return (
     <div>
-      <div className="page-heading"><div><span className="eyebrow">Lightweight task control</span><h1>Tasks</h1><p>What is moving, what is next and what is stuck.</p></div><div className="page-heading-actions"><button className="btn btn-primary btn-small" type="button" onClick={() => setShowCreate(true)}><Plus size={15} /> Add task</button><Link href={`/projects/${projectId}/site`} className="btn btn-accent btn-small">Tell Oga what changed <ArrowRight size={15} /></Link></div></div>
-      <div className="resource-toolbar"><div className="filter-tabs" role="tablist" aria-label="Task views">{filters.map((item) => <button className={`filter-tab${filter === item.value ? ' active' : ''}`} type="button" role="tab" aria-selected={filter === item.value} onClick={() => setFilter(item.value)} key={item.value}>{item.label}</button>)}</div><span className="faint" style={{ fontSize: '0.78rem' }}>{visibleTasks.length} {visibleTasks.length === 1 ? 'task' : 'tasks'}</span></div>
-      {visibleTasks.length > 0 ? <div className="resource-list">{visibleTasks.map((task) => <article className="resource-row" key={task.id}><div className="resource-row-main"><h2>{task.title}</h2><div className="resource-meta"><span><UserRound size={13} aria-hidden="true" /> Assigned to <strong>{task.assignee}</strong></span><span>Due <strong>{task.dueLabel}</strong></span>{task.blocking && <span>Blocking <strong>{task.blocking}</strong></span>}</div>{task.note && <p><strong>Oga note:</strong> {task.note}</p>}<div className="resource-meta"><Link className="activity-action" href={`/projects/${projectId}/site?task=${task.id}`}>{task.status === 'BLOCKED' ? 'Resolve with an update' : 'Open task'} <ArrowRight size={13} /></Link></div></div><span className={`status-pill ${task.status.toLowerCase()}`}>{task.status.replace('_', ' ')}</span></article>)}</div> : <div className="empty-state"><span className="empty-state-icon">{filter === 'BLOCKED' ? <CircleSlash2 size={20} /> : <ListTodo size={20} />}</span><h2>{filter === 'BLOCKED' ? 'Nothing blocking the site.' : 'Add the first project task.'}</h2><p>{filter === 'BLOCKED' ? 'Oga is watching for changes.' : 'Oga matches site updates to these canonical tasks before changing progress.'}</p>{filter === 'BLOCKED' ? <Link href={`/projects/${projectId}/site`} className="btn btn-primary btn-small">Talk to Oga</Link> : <button className="btn btn-primary btn-small" type="button" onClick={() => setShowCreate(true)}>Add task</button>}</div>}
-      {showCreate ? <div className="modal-backdrop" role="presentation"><section className="create-project-modal" role="dialog" aria-modal="true" aria-labelledby="create-task-title"><button className="modal-close" type="button" onClick={() => setShowCreate(false)} aria-label="Close">×</button><span className="eyebrow">Project setup</span><h2 id="create-task-title">Add a task Oga can recognize.</h2><form className="auth-form" onSubmit={createTask}><label>Task name<input value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={300} placeholder="First-floor blockwork" /></label>{error ? <p role="alert">{error}</p> : null}<button className="btn btn-primary btn-block" type="submit" disabled={submitting}>{submitting ? 'Adding…' : 'Add task'}</button></form></section></div> : null}
+      <div className="page-heading"><div><span className="eyebrow">Lightweight task control</span><h1>Tasks</h1><p>What is moving, what is next and what is stuck.</p></div><div className="page-heading-actions"><button className="btn btn-primary btn-small" type="button" onClick={() => setShowCreate(true)}><Plus size={15} /> Add task</button>{isSetup && tasks.length > 0 && <Link href={`/projects/${projectId}?setup=1`} className="btn btn-accent btn-small">Next step <ArrowRight size={15} /></Link>}</div></div>
+      <div className="resource-toolbar"><div className="filter-tabs" role="tablist" aria-label="Task views">{filters.map((item) => <button className={`filter-tab${filter === item.value ? ' active' : ''}`} type="button" role="tab" aria-selected={filter === item.value} onClick={() => handleFilterChange(item.value)} key={item.value}>{item.label}</button>)}</div><span className="faint" style={{ fontSize: '0.78rem' }}>{visibleTasks.length} {visibleTasks.length === 1 ? 'task' : 'tasks'}</span></div>
+      {visibleTasks.length > 0 ? (
+        <>
+          <div className="data-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '120px' }}>Status</th>
+                  <th>Task</th>
+                  <th style={{ width: '160px' }}>Assignee</th>
+                  <th style={{ width: '160px' }}>Timeline</th>
+                  <th style={{ width: '100px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedTasks.map((task) => (
+                  <tr key={task.id}>
+                    <td>
+                      <span className={`status-pill ${task.status.toLowerCase()}`}>{task.status.replace('_', ' ')}</span>
+                    </td>
+                    <td>
+                      <div className="primary-cell" style={{ marginBottom: '4px' }}>{task.title}</div>
+                      {(task.blocking || task.note) && (
+                        <div className="secondary-cell" style={{ whiteSpace: 'normal', lineHeight: 1.4 }}>
+                          {task.blocking && <div style={{ color: 'var(--accent)', marginBottom: '4px' }}><strong>Blocking:</strong> {task.blocking}</div>}
+                          {task.note && <div><strong>OG note:</strong> {task.note}</div>}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.86rem', color: 'var(--ink-soft)' }}>
+                        <UserRound size={13} /> <strong>{task.assignee}</strong>
+                      </div>
+                    </td>
+                    <td className="secondary-cell">{task.dueLabel}</td>
+                    <td className="action-cell">
+                      <Link className="btn btn-quiet btn-small" href={`/projects/${projectId}/site?task=${task.id}`}>
+                        {task.status === 'BLOCKED' ? 'Resolve' : 'Open'}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            currentPage={page}
+            totalItems={visibleTasks.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+        </>
+      ) : <div className="empty-state"><span className="empty-state-icon">{filter === 'BLOCKED' ? <CircleSlash2 size={20} /> : <ListTodo size={20} />}</span><h2>{filter === 'BLOCKED' ? 'No blocked tasks.' : 'No tasks found.'}</h2><p>{filter === 'BLOCKED' ? 'Everything is moving smoothly.' : 'Create tasks to track progress.'}</p></div>}
+      {showCreate ? (
+        <TaskCreateDialog
+          projectId={projectId}
+          onClose={() => setShowCreate(false)}
+          onRefresh={onRefresh}
+          onSuccess={() => setFilter('ACTIVE')}
+        />
+      ) : null}
     </div>
   );
 }

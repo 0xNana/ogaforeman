@@ -12,14 +12,31 @@ import {
   MessageSquareText,
   Package,
   PackageCheck,
+  Info,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { ProjectSnapshot } from '@/lib/api';
 
 const ACTIVITY_PAGE_SIZE = 5;
 
 export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isSetup = searchParams?.get('setup') === '1';
+
+  useEffect(() => {
+    if (!isSetup) return;
+    if (snapshot.tasks.length === 0) {
+      router.push(`/projects/${snapshot.project.id}/tasks?setup=1`);
+    } else if (snapshot.materials.length === 0) {
+      router.push(`/projects/${snapshot.project.id}/materials?setup=1`);
+    } else {
+      router.replace(`/projects/${snapshot.project.id}`);
+    }
+  }, [isSetup, snapshot.project.id, snapshot.tasks.length, snapshot.materials.length, router]);
+
   const [activityPage, setActivityPage] = useState(1);
   const completedCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'COMPLETED').length, [snapshot.tasks]);
   const attentionCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'BLOCKED' || task.needsAttention).length + snapshot.approvals.filter((approval) => approval.status === 'PENDING').length, [snapshot.approvals, snapshot.tasks]);
@@ -35,6 +52,10 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
   );
   const needsFirstSiteSetup = snapshot.report.date === 'No report yet';
 
+  if (isSetup && (snapshot.tasks.length === 0 || snapshot.materials.length === 0)) {
+    return <div className="loading-stack" aria-busy="true"><div className="loading-block loading-heading" /></div>;
+  }
+
   return (
     <div>
       <div className="page-heading">
@@ -46,7 +67,29 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
 
       <div className="app-grid">
         <div>
-          <div className="stats-row" aria-label="Today summary"><div className="stat-card"><span className="stat-card-label">Completed</span><span className="stat-card-value">{completedCount}</span></div><div className="stat-card warning"><span className="stat-card-label">Needs attention</span><span className="stat-card-value">{attentionCount}</span></div><div className="stat-card waiting"><span className="stat-card-label">Waiting</span><span className="stat-card-value">{waitingCount}</span></div></div>
+          <div className="stats-row" aria-label="Today summary">
+            <div className="stat-card">
+              <span className="stat-card-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Tasks that have been fully completed.">
+                Completed
+                <Info size={14} style={{ color: 'var(--ink-soft)' }} />
+              </span>
+              <span className="stat-card-value">{completedCount}</span>
+            </div>
+            <div className="stat-card warning">
+              <span className="stat-card-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Blocked tasks and pending approvals that require your action.">
+                Needs attention
+                <Info size={14} style={{ color: 'var(--ink-soft)' }} />
+              </span>
+              <span className="stat-card-value">{attentionCount}</span>
+            </div>
+            <div className="stat-card waiting">
+              <span className="stat-card-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Upcoming tasks that have not started yet.">
+                Waiting
+                <Info size={14} style={{ color: 'var(--ink-soft)' }} />
+              </span>
+              <span className="stat-card-value">{waitingCount}</span>
+            </div>
+          </div>
 
           <section className="app-card feed-card" aria-labelledby="today-title">
             <div className="card-heading"><h2 id="today-title">Today</h2><span>{snapshot.activities.length} updates</span></div>
@@ -77,7 +120,7 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
           </section>
         </div>
 
-        <aside className="needs-column" aria-labelledby="needs-title"><div className="needs-heading"><h2 id="needs-title">Needs you</h2><span>{pendingApprovals.length + blockers.length + followUps.length} open</span></div>{pendingApprovals.map((approval) => <div className="needs-card material" key={approval.id}><span className="needs-type">Approval</span><h3>{approval.title}</h3><p>{approval.quantity} · Needed {approval.neededBy}</p><Link href={`/projects/${snapshot.project.id}/approvals`} className="btn btn-primary btn-small btn-block">Review <ArrowRight size={14} /></Link></div>)}{blockers.map((task) => <div className="needs-card blocker" key={task.id}><span className="needs-type">Blocker</span><h3>{task.title}</h3><p>{task.blocking ? `${task.blocking} is at risk.` : task.note}</p><Link href={`/projects/${snapshot.project.id}/tasks`} className="btn btn-quiet btn-small btn-block">Review blocker <ArrowRight size={14} /></Link></div>)}{followUps.map((task) => <div className="needs-card blocker" key={task.id}><span className="needs-type">Follow-up</span><h3>{task.title}</h3><p>Assigned to {task.assignee}.</p><Link href={`/projects/${snapshot.project.id}/tasks`} className="btn btn-quiet btn-small btn-block">Open follow-up <ArrowRight size={14} /></Link></div>)}{pendingApprovals.length === 0 && blockers.length === 0 && followUps.length === 0 && <div className="clear-card"><strong>You&apos;re clear.</strong><p>Oga will let you know when something needs you.</p></div>}<div className="app-card app-card-pad"><span className="needs-type">Oga&apos;s brief</span><h3 style={{ marginTop: '12px', fontSize: '1.05rem' }}>The day is moving.</h3><p style={{ marginTop: '8px', color: 'var(--ink-soft)', fontSize: '0.82rem' }}>Blockwork is done. Electrical work needs a follow-up. Cement is the next decision.</p><Link href={`/projects/${snapshot.project.id}/reports`} className="activity-action">Open today&apos;s report <ArrowRight size={13} /></Link></div></aside>
+        <aside className="needs-column" aria-labelledby="needs-title"><div className="needs-heading"><h2 id="needs-title">Needs you</h2><span>{pendingApprovals.length + blockers.length + followUps.length} open</span></div>{pendingApprovals.map((approval) => <div className="needs-card material" key={approval.id}><span className="needs-type">Approval</span><h3>{approval.title}</h3><p>{approval.quantity} · Needed {approval.neededBy}</p><Link href={`/projects/${snapshot.project.id}/approvals`} className="btn btn-primary btn-small btn-block">Review <ArrowRight size={14} /></Link></div>)}{blockers.map((task) => <div className="needs-card blocker" key={task.id}><span className="needs-type">Blocker</span><h3>{task.title}</h3><p>{task.blocking ? `${task.blocking} is at risk.` : task.note}</p><Link href={`/projects/${snapshot.project.id}/tasks`} className="btn btn-quiet btn-small btn-block">Review blocker <ArrowRight size={14} /></Link></div>)}{followUps.map((task) => <div className="needs-card blocker" key={task.id}><span className="needs-type">Follow-up</span><h3>{task.title}</h3><p>Assigned to {task.assignee}.</p><Link href={`/projects/${snapshot.project.id}/tasks`} className="btn btn-quiet btn-small btn-block">Open follow-up <ArrowRight size={14} /></Link></div>)}{pendingApprovals.length === 0 && blockers.length === 0 && followUps.length === 0 && <div className="clear-card"><strong>You&apos;re clear.</strong><p>OG will let you know when something needs you.</p></div>}<div className="app-card app-card-pad"><span className="needs-type">OG&apos;s brief</span><h3 style={{ marginTop: '12px', fontSize: '1.05rem' }}>The day is moving.</h3><p style={{ marginTop: '8px', color: 'var(--ink-soft)', fontSize: '0.82rem' }}>Blockwork is done. Electrical work needs a follow-up. Cement is the next decision.</p><Link href={`/projects/${snapshot.project.id}/reports`} className="activity-action">Open today&apos;s report <ArrowRight size={13} /></Link></div></aside>
       </div>
     </div>
   );
@@ -87,7 +130,7 @@ function FirstSiteSetup({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
   const steps = [
     {
       complete: snapshot.tasks.length > 0,
-      description: 'Add the jobs and milestones Oga should recognize in site updates.',
+      description: 'Add the jobs and milestones OG should recognize in site updates.',
       href: `/projects/${snapshot.project.id}/tasks`,
       icon: ClipboardList,
       label: 'Add your first task',
@@ -101,7 +144,7 @@ function FirstSiteSetup({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
     },
     {
       complete: false,
-      description: 'Tell Oga what happened today by text, voice, photo or file.',
+      description: 'Tell OG what happened today by text, voice, photo or file.',
       href: `/projects/${snapshot.project.id}/site`,
       icon: MessageSquareText,
       label: 'Send the first site update',
@@ -113,7 +156,7 @@ function FirstSiteSetup({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
       <div className="first-site-intro">
         <span className="eyebrow">Start here</span>
         <h2 id="first-site-title">Set up your first site.</h2>
-        <p>Give Oga enough project context to recognize what your team reports and follow through safely.</p>
+        <p>Give OG enough project context to recognize what your team reports and follow through safely.</p>
       </div>
       <ol className="first-site-steps">
         {steps.map(({ complete, description, href, icon: Icon, label }, index) => (

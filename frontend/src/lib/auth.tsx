@@ -102,5 +102,5 @@ function toAuthError(cause: unknown): AuthActionError {
     'auth/user-disabled': 'This account is disabled. Contact your project administrator.',
     'auth/unavailable': 'Sign-in is not configured for this environment yet.',
   };
-  return { code, message: messages[code] ?? 'Oga could not complete that request. Try again.' };
+  return { code, message: messages[code] ?? 'OG could not complete that request. Try again.' };
 }

@@ -2,8 +2,9 @@
 
 import { ArrowRight, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ApiRequestError, api, type Approval, type Task } from '@/lib/api';
+import { Pagination } from '@/components/pagination';
 
 type ApprovalListProps = {
   approvals: Approval[];
@@ -19,6 +20,19 @@ export function ApprovalList({ approvals: initialApprovals, followUps, projectId
   const approvals = initialApprovals.map((approval) => resolvedApprovals[approval.id] ?? approval);
   const pendingCount = approvals.filter((approval) => approval.status === 'PENDING').length;
   const waitingCount = pendingCount + followUps.length;
+
+  const items = useMemo(() => {
+    return [
+      ...followUps.map(t => ({ type: 'task' as const, data: t })),
+      ...approvals.map(a => ({ type: 'approval' as const, data: a }))
+    ];
+  }, [followUps, approvals]);
+
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
+  const paginatedItems = useMemo(() => {
+    return items.slice((page - 1) * pageSize, page * pageSize);
+  }, [items, page, pageSize]);
 
   async function decide(approvalId: string, decision: 'APPROVE' | 'REJECT') {
     const approval = approvals.find((item) => item.id === approvalId);
@@ -53,7 +67,45 @@ export function ApprovalList({ approvals: initialApprovals, followUps, projectId
     <div>
       <div className="page-heading"><div><span className="eyebrow">Human control</span><h1>Needs you</h1><p>Important actions stay yours. {waitingCount > 0 ? `${waitingCount} item${waitingCount === 1 ? '' : 's'} waiting.` : 'Nothing is waiting.'}</p></div></div>
       {error && <div className="status-banner error" role="alert"><span>{error}</span><button className="auth-text-button" type="button" onClick={() => void refreshApprovals()}>Refresh approvals</button></div>}
-      {approvals.length > 0 || followUps.length > 0 ? <div className="approval-list">{followUps.map((task) => <FollowUpCard key={task.id} task={task} projectId={projectId} />)}{approvals.map((approval) => <article className="approval-resource-card" key={approval.id}><div className="approval-resource-head"><span className={`status-pill ${approval.status.toLowerCase()}`}>{approval.status}</span><span>{approval.date}</span></div><span className="needs-type">{approval.type}</span><h2>{approval.title}</h2><dl className="approval-resource-details"><div><dt>Oga recommends</dt><dd>{approval.quantity}</dd></div><div><dt>Needed by</dt><dd>{approval.neededBy}</dd></div><div><dt>Requested by</dt><dd>{approval.requestedBy}</dd></div></dl><p>{approval.reason}</p>{approval.status === 'PENDING' ? <div className="approval-actions"><button className="btn btn-primary" type="button" disabled={busy === approval.id} onClick={() => decide(approval.id, 'APPROVE')}>{busy === approval.id ? 'Saving...' : 'Approve'}</button><button className="btn btn-quiet" type="button" disabled={busy === approval.id} onClick={() => decide(approval.id, 'REJECT')}>Reject</button></div> : <DecisionReceipt approval={approval} projectId={projectId} />}</article>)}</div> : <div className="empty-state"><span className="empty-state-icon"><ShieldCheck size={20} /></span><h2>You&apos;re clear.</h2><p>Nothing needs your approval right now.</p></div>}
+      {items.length > 0 ? (
+        <>
+          <div className="approval-list">
+            {paginatedItems.map((item) => {
+              if (item.type === 'task') {
+                return <FollowUpCard key={`task-${item.data.id}`} task={item.data} projectId={projectId} />;
+              }
+              const approval = item.data;
+              return (
+                <article className="approval-resource-card" key={`approval-${approval.id}`}>
+                  <div className="approval-resource-head"><span className={`status-pill ${approval.status.toLowerCase()}`}>{approval.status}</span><span>{approval.date}</span></div>
+                  <span className="needs-type">{approval.type}</span>
+                  <h2>{approval.title}</h2>
+                  <dl className="approval-resource-details"><div><dt>OG recommends</dt><dd>{approval.quantity}</dd></div><div><dt>Needed by</dt><dd>{approval.neededBy}</dd></div><div><dt>Requested by</dt><dd>{approval.requestedBy}</dd></div></dl>
+                  <p>{approval.reason}</p>
+                  {approval.status === 'PENDING' ? (
+                    <div className="approval-actions">
+                      <button className="btn btn-primary" type="button" disabled={busy === approval.id} onClick={() => decide(approval.id, 'APPROVE')}>{busy === approval.id ? 'Saving...' : 'Approve'}</button>
+                      <button className="btn btn-quiet" type="button" disabled={busy === approval.id} onClick={() => decide(approval.id, 'REJECT')}>Reject</button>
+                    </div>
+                  ) : <DecisionReceipt approval={approval} projectId={projectId} />}
+                </article>
+              );
+            })}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalItems={items.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+        </>
+      ) : (
+        <div className="empty-state">
+          <span className="empty-state-icon"><ShieldCheck size={20} /></span>
+          <h2>You&apos;re clear.</h2>
+          <p>Nothing needs your approval right now.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -61,7 +113,7 @@ export function ApprovalList({ approvals: initialApprovals, followUps, projectId
 function FollowUpCard({ task, projectId }: Readonly<{ task: Task; projectId: string }>) {
   return (
     <article className="approval-resource-card">
-      <div className="approval-resource-head"><span className="status-pill pending">PENDING</span><span>{task.dueLabel}</span></div>
+      <div className="approval-resource-head"><span className={`status-pill ${task.status.toLowerCase()}`}>{task.status.replace('_', ' ')}</span><span>{task.dueLabel}</span></div>
       <span className="needs-type">Follow-up</span>
       <h2>{task.title}</h2>
       <dl className="approval-resource-details"><div><dt>Assigned to</dt><dd>{task.assignee}</dd></div><div><dt>Source</dt><dd>Site update</dd></div></dl>
@@ -82,7 +134,7 @@ function DecisionReceipt({ approval, projectId }: Readonly<{ approval: Approval;
         <strong>{approved ? 'Approval recorded' : 'Request closed'}</strong>
         <p>
           {approved
-            ? 'Oga is resuming from the saved checkpoint.'
+            ? 'OG is resuming from the saved checkpoint.'
             : 'No supplier or external action will run.'}
         </p>
         <Link href={`/projects/${projectId}/activity`}>

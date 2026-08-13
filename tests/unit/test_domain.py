@@ -176,3 +176,28 @@ def test_task_transition_policy_blocks_automatic_reopening() -> None:
             TaskStatus.COMPLETED,
             human_correction=True,
         )
+
+
+def test_task_transition_policy_limits_reconciled_completion_to_planned_tasks() -> None:
+    with pytest.raises(InvalidTransitionError):
+        ensure_task_transition(TaskStatus.PLANNED, TaskStatus.COMPLETED)
+
+    ensure_task_transition(
+        TaskStatus.PLANNED,
+        TaskStatus.COMPLETED,
+        reconciled_completion=True,
+    )
+    ensure_task_transition(TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED)
+
+    with pytest.raises(InvalidTransitionError):
+        ensure_task_transition(
+            TaskStatus.CANCELLED,
+            TaskStatus.COMPLETED,
+            reconciled_completion=True,
+        )
+    with pytest.raises(InvalidTransitionError):
+        ensure_task_transition(
+            TaskStatus.BLOCKED,
+            TaskStatus.COMPLETED,
+            reconciled_completion=True,
+        )

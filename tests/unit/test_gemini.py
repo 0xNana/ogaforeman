@@ -47,6 +47,29 @@ def test_vertex_client_is_used_without_local_api_key(monkeypatch: pytest.MonkeyP
     )
 
 
+def test_vertex_client_can_be_selected_explicitly_when_local_key_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_constructor = Mock(return_value=Mock())
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", client_constructor)
+    settings = Settings(
+        _env_file=None,
+        use_fake_model=False,
+        gemini_api_key="developer-key",
+        google_cloud_project="oga-project",
+        gemini_location="global",
+        gemini_model_id="configured-model",
+    )
+
+    create_gemini_client(settings, prefer_vertex=True)
+
+    client_constructor.assert_called_once_with(
+        vertexai=True,
+        project="oga-project",
+        location="global",
+    )
+
+
 def test_deployed_runtime_uses_vertex_even_when_api_key_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

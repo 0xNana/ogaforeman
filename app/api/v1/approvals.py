@@ -10,6 +10,7 @@ from app.api.errors import ApiError
 from app.domain.activity import MutationContext
 from app.domain.authorization import ProjectPermission
 from app.domain.enums import ActorType
+from app.infrastructure.pubsub import PubSubClient
 from app.services.approvals import ApprovalService, ResolutionCommand
 
 from .projections import approval_projection
@@ -49,7 +50,9 @@ def resolve_approval(
         idempotency_key=require_idempotency_key(request),
         occurred_at=occurred_at,
     )
-    service = ApprovalService(runtime.store)
+    settings = getattr(request.app.state, "settings", None)
+    publisher = PubSubClient(settings) if settings is not None else None
+    service = ApprovalService(runtime.store, publisher)
     result = (
         service.approve(access, command, context)
         if payload.decision == "approved"

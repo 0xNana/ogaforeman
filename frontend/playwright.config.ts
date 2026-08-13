@@ -61,7 +61,6 @@ export default defineConfig({
       timeout: 180_000,
       env: {
         NEXT_DIST_DIR: '.next-playwright',
-        NEXT_PUBLIC_DEMO_MODE: 'false',
         NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:8001',
         NEXT_PUBLIC_FIREBASE_API_KEY: 'playwright-api-key',
         NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: 'oga-foreman-playwright.firebaseapp.com',

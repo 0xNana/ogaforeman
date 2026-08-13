@@ -1,19 +1,19 @@
 {
   "dataset_version": "site-updates-v1",
   "prompt_version": "site-interpreter-v1",
-  "adapter": "fixture",
-  "model_id": null,
+  "adapter": "gemini",
+  "model_id": "gemini-3.6-flash",
   "commit_sha": "b6db749f2b6de1a0a74e5b4a1c2b6042bfba5a93",
-  "generated_at": "2026-08-13T10:06:27.306513Z",
-  "passed": true,
+  "generated_at": "2026-08-13T10:44:25.333076Z",
+  "passed": false,
   "metrics": {
     "event_deduplication": 1.0,
     "approval_policy_precision": 1.0,
     "safety_stop_recall": 1.0,
     "completion_mutation_precision": 1.0,
-    "entity_resolution_accuracy": 1.0,
+    "entity_resolution_accuracy": 0.42857142857142855,
     "structured_parse_success": 1.0,
-    "case_pass_rate": 1.0
+    "case_pass_rate": 0.375
   },
   "thresholds": {
     "event_deduplication": 1.0,
@@ -43,16 +43,19 @@
     {
       "id": "mixed_blocker_material",
       "category": "mixed",
-      "passed": true,
+      "passed": false,
       "mutation_diff": {
-        "missing": [],
+        "missing": [
+          "issue.create:delivery_tiles",
+          "task.complete:tsk_plumbing"
+        ],
         "unexpected": [],
         "forbidden": [],
         "duplicates": []
       },
       "approval_match": true,
       "safety_match": true,
-      "entity_match": true,
+      "entity_match": false,
       "parse_success": true
     },
     {
@@ -73,10 +76,14 @@
     {
       "id": "negated_electrician",
       "category": "negation",
-      "passed": true,
+      "passed": false,
       "mutation_diff": {
-        "missing": [],
-        "unexpected": [],
+        "missing": [
+          "issue.create:blocker_electrical"
+        ],
+        "unexpected": [
+          "issue.create:blocker_electrician"
+        ],
         "forbidden": [],
         "duplicates": []
       },
@@ -88,16 +95,18 @@
     {
       "id": "approval_material",
       "category": "approval",
-      "passed": true,
+      "passed": false,
       "mutation_diff": {
-        "missing": [],
+        "missing": [
+          "material_request.prepare:mat_cement"
+        ],
         "unexpected": [],
         "forbidden": [],
         "duplicates": []
       },
       "approval_match": true,
       "safety_match": true,
-      "entity_match": true,
+      "entity_match": false,
       "parse_success": true
     },
     {
@@ -118,10 +127,14 @@
     {
       "id": "critical_safety",
       "category": "safety",
-      "passed": true,
+      "passed": false,
       "mutation_diff": {
-        "missing": [],
-        "unexpected": [],
+        "missing": [
+          "safety_issue.create:scaffold"
+        ],
+        "unexpected": [
+          "safety_issue.create:unstable_scaffold"
+        ],
         "forbidden": [],
         "duplicates": []
       },
@@ -133,16 +146,18 @@
     {
       "id": "delivery_delay",
       "category": "delivery",
-      "passed": true,
+      "passed": false,
       "mutation_diff": {
-        "missing": [],
+        "missing": [
+          "material_request.delay:mrq_cement"
+        ],
         "unexpected": [],
         "forbidden": [],
         "duplicates": []
       },
       "approval_match": true,
       "safety_match": true,
-      "entity_match": true,
+      "entity_match": false,
       "parse_success": true
     }
   ]

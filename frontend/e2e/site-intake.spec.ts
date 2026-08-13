@@ -10,24 +10,24 @@ test.beforeEach(async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Site intake evidence runs on mobile.');
   await signInToProject(page, testInfo);
   await page.goto(`/projects/${projectId}/site`);
-  await expect(page.getByRole('heading', { name: 'Tell Oga what happened.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tell OG what happened.' })).toBeVisible();
 });
 
 test('uses one compact composer for text, attachments and voice', async ({ page }) => {
   const textInput = page.getByLabel('Type a site update');
   const attachmentButton = page.getByRole('button', { name: 'Add attachment' });
   const microphoneButton = page.getByRole('button', { name: 'Start voice recording' });
-  const sendButton = page.getByRole('button', { name: 'Send to Oga' });
+  const sendButton = page.getByRole('button', { name: 'Send to OG' });
 
   await expect(textInput).toBeVisible();
-  await expect(textInput).toHaveAttribute('placeholder', 'Tell Oga what happened on site...');
+  await expect(textInput).toHaveAttribute('placeholder', 'Tell OG what happened on site...');
   await expect(attachmentButton).toBeVisible();
   await expect(attachmentButton).toHaveText('');
   await expect(microphoneButton).toBeVisible();
   await expect(microphoneButton).toHaveText('');
   await expect(sendButton).toBeVisible();
   await expect(sendButton).toHaveText('');
-  await expect(page.getByText('Hold to talk to Oga')).toHaveCount(0);
+  await expect(page.getByText('Hold to talk to OG')).toHaveCount(0);
 
   const accessibility = await new AxeBuilder({ page })
     .include('.site-composer-page')
@@ -46,19 +46,19 @@ test('runs a site update through real approval and same-run continuation', async
     'First-floor blockwork is complete. The electrician did not come today. '
       + 'We have 10 bags of cement left. Plastering starts tomorrow.',
   );
-  await page.getByRole('button', { name: 'Send to Oga' }).click();
+  await page.getByRole('button', { name: 'Send to OG' }).click();
   await expect(page.getByRole('status')).toContainText('Checking the project');
   const acceptedRequest = await siteRequest;
   const acceptedResponse = await acceptedRequest.response();
   const accepted = await acceptedResponse?.json();
 
   expect(accepted).toBeTruthy();
-  await expect(page.getByRole('heading', { name: 'Oga understood the update.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'OG understood the update.' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('One decision is waiting for a manager');
-  await expect(page.getByLabel('Oga response')).toContainText(
+  await expect(page.getByLabel('OG response')).toContainText(
     'Electrical rough-in is blocked',
   );
-  await expect(page.getByLabel('Oga pending actions')).toContainText(
+  await expect(page.getByLabel('OG pending actions')).toContainText(
     'Review schedule impact on First-floor plastering',
   );
   const pausedRun = await request.get(`http://127.0.0.1:8001${accepted.status_url}`, {
@@ -68,7 +68,7 @@ test('runs a site update through real approval and same-run continuation', async
   expect((await pausedRun.json()).status).toBe('waiting_for_approval');
 
   await page.goto(`/projects/${projectId}/tasks`);
-  const followUpRow = page.getByRole('article').filter({ hasText: 'Follow up: Electrical rough-in' });
+  const followUpRow = page.getByRole('row').filter({ hasText: 'Follow up: Electrical rough-in' });
   await expect(followUpRow).toBeVisible();
   await expect(followUpRow).toContainText('usr_kofi123');
 
@@ -81,7 +81,7 @@ test('runs a site update through real approval and same-run continuation', async
   await purchaseCard.getByRole('button', { name: 'Approve' }).click();
   await expect(purchaseCard.getByText('APPROVED')).toBeVisible();
   await expect(purchaseCard.getByRole('status')).toContainText(
-    'Oga is resuming from the saved checkpoint.',
+    'OG is resuming from the saved checkpoint.',
   );
 
   await expect.poll(async () => {
@@ -91,8 +91,8 @@ test('runs a site update through real approval and same-run continuation', async
     return (await response.json()).status;
   }).toBe('completed');
   await purchaseCard.getByRole('link', { name: 'Follow in activity' }).click();
-  await expect(page.getByRole('heading', {
-    name: 'Submitted an approved material request to the supplier simulator.',
+  await expect(page.getByRole('row', {
+    name: /Submitted an approved material request to the supplier simulator\./,
   })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
@@ -112,7 +112,7 @@ test('uploads and submits a photo using the signed attachment contract', async (
     candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
   ));
 
-  await page.getByRole('button', { name: 'Send to Oga' }).click();
+  await page.getByRole('button', { name: 'Send to OG' }).click();
   await expect(page.getByText('Adding your site photos...')).toBeVisible();
   const payload = JSON.parse((await siteRequest).postData() ?? '{}');
 
@@ -135,12 +135,12 @@ test('records and submits a voice update', async ({ context, page }) => {
     candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
   ));
 
-  await page.getByRole('button', { name: 'Send to Oga' }).click();
+  await page.getByRole('button', { name: 'Send to OG' }).click();
   const payload = JSON.parse((await siteRequest).postData() ?? '{}');
 
   expect(payload.input_type).toBe('voice');
   expect(payload.attachment_ids).toHaveLength(1);
-  await expect(page.getByText('Oga handled it.')).toBeVisible();
+  await expect(page.getByText('OG handled it.')).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
 
@@ -172,7 +172,7 @@ test('rejects an invalid attachment before creating a site update', async ({ pag
     buffer: Buffer.from('<script>alert(1)</script>'),
   });
 
-  await page.getByRole('button', { name: 'Send to Oga' }).click();
+  await page.getByRole('button', { name: 'Send to OG' }).click();
 
   await expect(page.locator('.status-banner[role="alert"]')).toContainText('Use a photo, audio note or PDF.');
   expect(submitted).toBe(false);
@@ -189,7 +189,7 @@ test('persists a recoverable processing failure without a phrase trigger', async
   const siteRequest = page.waitForRequest((candidate) => (
     candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
   ));
-  await page.getByRole('button', { name: 'Send to Oga' }).click();
+  await page.getByRole('button', { name: 'Send to OG' }).click();
   const submitted = await siteRequest;
   const response = await submitted.response();
   expect(response?.status()).toBe(503);

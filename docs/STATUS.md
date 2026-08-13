@@ -2,7 +2,7 @@
 
 ## Status date
 
-2026-08-09
+2026-08-13
 
 ## Summary
 
@@ -71,13 +71,13 @@ resolved; remaining gates require deployed auth/operations evidence, a
 configured model, or human release review. The canonical evidence checklist is
 [tasks/todo-v1.md](../tasks/todo-v1.md).
 
-## Locally verified on 2026-08-09
+## Locally verified on 2026-08-13
 
 - uv locked sync: passed
 - Ruff check and format: passed
 - Mypy app: passed
-- Backend without backing services: 299 passed, 22 deselected
-- Firestore/Storage backing-service gate: 22 passed, no skips
+- Backend without backing services: 305 passed, 23 deselected
+- Firestore/Storage backing-service gate: 23 passed, no skips
 - P0.1 focused multimodal suite: 79 passed, 1 Firestore test skipped in the
   clean run and then passed separately against `127.0.0.1:8085`
 - Full Firestore emulator integration: 92 passed
@@ -97,8 +97,8 @@ configured model, or human release review. The canonical evidence checklist is
   Storage clients; the focused six-case mobile intake suite also passes
 - P0.7 semantic audit timeline: required success/rejection events persist across
   fresh clients, remain single under replay, and carry no raw voice/model content
-- Frontend install, checks, and build: passed with 11 unit tests
-- Playwright desktop/mobile: 17 passed, 13 intentional device skips
+- Frontend install, checks, and build: passed with 15 unit tests
+- Playwright desktop/mobile: 18 passed, 14 intentional device skips
 - Production npm audit: zero vulnerabilities
 - Documentation links/tests: passed
 - Isolated clean-checkout command matrix: passed
@@ -239,14 +239,20 @@ fallback derived from their persisted lifecycle timestamps.
   production code exclusively owns persisted workflow state and transitions.
 - The browser attachment path uses the production sign, private upload, verify,
   link, and run-status contracts rather than a direct demo upload endpoint.
-- Production API configuration fails closed; deterministic frontend data is
-  isolated behind explicit demo mode.
+- Authenticated frontend routes contain no project fixture snapshot or demo API;
+  missing API configuration fails closed. The public `/demo` page remains a
+  static marketing illustration and never reads or writes project state.
 - CI installs locked dependencies, runs backend/frontend checks and Playwright,
   builds the container, and executes the non-root API/worker container smoke.
 
 ## Open implementation blockers
 
 No known non-cloud implementation blockers remain in the canonical V1 scope.
+Production cleanup removed the runtime frontend project fixture API and stray
+untracked Gemini/Pub/Sub diagnostic scripts. Emulator-only seed/reset and fake
+adapters remain solely as guarded verification infrastructure. Authenticated
+reports now render the API-backed project identity instead of the canonical demo
+project label, with a production-readiness regression guard.
 
 ## Phase 8 state
 
@@ -257,7 +263,7 @@ No known non-cloud implementation blockers remain in the canonical V1 scope.
 | R-03 | Staging health, metrics, log correlation, and five policies pass; Cloud Trace span and alert delivery remain |
 | R-04 | Isolated Firestore export/import and Storage generation recovery pass; first managed backup remains pending |
 | L-01 | Staging deploy, IAM, Scheduler, rollback, and Firebase sign-up/bootstrap pass; post-redeploy authenticated workflow smoke remains |
-| L-02 | Three-run deterministic four-workflow rehearsal passes; live-model rehearsal absent |
+| L-02 | Three-run deterministic four-workflow rehearsal passes; live Gemini reached the production worker, while configured eval/review remains open |
 | L-03 | Complete locally: isolated locked install, test, build, browser, eval, demo, capacity, and docs matrix passes |
 
 ## External release gates

@@ -133,6 +133,7 @@ def material_projection(
         "forWork": "Upcoming work",
         "status": status,
         "note": note,
+        "version": material.version,
     }
 
 

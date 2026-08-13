@@ -12,5 +12,6 @@ export default function ProjectLayout({ children }: Readonly<{ children: React.R
 
 function ProjectFrame({ children }: Readonly<{ children: React.ReactNode }>) {
   const { snapshot } = useProject();
-  return <AppShell project={snapshot.project}>{children}</AppShell>;
+  const pendingCount = snapshot.approvals.filter((a) => a.status === 'PENDING').length;
+  return <AppShell project={snapshot.project} pendingApprovalCount={pendingCount}>{children}</AppShell>;
 }

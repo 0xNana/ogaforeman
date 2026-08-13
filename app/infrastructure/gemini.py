@@ -9,13 +9,13 @@ from app.config.settings import RuntimeEnvironment, Settings
 from app.domain.facts import ExtractedFactSet
 
 
-def create_gemini_client(settings: Settings) -> genai.Client:
+def create_gemini_client(settings: Settings, *, prefer_vertex: bool = False) -> genai.Client:
     """Create a real Gemini client without falling back to a fake model."""
 
     if settings.use_fake_model:
         raise RuntimeError("Live Gemini requires USE_FAKE_MODEL=false")
 
-    if (
+    if not prefer_vertex and (
         settings.oga_env in {RuntimeEnvironment.LOCAL, RuntimeEnvironment.TEST}
         and settings.gemini_api_key is not None
     ):

@@ -37,10 +37,10 @@ describe('AppShell', () => {
       </AppShell>,
     );
 
-    const footer = screen.getByText('Oga keeps watching unresolved work.').parentElement;
+    const footer = screen.getByText('OG keeps watching unresolved work.').parentElement;
     expect(footer).not.toBeNull();
     const actions = Array.from((footer as HTMLElement).querySelectorAll('a, button'));
-    expect(actions.map((action) => action.textContent?.trim())).toEqual(['3Needs you', 'Sign Out']);
+    expect(actions.map((action) => action.textContent?.trim())).toEqual(['Needs you', 'Sign Out']);
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign Out' }));
 

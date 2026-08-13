@@ -24,6 +24,11 @@ vi.mock('@/lib/api', () => ({
   api: { createMaterial },
 }));
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 describe('MaterialsPage', () => {
   beforeEach(() => {
     createMaterial.mockReset();
@@ -48,6 +53,9 @@ describe('MaterialsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add another material' }));
     fireEvent.change(screen.getByLabelText('Material name 2'), {
+      target: { value: 'custom' },
+    });
+    fireEvent.change(screen.getByLabelText('Custom material name 2'), {
       target: { value: 'Sharp sand' },
     });
     fireEvent.change(screen.getByLabelText('Unit 2'), {
@@ -110,7 +118,7 @@ describe('MaterialsPage', () => {
     await waitFor(() => expect(createMaterial).toHaveBeenCalledTimes(3));
     expect(createMaterial).toHaveBeenLastCalledWith('prj_ridge', {
       name: 'Nails',
-      unit: 'bags',
+      unit: 'boxes',
       available_quantity: 0,
       minimum_required_quantity: 0,
     });

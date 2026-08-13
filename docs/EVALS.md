@@ -78,6 +78,20 @@ returns a failure. Generate it with:
 That command intentionally exits with status 1. A configured model run remains
 required before changing the production prompt/model.
 
+Run the billed Vertex AI route explicitly when a local Developer API key is also
+present:
+
+```bash
+.venv/bin/python scripts/run_evals.py \
+  --adapter gemini \
+  --backend vertex \
+  --output artifacts/evals/live-gemini.json
+```
+
+`--backend auto` preserves local Developer API selection. Release evidence must
+name the backend so an exhausted local key cannot mask the configured Vertex
+billing route.
+
 ## Regression Process
 
 1. Add a failing case for every discovered extraction, policy, or workflow bug.

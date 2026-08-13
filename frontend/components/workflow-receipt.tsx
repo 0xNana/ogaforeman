@@ -46,7 +46,7 @@ export function WorkflowReceipt({
             {waiting ? 'Safe handoff' : 'Update handled'}
           </span>
           <h2 id="workflow-receipt-title">
-            {waiting ? 'Oga understood the update.' : 'Oga handled it.'}
+            {waiting ? 'OG understood the update.' : 'OG handled it.'}
           </h2>
           <p>
             {waiting
@@ -56,14 +56,14 @@ export function WorkflowReceipt({
         </div>
       </div>
 
-      {summary && <p className="workflow-receipt-response" aria-label="Oga response">{summary}</p>}
+      {summary && <p className="workflow-receipt-response" aria-label="OG response">{summary}</p>}
       {pendingActions.length > 0 && (
-        <ul className="workflow-receipt-pending" aria-label="Oga pending actions">
+        <ul className="workflow-receipt-pending" aria-label="OG pending actions">
           {pendingActions.map((action, index) => <li key={`${index}:${action}`}>{action}</li>)}
         </ul>
       )}
 
-      <ol className="workflow-receipt-steps" aria-label="Oga workflow progress">
+      <ol className="workflow-receipt-steps" aria-label="OG workflow progress">
         {handledSteps.map((label, index) => {
           const isApproval = waiting && index === 4;
           const isResume = waiting && index === 5;

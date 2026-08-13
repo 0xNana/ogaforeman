@@ -43,7 +43,7 @@ describe('AuthScreen', () => {
   });
 
   it('shows a bootstrap failure after Firebase sign-in succeeds', async () => {
-    bootstrapUser.mockRejectedValue(new Error('Oga could not reach the project service.'));
+    bootstrapUser.mockRejectedValue(new Error('OG could not reach the project service.'));
     render(<AuthScreen mode="sign-in" />);
 
     fireEvent.change(screen.getByLabelText('Email'), {
@@ -55,7 +55,7 @@ describe('AuthScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Sign in/ }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Oga could not reach the project service.',
+      'OG could not reach the project service.',
     );
     expect(replace).not.toHaveBeenCalled();
   });

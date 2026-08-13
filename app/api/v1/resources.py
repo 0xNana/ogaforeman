@@ -10,7 +10,7 @@ from app.api.dependencies import configured_project_access, require_idempotency_
 from app.domain.activity import MutationContext
 from app.domain.authorization import ProjectAccessContext, ProjectPermission
 from app.domain.enums import ActorType, TaskPriority
-from app.services.materials import CreateMaterialCommand, MaterialService
+from app.services.materials import CreateMaterialCommand, MaterialQuantityCommand, MaterialService
 from app.services.tasks import CreateTaskCommand, TaskService
 
 from .projects import auth_runtime
@@ -32,6 +32,13 @@ class CreateMaterialRequest(BaseModel):
     available_quantity: Decimal = Field(default=Decimal("0"), ge=0)
     minimum_required_quantity: Decimal = Field(default=Decimal("0"), ge=0)
     upcoming_requirement_quantity: Decimal | None = Field(default=None, ge=0)
+
+
+class AdjustMaterialQuantityRequest(BaseModel):
+    quantity_delta: Decimal
+    unit: str = Field(min_length=1, max_length=100)
+    expected_version: int = Field(ge=0)
+    reason: str = Field(min_length=1, max_length=5_000)
 
 
 def mutation_context(
@@ -72,6 +79,31 @@ def create_material(
         .create_material(
             access,
             CreateMaterialCommand(project_id=project_id, **payload.model_dump()),
+            context,
+        )
+        .material
+    )
+    return material_projection(material, None)
+
+
+@router.post("/{project_id}/materials/{material_id}/adjust")
+def adjust_material_quantity(
+    project_id: str, material_id: str, payload: AdjustMaterialQuantityRequest, request: Request
+) -> dict[str, object]:
+    access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
+    context = MutationContext(
+        project_id=project_id,
+        actor_type=ActorType.USER,
+        actor_id=access.actor.user_id,
+        idempotency_key=require_idempotency_key(request),
+    )
+    material = (
+        MaterialService(auth_runtime(request).store)
+        .adjust_quantity(
+            access,
+            MaterialQuantityCommand(
+                project_id=project_id, material_id_or_alias=material_id, **payload.model_dump()
+            ),
             context,
         )
         .material

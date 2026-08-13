@@ -3,8 +3,8 @@ import './globals.css';
 import { AuthProvider } from '@/src/lib/auth';
 
 export const metadata: Metadata = {
-  title: 'Oga Foreman — Keep the site moving',
-  description: 'Tell Oga what happened on site. Oga handles the follow-through.',
+  title: 'OG Foreman — Keep the site moving',
+  description: 'Tell OG what happened on site. OG handles the follow-through.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

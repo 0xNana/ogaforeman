@@ -71,6 +71,7 @@ def _seed(
     *,
     role: MemberRole = MemberRole.FOREMAN,
     raw_text: str = UPDATE_TEXT,
+    blockwork_status: TaskStatus = TaskStatus.IN_PROGRESS,
 ) -> None:
     store.repository(ProjectMember).create(
         ProjectMember(
@@ -111,9 +112,11 @@ def _seed(
             id="tsk_blockwork123",
             project_id=PROJECT_ID,
             title="First-floor blockwork",
-            status=TaskStatus.IN_PROGRESS,
+            status=blockwork_status,
             source=TaskSource.MANUAL,
-            completion_percent=Decimal("80"),
+            completion_percent=(
+                Decimal("80") if blockwork_status is TaskStatus.IN_PROGRESS else Decimal("0")
+            ),
         )
     )
     store.repository(Material).create(
@@ -326,6 +329,42 @@ async def test_worker_executes_persisted_site_update_through_adk_once() -> None:
         "task.completed",
         "material.quantity_updated",
     }
+
+
+@pytest.mark.asyncio
+async def test_worker_reconciles_planned_task_completion_from_trusted_site_update() -> None:
+    store = InMemoryRepositoryStore()
+    _seed(store, blockwork_status=TaskStatus.PLANNED)
+    event = _event()
+    interpreter = FakeSiteInterpreter(responses={UPDATE_TEXT: _facts()})
+
+    first = await process_event_async(
+        event.model_dump_json().encode(),
+        store=store,
+        settings=Settings(_env_file=None),
+        site_interpreter=interpreter,
+    )
+    duplicate = await process_event_async(
+        event.model_dump_json().encode(),
+        store=store,
+        settings=Settings(_env_file=None),
+        site_interpreter=interpreter,
+    )
+
+    task = store.repository(Task).require(PROJECT_ID, "tsk_blockwork123")
+    completion_activities = [
+        activity
+        for activity in store.repository(ActivityEvent).list(PROJECT_ID)
+        if activity.action == "task.completed"
+    ]
+    assert first.status == "completed"
+    assert duplicate.status == "duplicate"
+    assert task.status is TaskStatus.COMPLETED
+    assert task.completion_percent == Decimal("100")
+    assert task.actual_completion == NOW
+    assert task.version == 1
+    assert len(completion_activities) == 1
+    assert completion_activities[0].metadata["reconciled_completion"] is True
 
 
 @pytest.mark.asyncio

@@ -547,8 +547,15 @@ def test_pr12_project_authorization_and_rate_limits_fail_closed() -> None:
 
 def test_pr13_frontend_demo_state_is_explicit_and_production_fails_closed() -> None:
     api_source = (ROOT / "frontend" / "lib" / "api.ts").read_text(encoding="utf-8")
+    report_source = (
+        ROOT / "frontend" / "app" / "projects" / "[id]" / "reports" / "page.tsx"
+    ).read_text(encoding="utf-8")
 
-    assert "NEXT_PUBLIC_DEMO_MODE" in api_source
+    assert "demoSnapshot" not in api_source
+    assert "demoApi" not in api_source
+    assert "NEXT_PUBLIC_DEMO_MODE" not in api_source
+    assert "Ridge House" not in report_source
+    assert "project.name" in report_source
     assert "ApiConfigurationError" in api_source
     assert "return result ??" not in api_source
     assert "if (!baseUrl) return null" not in api_source

@@ -2,10 +2,15 @@
 
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { CommandCenter } from './command-center';
 import type { ProjectSnapshot } from '@/lib/api';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const snapshot = {
   project: {
@@ -24,7 +29,7 @@ const snapshot = {
     title: `Activity ${index + 1}`,
     description: `Update ${index + 1}`,
     date: `0${index + 1}:00`,
-    user: 'Oga',
+    user: 'OG',
   })),
   report: {
     date: 'Today',

@@ -19,6 +19,7 @@ from app.services.tasks import (
     TaskDependencyIncompleteError,
     TaskEvidenceRejectedError,
     TaskService,
+    TaskStateError,
     UpdateTaskCommand,
 )
 from app.tools.tasks import update_task_progress
@@ -199,3 +200,29 @@ def test_blocked_or_dependency_blocked_task_cannot_complete() -> None:
         TaskService(dependency_store).update_task(make_access(), completion, make_context())
 
     assert dependency_store.repository(ActivityEvent).list("prj_ridge") == ()
+
+
+def test_cancelled_task_cannot_be_reconciled_as_completed() -> None:
+    store = make_store(
+        Task(
+            id="tsk_blockwork",
+            project_id="prj_ridge",
+            title="First-floor blockwork",
+            status=TaskStatus.CANCELLED,
+        )
+    )
+
+    with pytest.raises(TaskStateError, match="cancelled to completed"):
+        TaskService(store).complete_task(
+            make_access(),
+            make_command(
+                completion_percentage=Decimal("100"),
+                reconciled_completion=True,
+            ),
+            make_context(),
+        )
+
+    task = store.repository(Task).require("prj_ridge", "tsk_blockwork")
+    assert task.status is TaskStatus.CANCELLED
+    assert task.version == 0
+    assert store.repository(ActivityEvent).list("prj_ridge") == ()

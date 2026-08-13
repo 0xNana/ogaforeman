@@ -25,8 +25,8 @@ test('desktop command center and activity use API projections', async ({ page },
 
   await page.getByRole('link', { name: 'Activity' }).click();
   await expect(page).toHaveURL(/\/activity$/);
-  await expect(page.getByRole('heading', { name: 'What Oga has handled' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Electrical work is blocked by the absent electrician.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What OG has handled' })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Electrical work is blocked by the absent electrician\./ })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
 
@@ -39,8 +39,8 @@ test('mobile command center navigation remains usable without overflow', async (
   await page.getByRole('button', { name: 'Open project menu' }).click();
   await expect(page.getByRole('button', { name: 'Sign Out' })).toBeVisible();
   await page.getByRole('link', { name: 'Activity' }).click();
-  await expect(page.getByRole('heading', { name: 'What Oga has handled' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Cement shortage detected and sent for approval.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What OG has handled' })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Cement shortage detected and sent for approval\./ })).toBeVisible();
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(browserErrors).toEqual([]);
 });

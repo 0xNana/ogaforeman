@@ -51,6 +51,7 @@ export type Material = {
   forWork: string;
   status: MaterialStatus;
   note: string;
+  version: number;
 };
 
 export type CreateMaterialInput = {
@@ -149,161 +150,6 @@ type UploadGrant = {
   required_headers: Record<string, string>;
 };
 
-const demoSnapshot: ProjectSnapshot = {
-  project: {
-    id: '1',
-    name: 'Ridge House',
-    location: 'East Legon, Accra',
-    status: 'ACTIVE',
-    timezone: 'Africa/Accra',
-  },
-  tasks: [
-    {
-      id: 'tsk_blockwork',
-      title: 'First-floor blockwork',
-      status: 'COMPLETED',
-      assignee: 'Kwame',
-      dueLabel: 'Done today',
-      note: 'Marked complete from this morning\'s site update.',
-    },
-    {
-      id: 'tsk_electrical',
-      title: 'Electrical rough-in',
-      status: 'BLOCKED',
-      assignee: 'Kofi',
-      dueLabel: 'Due today',
-      blocking: 'Ceiling installation',
-      note: 'Electrician was reported absent in today\'s update.',
-    },
-    {
-      id: 'tsk_plastering',
-      title: 'Ground-floor plastering',
-      status: 'PENDING',
-      assignee: 'Ama',
-      dueLabel: 'Starts tomorrow',
-      note: 'Waiting on cement delivery.',
-    },
-    {
-      id: 'tsk_ceiling',
-      title: 'Ceiling installation',
-      status: 'PENDING',
-      assignee: 'Yaw',
-      dueLabel: 'Upcoming',
-      note: 'Follows electrical rough-in.',
-    },
-  ],
-  materials: [
-    {
-      id: 'mat_cement',
-      name: 'Cement',
-      quantity: 10,
-      unit: 'bags',
-      need: 100,
-      forWork: 'Ground-floor plastering',
-      status: 'LOW',
-      note: 'Current stock may not cover tomorrow\'s planned work.',
-    },
-    {
-      id: 'mat_sand',
-      name: 'Sharp sand',
-      quantity: 18,
-      unit: 'loads',
-      need: 12,
-      forWork: 'Plastering',
-      status: 'OK',
-      note: 'Enough for the next planned pour.',
-    },
-    {
-      id: 'mat_blocks',
-      name: '6-inch blocks',
-      quantity: 420,
-      unit: 'pieces',
-      need: 300,
-      forWork: 'Boundary wall',
-      status: 'OK',
-      note: 'Stock is above the current requirement.',
-    },
-  ],
-  approvals: [
-    {
-      id: 'apr_cement',
-      type: 'Material request',
-      title: 'Cement request',
-      status: 'PENDING',
-      quantity: '100 bags',
-      neededBy: 'Tomorrow',
-      reason: 'Current stock may not cover tomorrow\'s plastering work.',
-      requestedBy: 'Oga',
-      date: 'Today, 09:42',
-      version: 0,
-    },
-    {
-      id: 'apr_scaffold',
-      type: 'Follow-up',
-      title: 'Scaffolding clearance',
-      status: 'APPROVED',
-      quantity: 'Site follow-up',
-      neededBy: 'Today',
-      reason: 'Clear access for the electrical team.',
-      requestedBy: 'Oga',
-      date: 'Yesterday, 16:18',
-      version: 1,
-    },
-  ],
-  activities: [
-    {
-      id: 'act_cement',
-      kind: 'material',
-      title: 'Cement shortage detected',
-      description: 'Oga compared reported stock with tomorrow\'s plastering work and prepared a material request.',
-      date: '09:42',
-      user: 'Oga',
-      needsAction: true,
-      actionLabel: 'Review request',
-    },
-    {
-      id: 'act_blocker',
-      kind: 'blocker',
-      title: 'Electrical work is blocking the ceiling',
-      description: 'The electrician did not attend today. The follow-up is staying visible until the work moves.',
-      date: '09:39',
-      user: 'Oga',
-      needsAction: true,
-      actionLabel: 'Review blocker',
-    },
-    {
-      id: 'act_progress',
-      kind: 'progress',
-      title: 'First-floor blockwork completed',
-      description: 'Updated from Kwame\'s morning site report.',
-      date: '09:38',
-      user: 'Kwame',
-    },
-    {
-      id: 'act_report',
-      kind: 'report',
-      title: 'Daily report updated',
-      description: 'Today\'s progress, blocker and material risk are now in one clean report.',
-      date: '09:43',
-      user: 'Oga',
-    },
-  ],
-  report: {
-    date: 'Saturday, 8 August',
-    completed: ['First-floor blockwork'],
-    inProgress: ['Electrical rough-in'],
-    blocked: ['Electrical work — electrician absent'],
-    materials: ['Cement stock running low'],
-    tomorrow: ['Ground-floor plastering'],
-    risks: ['Plastering may be delayed if cement is not delivered.'],
-    photos: [
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=900&q=85',
-      'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=900&q=85',
-      'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=900&q=85',
-    ],
-  },
-};
-
 export class ApiConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -338,19 +184,11 @@ type ErrorEnvelope = {
   };
 };
 
-const isDemoMode = (): boolean => process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-
-const cloneSnapshot = (projectId: string): ProjectSnapshot => {
-  const snapshot = structuredClone(demoSnapshot);
-  snapshot.project.id = projectId;
-  return snapshot;
-};
-
 function apiBaseUrl(): string {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (!baseUrl) {
     throw new ApiConfigurationError(
-      'NEXT_PUBLIC_API_BASE_URL is required unless NEXT_PUBLIC_DEMO_MODE=true.',
+      'NEXT_PUBLIC_API_BASE_URL is required.',
     );
   }
   return baseUrl.replace(/\/$/, '');
@@ -380,7 +218,7 @@ async function remote<T>(path: string, init?: RequestInit): Promise<T> {
     }
   } catch (error) {
     if (error instanceof ApiConfigurationError) throw error;
-    throw new ApiRequestError('Oga could not reach the project service.', {
+    throw new ApiRequestError('OG could not reach the project service.', {
       status: 0,
       code: 'API_UNAVAILABLE',
     });
@@ -461,6 +299,26 @@ export const api = {
       headers: { 'Idempotency-Key': `material:${crypto.randomUUID()}` },
     },
   ),
+  adjustMaterialQuantity: async (
+    projectId: string,
+    materialId: string,
+    quantityDelta: number,
+    unit: string,
+    expectedVersion: number,
+    reason: string,
+  ): Promise<Material> => remote<Material>(
+    `/api/v1/projects/${projectId}/materials/${materialId}/adjust`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        quantity_delta: quantityDelta,
+        unit,
+        expected_version: expectedVersion,
+        reason,
+      }),
+      headers: { 'Idempotency-Key': `material-adjust:${crypto.randomUUID()}` },
+    },
+  ),
   getApprovals: async (projectId: string): Promise<Approval[]> => (await api.getProjectSnapshot(projectId)).approvals,
   getActivities: async (projectId: string): Promise<Activity[]> => (await api.getProjectSnapshot(projectId)).activities,
   getReport: async (projectId: string): Promise<DailyReport> => (await api.getProjectSnapshot(projectId)).report,
@@ -510,7 +368,7 @@ export const api = {
           input_type: input.inputType,
         };
     if (!payload.raw_text && !payload.transcript && !payload.attachment_ids?.length) {
-      throw new ApiRequestError('Tell Oga what happened first.', {
+      throw new ApiRequestError('Tell OG what happened first.', {
         status: 400,
         code: 'VALIDATION_FAILED',
       });
@@ -538,14 +396,5 @@ export const api = {
       }),
       headers: { 'Idempotency-Key': `approval:${crypto.randomUUID()}` },
     });
-  },
-};
-
-export const demoApi = {
-  getProjectSnapshot(projectId = 'prj_demo'): ProjectSnapshot {
-    if (!isDemoMode()) {
-      throw new ApiConfigurationError('Demo fixtures require NEXT_PUBLIC_DEMO_MODE=true.');
-    }
-    return cloneSnapshot(projectId);
   },
 };

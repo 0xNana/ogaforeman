@@ -115,6 +115,7 @@ class UpdateTaskCommand(BaseModel):
         validation_alias=AliasChoices("ambiguous", "is_ambiguous"),
     )
     human_correction: bool = False
+    reconciled_completion: bool = False
     occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
@@ -125,6 +126,8 @@ class UpdateTaskCommand(BaseModel):
             raise ValueError("task completion requires explicit evidence")
         if self.human_correction and self.target_status is not TaskStatus.IN_PROGRESS:
             raise ValueError("human_correction is only valid when reopening a task")
+        if self.reconciled_completion and not self.requests_completion:
+            raise ValueError("reconciled_completion is only valid for task completion")
         return self
 
     @property
@@ -408,6 +411,7 @@ class TaskService:
                 current.status,
                 target_status,
                 human_correction=command.human_correction,
+                reconciled_completion=command.reconciled_completion,
             )
         except InvalidTransitionError as exc:
             raise TaskStateError(str(exc)) from exc
@@ -455,6 +459,7 @@ def _activity_spec(command: UpdateTaskCommand) -> ActivitySpec:
             "completion_percent": percent,
             "evidence_digest": evidence_digest,
             "human_correction": command.human_correction,
+            "reconciled_completion": command.reconciled_completion,
         },
     )
 

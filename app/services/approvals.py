@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 
+from typing import Any
+
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from app.domain.activity import ActivitySpec, MutationContext
@@ -56,10 +58,11 @@ class ApprovalResult:
 
 
 class ApprovalService:
-    def __init__(self, store: RepositoryStore) -> None:
+    def __init__(self, store: RepositoryStore, publisher: Any = None) -> None:
         self._store = store
         self._activities = ActivityService(store)
         self._outbox = OutboxService(store)
+        self._publisher = publisher
 
     def _resolve(
         self,
@@ -102,11 +105,34 @@ class ApprovalService:
 
         if result.value is None:
             raise RuntimeError("approval replay did not resolve persisted state")
+        resolved_approval, outbox_id = result.value
+
+        if self._publisher and result.activity and outbox_id:
+            try:
+                self._outbox.process(
+                    command.project_id,
+                    outbox_id,
+                    self._publish_outbox_message,
+                )
+            except Exception:
+                pass  # Will be retried by sweeper
 
         return ApprovalResult(
-            approval=result.value,
+            approval=resolved_approval,
             activity=result.activity,
             duplicate=result.duplicate,
+        )
+
+    def _publish_outbox_message(self, message: OutboxMessage) -> None:
+        if self._publisher is None:
+            raise RuntimeError("approval publisher is not configured")
+        self._publisher.publish(
+            None,
+            ProjectEvent.model_validate(message.payload).model_dump_json().encode("utf-8"),
+            attributes={
+                "event_type": message.message_type,
+                "project_id": message.project_id,
+            },
         )
 
     def _enrich_workflow_causality(
@@ -173,9 +199,11 @@ class ApprovalService:
         command: ResolutionCommand,
         context: MutationContext,
         status: ApprovalStatus,
-    ) -> Approval:
+    ) -> tuple[Approval, str | None]:
         approvals = ApprovalRepository.for_session(session, access)
         approval = approvals.require(access.project_id, command.approval_id)
+        dedup = f"approval_{approval.id}_{status.value}"
+        message_id = f"obx_{sha256(dedup.encode('utf-8')).hexdigest()[:20]}"
 
         current_version = approvals.version_of(access.project_id, command.approval_id)
         if command.expected_version is not None and current_version != command.expected_version:
@@ -183,7 +211,8 @@ class ApprovalService:
 
         if approval.status != ApprovalStatus.PENDING:
             if approval.status == status:
-                return approval
+                existing = session.repository(OutboxMessage).get(command.project_id, message_id)
+                return approval, message_id if existing is not None else None
             raise ApprovalError(f"Approval is already {approval.status.value}")
 
         linked_request: MaterialRequest | None = None
@@ -209,8 +238,6 @@ class ApprovalService:
             if status == ApprovalStatus.APPROVED
             else EventType.APPROVAL_REJECTED
         )
-        dedup = f"approval_{approval.id}_{status.value}"
-        message_id = f"obx_{sha256(dedup.encode('utf-8')).hexdigest()[:20]}"
         outbox = session.repository(OutboxMessage)
         existing_outbox = outbox.get(command.project_id, message_id)
 
@@ -263,6 +290,7 @@ class ApprovalService:
                 )
             )
 
+        outbox_id = None
         event = ProjectEvent(
             event_id=f"evt_{sha256((command.approval_id + status.value + context.idempotency_key).encode()).hexdigest()[:16]}",
             project_id=command.project_id,
@@ -291,18 +319,25 @@ class ApprovalService:
                     status=OutboxStatus.PENDING,
                 )
             )
+            outbox_id = message_id
 
-        return saved_approval
+        return saved_approval, outbox_id
 
     def _replay(
         self,
         session: RepositorySession,
         access: ProjectAccessContext,
         command: ResolutionCommand,
-    ) -> Approval:
-        return ApprovalRepository.for_session(session, access).require(
+    ) -> tuple[Approval, str | None]:
+        approval = ApprovalRepository.for_session(session, access).require(
             access.project_id, command.approval_id
         )
+        if approval.status not in {ApprovalStatus.APPROVED, ApprovalStatus.REJECTED}:
+            return approval, None
+        dedup = f"approval_{approval.id}_{approval.status.value}"
+        message_id = f"obx_{sha256(dedup.encode('utf-8')).hexdigest()[:20]}"
+        outbox = session.repository(OutboxMessage).get(command.project_id, message_id)
+        return approval, message_id if outbox is not None else None
 
 
 __all__ = ["ApprovalService", "ResolutionCommand", "ApprovalResult", "ApprovalError"]

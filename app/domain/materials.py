@@ -67,6 +67,18 @@ _UNIT_ALIASES: dict[str, str] = {
     "sheets": "sheets",
     "roll": "rolls",
     "rolls": "rolls",
+    "trip": "trips",
+    "trips": "trips",
+    "load": "loads",
+    "loads": "loads",
+    "length": "lengths",
+    "lengths": "lengths",
+    "box": "boxes",
+    "boxes": "boxes",
+    "bucket": "buckets",
+    "buckets": "buckets",
+    "gallon": "gallons",
+    "gallons": "gallons",
 }
 
 

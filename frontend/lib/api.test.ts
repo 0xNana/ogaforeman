@@ -1,15 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiConfigurationError, ApiRequestError, api, demoApi, setApiTokenProvider } from './api';
+import { ApiConfigurationError, ApiRequestError, api, setApiTokenProvider } from './api';
 
 
 describe('production API boundary', () => {
   const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  const originalDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE;
 
   beforeEach(() => {
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
-    delete process.env.NEXT_PUBLIC_DEMO_MODE;
     setApiTokenProvider(async () => 'firebase-id-token');
     vi.unstubAllGlobals();
   });
@@ -17,8 +15,6 @@ describe('production API boundary', () => {
   afterEach(() => {
     if (originalApiBaseUrl === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL;
     else process.env.NEXT_PUBLIC_API_BASE_URL = originalApiBaseUrl;
-    if (originalDemoMode === undefined) delete process.env.NEXT_PUBLIC_DEMO_MODE;
-    else process.env.NEXT_PUBLIC_DEMO_MODE = originalDemoMode;
     vi.restoreAllMocks();
     setApiTokenProvider(null);
   });
@@ -118,25 +114,6 @@ describe('production API boundary', () => {
     );
   });
 
-  it('serves fixture state only when demo mode is explicit', async () => {
-    process.env.NEXT_PUBLIC_DEMO_MODE = 'true';
-
-    const snapshot = demoApi.getProjectSnapshot('prj_demo');
-
-    expect(snapshot.project.id).toBe('prj_demo');
-    expect(snapshot.project.name).toBe('Ridge House');
-    expect(snapshot.tasks.length).toBeGreaterThan(0);
-  });
-
-  it('does not use demo fixtures for authenticated project requests', async () => {
-    process.env.NEXT_PUBLIC_DEMO_MODE = 'true';
-    delete process.env.NEXT_PUBLIC_API_BASE_URL;
-
-    await expect(api.getProjectSnapshot('prj_demo')).rejects.toBeInstanceOf(
-      ApiConfigurationError,
-    );
-  });
-
   it('refreshes the Firebase token once after an unauthorized response', async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
     const tokens: boolean[] = [];
@@ -219,7 +196,7 @@ describe('production API boundary', () => {
       quantity: '30 bags',
       neededBy: 'Tomorrow',
       reason: 'Cement is needed for plastering.',
-      requestedBy: 'Oga',
+      requestedBy: 'OG',
       date: '8 Aug, 09:45',
       version: 1,
     };

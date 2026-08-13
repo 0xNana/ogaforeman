@@ -21,6 +21,9 @@ def build_storage_cors(origins_json: str) -> list[dict[str, Any]]:
             raise ValueError("storage CORS requires a JSON list of exact HTTPS origins")
         origin = raw_origin.strip()
         parsed = urlsplit(origin)
+        if parsed.scheme == "http" and parsed.hostname in ["localhost", "127.0.0.1"]:
+            continue
+
         if (
             origin == "*"
             or parsed.scheme != "https"
@@ -32,7 +35,7 @@ def build_storage_cors(origins_json: str) -> list[dict[str, Any]]:
             or parsed.fragment
             or origin != f"{parsed.scheme}://{parsed.netloc}"
         ):
-            raise ValueError("storage CORS requires a JSON list of exact HTTPS origins")
+            raise ValueError(f"storage CORS requires exact HTTPS origins, but got: {origin}")
         if origin not in origins:
             origins.append(origin)
 

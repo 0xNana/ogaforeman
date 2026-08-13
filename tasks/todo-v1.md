@@ -182,7 +182,8 @@ Vertical slice gate:
 - [x] S-05 Resource rendering, approve/reject persistence, and recoverable stale
   conflicts pass against the local API stack.
 - [x] S-06 Authenticated API mode fails closed; fixtures remain behind explicit
-  demo mode.
+  test/eval boundaries. Authenticated frontend runtime code contains no project
+  fixture snapshot or demo API fallback.
 
 ## Reliability and launch
 
@@ -207,11 +208,15 @@ Vertical slice gate:
 - [x] L-03 README/status/auth/deployment/operations/demo docs pass, and the
   isolated clean-checkout runner records locked backend/frontend installs,
   static checks, tests, builds, browser journeys, evals, demo, and capacity.
+- [x] Production cleanup removes the frontend runtime project fixture API and
+  hard-coded authenticated report identity, plus stray untracked Gemini/Pub/Sub
+  diagnostic scripts. Guarded emulator seed/reset, deterministic eval fixtures,
+  and test doubles remain verification-only.
 
 ## Latest local evidence
 
-- [x] Backend without backing services: 299 passed, 22 explicitly deselected.
-- [x] Durable backing services: 22 passed against Firestore and Storage emulators,
+- [x] Backend without backing services: 305 passed, 23 explicitly deselected.
+- [x] Durable backing services: 23 passed against Firestore and Storage emulators,
   with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
   the Firestore restart case also passing separately against `127.0.0.1:8085`.
@@ -259,8 +264,8 @@ Vertical slice gate:
   activities with the original run/source causality, rejects non-allowlisted workflow
   metadata, suppresses replay duplicates, and exposes stable `updated_at` plus the
   full public run contract.
-- [x] Frontend: normal `npm ci`, lint, typecheck, 11 unit tests, and build pass.
-- [x] Playwright: 17 passed, 13 intentional cross-device skips, including a real
+- [x] Frontend: normal `npm ci`, lint, typecheck, 15 unit tests, and build pass.
+- [x] Playwright: 18 passed, 14 intentional cross-device skips, including a real
   Firestore-backed approval/resume journey with no workflow request interception.
 - [x] Production dependency audit: `npm audit --omit=dev` reports zero
   vulnerabilities; the full development tree reports five moderate findings.

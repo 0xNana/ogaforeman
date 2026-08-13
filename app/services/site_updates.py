@@ -238,6 +238,7 @@ class SiteUpdateService:
                         completion_percent=Decimal("100"),
                         evidence=task_fact.evidence,
                         negated=task_fact.is_negated,
+                        reconciled_completion=True,
                         occurred_at=site_update.submitted_at,
                     ),
                     _mutation_context(

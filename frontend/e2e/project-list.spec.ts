@@ -47,7 +47,8 @@ test('empty project list keeps one canonical create action', async ({ page }, te
   await page.getByRole('button', { name: /Create account/ }).click();
 
   await expect(page).toHaveURL(/\/projects$/);
-  await expect(page.getByRole('heading', { name: 'Nothing here yet.' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'New project' })).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Your AI Site Coordinator.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create your first project' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'New project' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create a project' })).toHaveCount(0);
 });

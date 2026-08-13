@@ -24,6 +24,12 @@ def parse_args() -> argparse.Namespace:
         choices=("fixture", "deliberate-regression", "gemini"),
         default="fixture",
     )
+    parser.add_argument(
+        "--backend",
+        choices=("auto", "vertex"),
+        default="auto",
+        help="Gemini client backend; vertex forces the billed Google Cloud route",
+    )
     parser.add_argument("--output", default="artifacts/evals/latest.json")
     return parser.parse_args()
 
@@ -35,7 +41,7 @@ async def run(args: argparse.Namespace) -> int:
     elif args.adapter == "deliberate-regression":
         adapter = DeliberateRegressionAdapter()
     else:
-        adapter = GeminiEvalAdapter()
+        adapter = GeminiEvalAdapter(prefer_vertex=args.backend == "vertex")
     report = await run_evaluation(dataset, adapter)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

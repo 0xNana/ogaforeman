@@ -28,6 +28,7 @@ def ensure_task_transition(
     target: TaskStatus,
     *,
     human_correction: bool = False,
+    reconciled_completion: bool = False,
 ) -> None:
     if current is target:
         return
@@ -38,6 +39,13 @@ def ensure_task_transition(
         raise InvalidTransitionError(
             f"human correction cannot transition task from {current} to {target}"
         )
+
+    # A trusted site report may discover work completed before project tracking
+    # ever recorded it as in progress. Keep this exception explicit so ordinary
+    # task commands retain the normal transition policy.
+    if reconciled_completion:
+        if current is TaskStatus.PLANNED and target is TaskStatus.COMPLETED:
+            return
 
     if target not in _TASK_TRANSITIONS[current]:
         raise InvalidTransitionError(f"task cannot transition from {current} to {target}")

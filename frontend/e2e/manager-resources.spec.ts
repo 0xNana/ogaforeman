@@ -15,29 +15,33 @@ test('manager views render task, material, report, and approval resources', asyn
 
   await page.getByRole('link', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Blocked' }).click();
   await expect(page.getByText('Electrical rough-in')).toBeVisible();
 
   await page.getByRole('link', { name: 'Materials' }).click();
   await expect(page.getByRole('heading', { name: 'What you have. What\'s at risk.' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Cement' })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Cement/ })).toBeVisible();
   await expect(page.getByText('50', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Add material' }).click();
-  await page.getByLabel('Material name 1').fill(`Timber ${materialSuffix}`);
+  await page.getByLabel('Material name 1').selectOption('custom');
+  await page.getByLabel('Custom material name 1').fill(`Timber ${materialSuffix}`);
   await page.getByLabel('Unit 1').fill('pieces');
   await page.getByLabel('Available quantity 1').fill('12');
   await page.getByLabel('Minimum required 1').fill('8');
   await page.getByRole('button', { name: 'Add another material' }).click();
-  await page.getByLabel('Material name 2').fill(`Nails ${materialSuffix}`);
+  await page.getByLabel('Material name 2').selectOption('custom');
+  await page.getByLabel('Custom material name 2').fill(`Nails ${materialSuffix}`);
   await page.getByLabel('Unit 2').fill('pieces');
   await page.getByLabel('Available quantity 2').fill('200');
   await page.getByLabel('Minimum required 2').fill('100');
   await page.getByRole('button', { name: 'Add 2 materials' }).click();
-  await expect(page.getByRole('heading', { name: `Timber ${materialSuffix}` })).toBeVisible();
-  await expect(page.getByRole('heading', { name: `Nails ${materialSuffix}` })).toBeVisible();
+  await expect(page.getByRole('row', { name: new RegExp(`Timber ${materialSuffix}`) })).toBeVisible();
+  await expect(page.getByRole('row', { name: new RegExp(`Nails ${materialSuffix}`) })).toBeVisible();
 
   await page.getByRole('link', { name: 'Reports' }).click();
   await expect(page.getByRole('heading', { name: 'Daily report', exact: true })).toBeVisible();
+  await expect(page.getByText('OG Foreman · Ridge House')).toBeVisible();
   const materialsSection = page.locator('.report-section').filter({
     has: page.getByRole('heading', { name: 'Materials', exact: true }),
   });
@@ -60,7 +64,7 @@ test('manager can approve and reject decisions and persistence survives reload',
   await approveCard.getByRole('button', { name: 'Approve' }).click();
   await refreshedSnapshot;
   await expect(approveCard.getByText('APPROVED')).toBeVisible();
-  await expect(approveCard.getByRole('status')).toContainText('Oga is resuming from the saved checkpoint.');
+  await expect(approveCard.getByRole('status')).toContainText('OG is resuming from the saved checkpoint.');
   await expect(approveCard.getByRole('link', { name: 'Follow in activity' })).toHaveAttribute(
     'href',
     `/projects/${projectId}/activity`,

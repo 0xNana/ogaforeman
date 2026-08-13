@@ -79,6 +79,12 @@ Run the deterministic three-pass local rehearsal:
 .venv/bin/python main.py --demo
 ```
 
+Start the Firebase emulators in a separate terminal:
+
+```bash
+npx --yes firebase-tools@15.26.0 emulators:start --project demo-oga-foreman
+```
+
 Run a live Gemini call against real typed tools and the Firestore emulator:
 
 ```bash
@@ -115,9 +121,9 @@ cd frontend
 npm run dev
 ```
 
-The frontend uses fixtures only when `NEXT_PUBLIC_DEMO_MODE=true`. Production
-mode requires `NEXT_PUBLIC_API_BASE_URL` and fails visibly when the API is not
-configured or unavailable.
+Authenticated frontend routes always use the configured API and never fall back
+to fixture project data. `NEXT_PUBLIC_API_BASE_URL` is required; missing or
+unavailable API configuration fails visibly.
 
 ## Verification
 

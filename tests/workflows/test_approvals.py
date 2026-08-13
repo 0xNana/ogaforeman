@@ -13,7 +13,7 @@ from app.domain.enums import (
     AgentRunStatus,
     MaterialRequestStatus,
 )
-from app.domain.models import Approval, AgentRun, MaterialRequest
+from app.domain.models import Approval, AgentRun, MaterialRequest, OutboxMessage, OutboxStatus
 from app.repositories.interfaces import RepositorySession, RepositoryStore, VersionConflictError
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.approvals import ApprovalService, ResolutionCommand
@@ -200,6 +200,91 @@ def test_approval_duplicate_decision(
     result2 = service.approve(access, command, context)
     assert result2.approval.status == ApprovalStatus.APPROVED
     assert result2.duplicate
+
+
+class RecordingPublisher:
+    def __init__(self, *, fail_first: bool = False) -> None:
+        self.fail_first = fail_first
+        self.calls: list[tuple[str | None, bytes, dict[str, str] | None]] = []
+
+    def publish(
+        self,
+        topic: str | None,
+        data: bytes,
+        *,
+        attributes: dict[str, str] | None = None,
+    ) -> str:
+        self.calls.append((topic, data, attributes))
+        if self.fail_first and len(self.calls) == 1:
+            raise RuntimeError("transient publish failure")
+        return "msg_approval123"
+
+
+def test_approval_publishes_persisted_continuation_outbox(
+    store: RepositoryStore,
+    access: ProjectAccessContext,
+    setup_approvals: None,
+) -> None:
+    publisher = RecordingPublisher()
+    service = ApprovalService(store, publisher)
+    command = ResolutionCommand(
+        project_id="prj_123",
+        approval_id="app_123",
+        notes="OK",
+        expected_version=0,
+    )
+    context = MutationContext(
+        project_id="prj_123",
+        actor_type=ActorType.USER,
+        actor_id=access.actor.user_id,
+        idempotency_key="idemp_publish",
+        source_event_id="evt_1234567890_publish",
+    )
+
+    service.approve(access, command, context)
+
+    messages = store.repository(OutboxMessage).list("prj_123")
+    assert len(messages) == 1
+    assert messages[0].status is OutboxStatus.COMPLETED
+    assert len(publisher.calls) == 1
+    assert publisher.calls[0][2] == {
+        "event_type": "APPROVAL_GRANTED",
+        "project_id": "prj_123",
+    }
+
+
+def test_duplicate_approval_retries_failed_continuation_publish(
+    store: RepositoryStore,
+    access: ProjectAccessContext,
+    setup_approvals: None,
+) -> None:
+    publisher = RecordingPublisher(fail_first=True)
+    service = ApprovalService(store, publisher)
+    command = ResolutionCommand(
+        project_id="prj_123",
+        approval_id="app_123",
+        notes="OK",
+        expected_version=0,
+    )
+    context = MutationContext(
+        project_id="prj_123",
+        actor_type=ActorType.USER,
+        actor_id=access.actor.user_id,
+        idempotency_key="idemp_retry_publish",
+        source_event_id="evt_1234567890_retry",
+    )
+
+    first = service.approve(access, command, context)
+    failed = store.repository(OutboxMessage).list("prj_123")[0]
+    duplicate = service.approve(access, command, context)
+    completed = store.repository(OutboxMessage).require("prj_123", failed.id)
+
+    assert first.duplicate is False
+    assert failed.status is OutboxStatus.FAILED
+    assert duplicate.duplicate is True
+    assert completed.status is OutboxStatus.COMPLETED
+    assert completed.attempts == 2
+    assert len(publisher.calls) == 2
 
 
 def test_approval_conflict(

@@ -9,6 +9,8 @@ from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel
 
+from app.infrastructure.firestore import encode_firestore_value
+
 from app.domain.authorization import (
     AuthenticatedUser,
     ProjectAccessContext,
@@ -87,7 +89,7 @@ class FirestoreIdentityRepository(IdentityRepository):
         reference = self._client.collection("users").document(user.id)
         try:
             reference.create(
-                user.model_dump(mode="python"),
+                encode_firestore_value(user),
                 retry=_IDENTITY_CREATE_RETRY,
             )
             return user

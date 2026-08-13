@@ -15,6 +15,7 @@
       "id": "normal_completion",
       "category": "normal",
       "input": "Ground floor plumbing is finished.",
+      "authorized_context": "Tasks: Ground floor plumbing (tsk_plumbing). Materials: none. Open material requests: none.",
       "fake_prediction": {
         "facts": {
           "tasks": [{"task_name": "Ground floor plumbing", "is_completed": true, "evidence": "plumbing is finished", "confidence": "high"}],
@@ -34,6 +35,7 @@
       "id": "mixed_blocker_material",
       "category": "mixed",
       "input": "Plumbing is finished but the tiles have not arrived.",
+      "authorized_context": "Tasks: Plumbing (tsk_plumbing). Materials: tiles (mat_tiles). Open material requests: none.",
       "fake_prediction": {
         "facts": {
           "tasks": [{"task_name": "Plumbing", "is_completed": true, "evidence": "Plumbing is finished", "confidence": "high"}],
@@ -53,6 +55,7 @@
       "id": "ambiguous_completion",
       "category": "ambiguous",
       "input": "I think we are almost done with plastering.",
+      "authorized_context": "Tasks: plastering (tsk_plastering). Materials: none. Open material requests: none.",
       "fake_prediction": {
         "facts": {
           "tasks": [{"task_name": "plastering", "is_completed": false, "evidence": "almost done", "confidence": "low", "clarification_needed": "Is plastering complete?"}],
@@ -71,6 +74,7 @@
       "id": "negated_electrician",
       "category": "negation",
       "input": "Electrician did not come today.",
+      "authorized_context": "Tasks: Electrical rough-in (tsk_electrical). Materials: none. Open material requests: none.",
       "fake_prediction": {
         "facts": {
           "tasks": [{"task_name": "Electrical rough-in", "is_completed": false, "evidence": "did not come", "confidence": "high", "is_negated": true}],
@@ -90,6 +94,7 @@
       "id": "approval_material",
       "category": "approval",
       "input": "We need another 100 bags of cement.",
+      "authorized_context": "Tasks: none. Materials: cement (mat_cement), unit bags. Open material requests: none.",
       "fake_prediction": {
         "facts": {
           "tasks": [],
@@ -111,6 +116,7 @@
       "id": "duplicate_delivery",
       "category": "duplicate",
       "input": "Ground floor plumbing is finished. [same event replayed]",
+      "authorized_context": "Tasks: Ground floor plumbing (tsk_plumbing). Materials: none. Event metadata: this exact event was already processed.",
       "fake_prediction": {
         "facts": {"tasks": [], "materials": [], "safety_issues": []},
         "mutations": ["event.replay_suppressed"],
@@ -125,6 +131,7 @@
       "id": "critical_safety",
       "category": "safety",
       "input": "The scaffold is unstable and someone nearly fell.",
+      "authorized_context": "Tasks: none. Materials: none. Open material requests: none.",
       "fake_prediction": {
         "facts": {"tasks": [], "materials": [], "safety_issues": [{"description": "unstable scaffold", "severity": "critical", "evidence": "someone nearly fell", "confidence": "high"}]},
         "mutations": ["safety_issue.create:scaffold"],
@@ -140,6 +147,7 @@
       "id": "delivery_delay",
       "category": "delivery",
       "input": "Supplier moves the cement delivery by two days.",
+      "authorized_context": "Tasks: none. Materials: cement (mat_cement), unit bags. Open material requests: cement request (mrq_cement).",
       "fake_prediction": {
         "facts": {"tasks": [], "materials": [{"material_name": "cement", "quantity": null, "unit": "bags", "evidence": "delivery by two days", "confidence": "high"}], "safety_issues": []},
         "mutations": ["material_request.delay:mrq_cement"],

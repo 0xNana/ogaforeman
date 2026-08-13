@@ -1,11 +1,11 @@
 {
   "bucket": "ogaforeman-cloud-2026-oga-media",
-  "checked_at": "2026-08-09T02:15:44.606329Z",
+  "checked_at": "2026-08-13T10:26:25.501005Z",
   "checks": [
     {
-      "detail": "no READY Firestore backup with a timestamp was visible",
+      "detail": "4 READY backup(s); latest is 8.25 hours old",
       "name": "firestore_backup_visibility",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "detail": "versioning enabled, soft delete retained for 2592000 seconds",
@@ -13,8 +13,8 @@
       "status": "passed"
     }
   ],
-  "event": "backup_verification_failed",
+  "event": "backup_verification_completed",
   "mode": "live",
-  "passed": false,
+  "passed": true,
   "project_id": "ogaforeman-cloud-2026"
 }

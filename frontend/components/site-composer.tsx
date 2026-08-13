@@ -16,7 +16,7 @@ import { ApiRequestError, api, type AgentRunState, type SiteUpdateInput } from '
 import { useProject } from '@/components/project-context';
 import { WorkflowReceipt } from '@/components/workflow-receipt';
 
-type IntakeState = 'idle' | 'recording' | 'recorded' | 'uploading' | 'processing' | 'approval' | 'clarification' | 'success' | 'error';
+type IntakeState = 'idle' | 'recording' | 'recorded' | 'uploading' | 'processing' | 'updating' | 'approval' | 'clarification' | 'success' | 'error';
 
 export function SiteComposer({ projectId, embedded = false }: Readonly<{ projectId: string; embedded?: boolean }>) {
   const { refresh } = useProject();
@@ -29,14 +29,18 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
   const audioChunks = useRef<Blob[]>([]);
+  const speechRecognition = useRef<any>(null);
+  const baseTextRef = useRef('');
 
   useEffect(() => () => {
     mediaStream.current?.getTracks().forEach((track) => track.stop());
+    speechRecognition.current?.stop();
   }, []);
 
   async function toggleRecording() {
     setError(null);
     if (mediaRecorder.current?.state === 'recording') {
+      speechRecognition.current?.stop();
       mediaRecorder.current.requestData();
       mediaRecorder.current.stop();
       return;
@@ -52,6 +56,24 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
       mediaStream.current = stream;
       mediaRecorder.current = recorder;
       audioChunks.current = [];
+
+      baseTextRef.current = text.trim() ? text.trim() + ' ' : '';
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.onresult = (event: any) => {
+          let transcript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            transcript += event.results[i][0].transcript;
+          }
+          setText(baseTextRef.current + transcript);
+        };
+        recognition.start();
+        speechRecognition.current = recognition;
+      }
+
       recorder.addEventListener('dataavailable', (event) => {
         if (event.data.size > 0) audioChunks.current.push(event.data);
       });
@@ -59,6 +81,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
         const mimeType = recorder.mimeType.split(';')[0] || 'audio/webm';
         const recording = new File(audioChunks.current, 'site-voice-note.webm', { type: mimeType });
         stream.getTracks().forEach((track) => track.stop());
+        speechRecognition.current?.stop();
         mediaStream.current = null;
         mediaRecorder.current = null;
         if (recording.size === 0) {
@@ -79,7 +102,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
 
   async function submit() {
     if (!text.trim() && !file && state !== 'recorded') {
-      setError('Tell Oga what happened, record a note or add a site photo.');
+      setError('Tell OG what happened, record a note or add a site photo.');
       setState('error');
       return;
     }
@@ -104,11 +127,15 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
       };
       const result = await api.submitSiteUpdate(projectId, input);
       if (result.status !== 'queued') {
-        setError('Oga could not queue that update.');
+        setError('OG could not queue that update.');
         setState('error');
         return;
       }
-      const run = await waitForRun(projectId, result.agent_run_id);
+      const run = await waitForRun(projectId, result.agent_run_id, (currentRun) => {
+        if (currentRun.status === 'running') {
+          setState('updating');
+        }
+      });
       setRunResult(run);
       await refresh();
       if (run.status === 'completed') {
@@ -118,14 +145,14 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
       } else if (run.status === 'waiting_for_clarification') {
         setState('clarification');
       } else {
-        setError(run.error_summary ?? 'Oga could not process that update. Try again safely.');
+        setError(run.error_summary ?? 'OG could not process that update. Try again safely.');
         setState('error');
       }
     } catch (cause) {
       setError(
         cause instanceof ApiRequestError
           ? cause.message
-          : 'Oga could not reach the project. Check your connection and try again.',
+          : 'OG could not reach the project. Check your connection and try again.',
       );
       setState('error');
     }
@@ -137,6 +164,8 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
     setError(null);
     setRunResult(null);
     setState('idle');
+    speechRecognition.current?.stop();
+    speechRecognition.current = null;
     mediaRecorder.current?.stop();
     mediaStream.current?.getTracks().forEach((track) => track.stop());
     mediaRecorder.current = null;
@@ -145,13 +174,13 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
     if (fileInput.current) fileInput.current.value = '';
   }
 
-  const busy = state === 'uploading' || state === 'processing';
+  const busy = state === 'uploading' || state === 'processing' || state === 'updating';
   const terminal = state === 'success' || state === 'approval';
   const canSubmit = Boolean(text.trim() || file) && state !== 'recording';
 
   return (
     <div className={`site-composer-page${embedded ? ' embedded' : ''}`}>
-      {!embedded && <div className="page-heading"><div><span className="eyebrow">Site update</span><h1>Tell Oga what happened.</h1><p>Talk, type or add photos. Oga will handle the follow-through.</p></div></div>}
+      {!embedded && <div className="page-heading"><div><span className="eyebrow">Site update</span><h1>Tell OG what happened.</h1><p>Talk, type or add photos. OG will handle the follow-through.</p></div></div>}
       <section className="site-composer-card" aria-label="Send a site update">
         <input
           ref={fileInput}
@@ -194,7 +223,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
               className="composer-textarea"
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder="Tell Oga what happened on site..."
+              placeholder="Tell OG what happened on site..."
               rows={2}
               disabled={busy}
             />
@@ -225,7 +254,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
                   type="button"
                   onClick={submit}
                   disabled={busy || !canSubmit}
-                  aria-label="Send to Oga"
+                  aria-label="Send to OG"
                 >
                   {busy ? <LoaderCircle size={19} className="spin-icon" aria-hidden="true" /> : <ArrowUp size={19} aria-hidden="true" />}
                 </button>
@@ -235,10 +264,22 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
         )}
 
         {state === 'error' && <div className="status-banner error" role="alert"><AlertTriangle size={16} /> {error}</div>}
-        {state === 'clarification' && <div className="status-banner info" role="status"><AlertTriangle size={16} /> Oga needs a clearer detail before changing the project. Add the task, quantity or timing and send again.</div>}
+        {state === 'clarification' && <div className="status-banner info" role="status"><AlertTriangle size={16} /> OG needs a clearer detail before changing the project. Add the task, quantity or timing and send again.</div>}
         {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
         {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
-        {(state === 'uploading' || state === 'processing') && <div className="process-state" role="status"><div className={`process-state-row${state === 'uploading' ? ' current' : ''}`}>{state === 'uploading' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Adding your site photos...</div><div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>{state === 'processing' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Checking the project...</div><div className="process-state-row"><CheckCircle2 size={17} /> Updating the site...</div></div>}
+        {(state === 'uploading' || state === 'processing' || state === 'updating') && (
+          <div className="process-state" role="status">
+            <div className={`process-state-row${state === 'uploading' ? ' current' : ''}`}>
+              {state === 'uploading' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Adding your site photos...
+            </div>
+            <div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>
+              {state === 'processing' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Checking the project...
+            </div>
+            <div className={`process-state-row${state === 'updating' ? ' current' : ''}`}>
+              {state === 'updating' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Updating the site...
+            </div>
+          </div>
+        )}
 
         {terminal && <div className="composer-reset"><button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button></div>}
       </section>
@@ -254,9 +295,10 @@ function inputTypeFor(text: string, file: File | null): SiteUpdateInput['inputTy
   return 'file';
 }
 
-async function waitForRun(projectId: string, runId: string): Promise<AgentRunState> {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+async function waitForRun(projectId: string, runId: string, onUpdate?: (run: AgentRunState) => void): Promise<AgentRunState> {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     const run = await api.getAgentRun(projectId, runId);
+    if (onUpdate) onUpdate(run);
     if (['completed', 'failed', 'dead_lettered', 'waiting_for_approval', 'waiting_for_clarification'].includes(run.status)) {
       return run;
     }

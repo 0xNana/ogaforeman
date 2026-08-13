@@ -5,6 +5,7 @@ import pytest
 from app.evals.runner import (
     DeliberateRegressionAdapter,
     FixtureEvalAdapter,
+    _gemini_eval_prompt,
     load_dataset,
     run_evaluation,
 )
@@ -26,3 +27,15 @@ async def test_eval_fails_when_a_regression_allows_forbidden_mutation() -> None:
     report = await run_evaluation(dataset, DeliberateRegressionAdapter())
     assert report.passed is False
     assert report.cases[3].mutation_diff.forbidden == ["task.complete:tsk_electrical"]
+
+
+def test_gemini_eval_prompt_provides_authorized_context_without_expected_answers() -> None:
+    dataset = load_dataset(Path("evals/site_updates_v1.json"))
+    case = dataset.cases[0]
+
+    prompt = _gemini_eval_prompt(case)
+
+    assert "tsk_plumbing" in prompt
+    assert "task.complete:<task_id>" in prompt
+    assert "required_mutations" not in prompt
+    assert "forbidden_mutations" not in prompt

@@ -6,11 +6,11 @@ import Image from 'next/image';
 import { useProject } from '@/components/project-context';
 
 export default function ReportsPage() {
-  const report = useProject().snapshot.report;
+  const { project, report } = useProject().snapshot;
   return (
     <div>
       <div className="page-heading"><div><span className="eyebrow">Reports</span><h1>Daily report</h1><p>Ready to review, share or send to a client.</p></div><div className="page-heading-actions"><button className="btn btn-quiet btn-small" type="button"><Share2 size={15} /> Share</button><button className="btn btn-primary btn-small" type="button"><Download size={15} /> Export</button></div></div>
-      <article className="report-paper"><div className="report-top"><div><span className="report-mark">Oga Foreman · Ridge House</span><h2>Daily Report</h2><p>{report.date}</p></div><span className="status-pill completed">Prepared</span></div><div className="report-section-grid"><ReportSection title="Completed" items={report.completed} /><ReportSection title="In progress" items={report.inProgress} /><ReportSection title="Blocked" items={report.blocked} /><ReportSection title="Materials" items={report.materials} /><ReportSection title="Tomorrow" items={report.tomorrow} /><ReportSection title="Risks" items={report.risks} /></div>{report.photos.length > 0 && <div className="report-gallery">{report.photos.map((photo, index) => <Image src={photo} alt={`Ridge House site update ${index + 1}`} width={900} height={600} key={photo} />)}</div>}<div className="report-footer"><span>Prepared by Oga</span><span>Based on today&apos;s site updates</span></div></article>
+      <article className="report-paper"><div className="report-top"><div><span className="report-mark">OG Foreman · {project.name}</span><h2>Daily Report</h2><p>{report.date}</p></div><span className="status-pill completed">Prepared</span></div><div className="report-section-grid"><ReportSection title="Completed" items={report.completed} /><ReportSection title="In progress" items={report.inProgress} /><ReportSection title="Blocked" items={report.blocked} /><ReportSection title="Materials" items={report.materials} /><ReportSection title="Tomorrow" items={report.tomorrow} /><ReportSection title="Risks" items={report.risks} /></div>{report.photos.length > 0 && <div className="report-gallery">{report.photos.map((photo, index) => <Image src={photo} alt={`${project.name} site update ${index + 1}`} width={900} height={600} key={photo} />)}</div>}<div className="report-footer"><span>Prepared by OG</span><span>Based on today&apos;s site updates</span></div></article>
     </div>
   );
 }
