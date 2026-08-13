@@ -1,5 +1,17 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 1: Intent Router
+
+Acceptance: classify conversational input into a typed, non-mutating intent decision; reject
+context-free confirmation/clarification replies; prevent low-confidence mutations from entering
+an action route; and map site updates to the existing Golden workflow rather than duplicating its
+fact interpretation or mutations.
+
+Verify: focused intent taxonomy and Gemini structured-output tests pass, the non-backing backend
+suite stays green, and the canonical mobile Golden Scenario passes.
+
+Status: complete locally on 2026-08-13. Phase 2 (project context) is active and not implemented.
+
 ## How to Use This Plan
 
 Work top to bottom. A task is one focused session and should normally touch no more than five files. Keep the repository runnable after every task. Mark the matching item in `tasks/todo-v1.md`, update `docs/STATUS.md`, and record contract changes before starting dependent work.

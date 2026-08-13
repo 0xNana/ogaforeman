@@ -342,6 +342,13 @@ project label, with a production-readiness regression guard.
   `npm audit --audit-level=high` reports no high or critical findings. Five moderate
   advisories remain confined to the Firebase CLI development dependency chain.
 
+## Conversational operations
+
+- Phase 0 audit and Phase 1 intent routing are complete locally as of 2026-08-13.
+- The router is typed and non-mutating; low-confidence actions and context-free confirmations
+  stop at clarification, while site updates retain the existing Golden workflow destination.
+- Phase 2 project-context retrieval is active and remains unimplemented.
+
 ## Phase 8 state
 
 | Work item | Evidence state |

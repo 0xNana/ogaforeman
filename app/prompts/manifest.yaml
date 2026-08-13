@@ -24,3 +24,7 @@ agents:
     description: "Generates daily briefs, formats executive summaries for PMs, and formats site notifications."
     prompt_file: "communicator.txt"
     tools: []
+  - name: intent_router
+    description: "Classifies conversational messages into typed, non-mutating destinations."
+    prompt_file: "intent_router.txt"
+    tools: []

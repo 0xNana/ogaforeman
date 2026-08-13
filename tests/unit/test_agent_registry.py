@@ -15,6 +15,7 @@ def test_registry_loads_manifest():
     assert "planner" in registry.agents
     assert "materials" in registry.agents
     assert "communicator" in registry.agents
+    assert "intent_router" in registry.agents
 
     coord = registry.get_agent_config("oga_coordinator")
     assert "site_report" in coord.sub_agents

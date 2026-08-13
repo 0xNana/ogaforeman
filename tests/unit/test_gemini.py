@@ -5,7 +5,12 @@ import pytest
 
 from app.agents.interpreter import MediaEvidence
 from app.config.settings import Settings
-from app.infrastructure.gemini import GeminiSiteInterpreter, create_gemini_client
+from app.domain.conversation import ConversationContext, IntentType
+from app.infrastructure.gemini import (
+    GeminiIntentClassifier,
+    GeminiSiteInterpreter,
+    create_gemini_client,
+)
 
 
 def test_local_api_key_uses_gemini_developer_api(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -126,6 +131,45 @@ def test_interpreter_requires_configured_model() -> None:
 
     with pytest.raises(RuntimeError, match="GEMINI_MODEL_ID"):
         GeminiSiteInterpreter(settings)
+
+
+@pytest.mark.asyncio
+async def test_gemini_intent_classifier_uses_typed_non_mutating_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(
+        return_value=SimpleNamespace(
+            text=(
+                '{"intent":"site_update","confidence":0.96,'
+                '"requested_action":null,"referenced_entities":[],'
+                '"requires_project_context":true,"requires_mutation":true,'
+                '"ambiguity":null,"reason_code":"multiple_site_facts"}'
+            )
+        )
+    )
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    classifier = GeminiIntentClassifier(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+
+    result = await classifier.classify(
+        "Blockwork is done and cement is low.",
+        context=ConversationContext(has_active_project=True),
+    )
+
+    assert result.intent is IntentType.SITE_UPDATE
+    call = generate_content.await_args.kwargs
+    assert call["config"].response_schema is not None
+    assert "has_active_project" in call["contents"][0].text
+    assert "<user_message>" in call["contents"][0].text
 
 
 @pytest.mark.asyncio

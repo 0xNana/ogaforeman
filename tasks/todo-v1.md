@@ -8,6 +8,15 @@ Legend: `[x]` implemented and verified locally; `[~]` partially implemented
 or unstable; `[ ]` implementation/evidence missing; `[!]` blocked only on a
 real cloud environment, live model credential/billing, or human release gate.
 
+## Conversational operations
+
+- [x] C-01 Phase 0 audit documents the locked Golden Scenario, reusable architecture,
+  extension boundaries, and duplicate-orchestration risks.
+- [x] C-02 Phase 1 provides a typed intent taxonomy, structured Gemini classifier,
+  deterministic eval boundary, contextual response guards, low-confidence mutation gate,
+  and explicit routing of site updates to the existing Golden workflow.
+- [ ] C-03 Phase 2 retrieves authorized, query-relevant project context without mutation.
+
 ## Audit findings requiring implementation
 
 - [x] G-01 Every coordinator event route executes a deterministic persisted

@@ -4,8 +4,10 @@ from google import genai
 from google.genai import types
 
 from app.agents.interpreter import MediaEvidence, SiteInterpreter
+from app.agents.conversation import IntentClassifier
 from app.agents.registry import registry
 from app.config.settings import RuntimeEnvironment, Settings
+from app.domain.conversation import ConversationContext, IntentDecision, IntentType
 from app.domain.facts import ExtractedFactSet
 
 
@@ -97,4 +99,47 @@ class GeminiSiteInterpreter(SiteInterpreter):
         return ExtractedFactSet.model_validate_json(response.text)
 
 
-__all__ = ["GeminiSiteInterpreter", "create_gemini_client"]
+class GeminiIntentClassifier(IntentClassifier):
+    """Classify message destinations without interpreting or executing project changes."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        runtime = settings or Settings()
+        if not runtime.gemini_model_id:
+            raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
+        self._client = create_gemini_client(runtime)
+        self._model_name = runtime.gemini_model_id
+        self._instruction = registry.get_prompt("intent_router").strip()
+
+    async def classify(
+        self,
+        message: str,
+        *,
+        context: ConversationContext,
+    ) -> IntentDecision:
+        prompt = (
+            f"{self._instruction}\n\n"
+            "Trusted routing context (booleans only):\n"
+            f"<routing_context>\n{context.model_dump_json()}\n</routing_context>\n\n"
+            "Untrusted user message:\n"
+            f"<user_message>\n{message}\n</user_message>"
+        )
+        response = await self._client.aio.models.generate_content(
+            model=self._model_name,
+            contents=[types.Part.from_text(text=prompt)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=IntentDecision,
+                temperature=0.0,
+            ),
+        )
+        if not response.text:
+            return IntentDecision(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                ambiguity="The message intent could not be classified.",
+                reason_code="empty_model_response",
+            )
+        return IntentDecision.model_validate_json(response.text)
+
+
+__all__ = ["GeminiIntentClassifier", "GeminiSiteInterpreter", "create_gemini_client"]
