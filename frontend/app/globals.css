@@ -492,6 +492,20 @@ p { font-size: 1.05rem; }
 .drawer-form label { display: grid; gap: 7px; font-size: 0.75rem; font-weight: 700; }
 .drawer-form input { min-height: 44px; padding: 0 12px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; }
 .drawer-form > div { display: flex; justify-content: flex-end; gap: 10px; }
+.schedule-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.schedule-filters { margin-top: 16px; }
+.gantt-wrapper { width: 100%; overflow-x: auto; margin-top: 24px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.gantt-range { display: flex; min-width: 760px; justify-content: space-between; margin-left: 230px; padding: 0 4px 12px; color: var(--ink-faint); font-size: 0.7rem; font-weight: 700; }
+.gantt-row { display: grid; min-width: 990px; grid-template-columns: 220px minmax(760px, 1fr); gap: 10px; align-items: center; min-height: 48px; border-top: 1px solid var(--line); }
+.gantt-label { overflow: hidden; padding: 8px 4px; background: transparent; cursor: pointer; font-size: 0.8rem; font-weight: 700; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-label:hover { color: var(--orange-deep); }
+.gantt-track { position: relative; height: 26px; background: repeating-linear-gradient(90deg, var(--surface-muted) 0, var(--surface-muted) 1px, transparent 1px, transparent 14.285%); }
+.gantt-bar { position: absolute; top: 4px; height: 18px; overflow: hidden; padding: 0 5px; color: var(--white); background: var(--orange); border-radius: 3px; cursor: pointer; font-size: 0.62rem; font-weight: 800; white-space: nowrap; }
+.gantt-bar.completed { background: var(--green); }
+.gantt-bar.blocked, .gantt-bar.risk { background: var(--red); }
+.gantt-bar.milestone { min-width: 18px; padding: 0; transform: rotate(45deg); }
+.gantt-bar.milestone span { display: none; }
+.gantt-unscheduled { padding: 16px 0 0 230px; color: var(--ink-faint); font-size: 0.75rem; }
 .report-paper { max-width: 960px; padding: 34px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
 .report-top { display: flex; align-items: start; justify-content: space-between; gap: 22px; padding-bottom: 25px; border-bottom: 1px solid var(--line); }
 .report-top h2 { margin-top: 14px; font-size: 2.35rem; }
@@ -708,6 +722,8 @@ p { font-size: 1.05rem; }
   .projects-header { align-items: flex-start; flex-direction: column; }
   .material-entry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-grid { grid-template-columns: 1fr; gap: 38px; }
+  .schedule-controls { align-items: stretch; flex-direction: column; }
+  .schedule-controls .register-search { width: 100%; }
 }
 
 @media (max-width: 560px) {

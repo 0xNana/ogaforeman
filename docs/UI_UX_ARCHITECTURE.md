@@ -293,3 +293,21 @@ remove obsolete UI only after its replacement passes the phase gate.
   linkage fields remain visibly unavailable.
 - Verification passes with 22 frontend unit tests, 307 Python tests, production
   build, desktop register axe checks, and mobile drawer overflow coverage.
+
+## Phase 4 acceptance evidence
+
+- Schedule replaces the projection-gap placeholder with construction-native
+  List and Gantt views over persisted task dates, progress, and dependencies.
+- Search plus active, blocked, at-risk, and milestone filters operate on the
+  same task records as the work register. A shared detail drawer shows upstream
+  dependencies, downstream impact, blocker notes, and source references.
+- Tasks persist an explicit milestone flag, and the snapshot adds timezone-local
+  ISO start/finish dates, inclusive duration, downstream task IDs, and risk
+  caused by a blocked predecessor. Same-day work is not inferred to be a
+  milestone. No new schedule-specific mutation or synthetic planning record was
+  introduced.
+- Tasks without both schedule endpoints remain explicit unscheduled activities
+  in List view rather than receiving fabricated Gantt positions.
+- Verification passes with 24 frontend unit tests, 307 Python tests, production
+  build, 18 applicable Playwright journeys, schedule axe, and mobile Gantt
+  overflow coverage.

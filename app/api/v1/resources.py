@@ -4,7 +4,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.domain.activity import MutationContext
@@ -24,6 +24,9 @@ class CreateTaskRequest(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str | None = Field(default=None, max_length=10_000)
     priority: TaskPriority = TaskPriority.MEDIUM
+    planned_start: AwareDatetime | None = None
+    planned_end: AwareDatetime | None = None
+    is_milestone: bool = False
 
 
 class CreateMaterialRequest(BaseModel):

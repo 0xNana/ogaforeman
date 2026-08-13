@@ -65,6 +65,7 @@ class CreateTaskCommand(BaseModel):
     priority: TaskPriority = TaskPriority.MEDIUM
     planned_start: AwareDatetime | None = None
     planned_end: AwareDatetime | None = None
+    is_milestone: bool = False
 
     @model_validator(mode="after")
     def validate_dates(self) -> Self:
@@ -188,6 +189,7 @@ class TaskService:
                     priority=command.priority,
                     planned_start=command.planned_start,
                     planned_end=command.planned_end,
+                    is_milestone=command.is_milestone,
                     source=TaskSource.MANUAL,
                     created_at=context.occurred_at,
                     updated_at=context.occurred_at,

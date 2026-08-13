@@ -46,6 +46,11 @@ def project_snapshot_projection(
     timezone = ZoneInfo(project.timezone)
     requests_by_material = _latest_requests_by_material(material_requests)
     material_names = {material.id: material.name for material in materials}
+    downstream_ids: dict[str, list[str]] = {task.id: [] for task in tasks}
+    for task in tasks:
+        for dependency_id in task.dependency_ids:
+            downstream_ids.setdefault(dependency_id, []).append(task.id)
+    blocked_task_ids = {task.id for task in tasks if task.status is TaskStatus.BLOCKED}
     latest_report = max(
         reports, key=lambda report: (report.report_date, report.updated_at), default=None
     )
@@ -59,7 +64,12 @@ def project_snapshot_projection(
             "timezone": project.timezone,
         },
         "tasks": [
-            task_projection(task, timezone)
+            task_projection(
+                task,
+                timezone,
+                downstream_ids=downstream_ids.get(task.id, []),
+                blocked_task_ids=blocked_task_ids,
+            )
             for task in sorted(tasks, key=lambda item: item.title.casefold())
         ],
         "materials": [
@@ -86,7 +96,13 @@ def project_snapshot_projection(
     }
 
 
-def task_projection(task: Task, timezone: ZoneInfo) -> dict[str, object]:
+def task_projection(
+    task: Task,
+    timezone: ZoneInfo,
+    *,
+    downstream_ids: Sequence[str] = (),
+    blocked_task_ids: set[str] | None = None,
+) -> dict[str, object]:
     status = {
         TaskStatus.PROPOSED: "PENDING",
         TaskStatus.PLANNED: "PENDING",
@@ -100,6 +116,14 @@ def task_projection(task: Task, timezone: ZoneInfo) -> dict[str, object]:
         due_label = "Not scheduled"
     note = task.description or f"{_display_decimal(task.completion_percent)}% complete."
     is_follow_up = task.source is TaskSource.SITE_UPDATE and bool(task.source_refs)
+    planned_start = _local_date(task.planned_start, timezone)
+    planned_finish = _local_date(task.planned_end, timezone)
+    finish_date = planned_finish or _local_date(task.actual_completion, timezone)
+    duration_days = (
+        (task.planned_end.astimezone(timezone).date() - task.planned_start.astimezone(timezone).date()).days + 1
+        if task.planned_start is not None and task.planned_end is not None
+        else None
+    )
     return {
         "id": task.id,
         "title": task.title,
@@ -108,6 +132,12 @@ def task_projection(task: Task, timezone: ZoneInfo) -> dict[str, object]:
         "location": None,
         "trade": None,
         "startLabel": _date_label(task.planned_start, timezone, default="Not set"),
+        "startDate": planned_start,
+        "finishDate": finish_date,
+        "durationDays": duration_days,
+        "isMilestone": task.is_milestone,
+        "downstreamIds": list(downstream_ids),
+        "atRisk": bool(set(task.dependency_ids) & (blocked_task_ids or set())),
         "dueLabel": due_label,
         "progress": _number(task.completion_percent),
         "dependencyIds": list(task.dependency_ids),
@@ -275,6 +305,10 @@ def _date_label(value: Any, timezone: ZoneInfo, *, default: str = "Not specified
     if value is None:
         return default
     return value.astimezone(timezone).strftime("%-d %b")
+
+
+def _local_date(value: Any, timezone: ZoneInfo) -> str | None:
+    return value.astimezone(timezone).date().isoformat() if value is not None else None
 
 
 def _display_decimal(value: Decimal) -> str:

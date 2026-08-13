@@ -14,6 +14,15 @@ test('manager views render task, material, report, and approval resources', asyn
 
   await expect(page.getByRole('link', { name: 'Overview' })).toBeVisible();
 
+  await page.getByRole('link', { name: 'Schedule' }).click();
+  await expect(page.getByRole('heading', { name: 'Schedule', exact: true })).toBeVisible();
+  await expect(page.getByRole('row', { name: /First-floor plastering/ })).toContainText('At risk');
+  await page.getByRole('button', { name: 'Gantt' }).click();
+  await expect(page.getByLabel('Schedule timeline')).toContainText('First-floor plastering');
+  await expect(page.getByLabel('Schedule timeline')).toContainText('2 unscheduled activities');
+  const scheduleAccessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(scheduleAccessibility.violations).toEqual([]);
+
   await page.getByRole('link', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible();
   await page.getByRole('button', { name: 'Blocked' }).click();

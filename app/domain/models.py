@@ -126,6 +126,7 @@ class Task(DomainModel):
     actual_start: AwareDatetime | None = None
     actual_completion: AwareDatetime | None = None
     dependency_ids: list[CanonicalId] = Field(default_factory=list)
+    is_milestone: bool = False
     source_refs: list[CanonicalId] = Field(default_factory=list, max_length=10)
     completion_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     source: TaskSource = TaskSource.MANUAL
@@ -153,6 +154,13 @@ class Task(DomainModel):
 
         if self.id in self.dependency_ids:
             raise ValueError("a task cannot depend on itself")
+
+        if self.is_milestone and (
+            self.planned_start is None
+            or self.planned_end is None
+            or self.planned_start != self.planned_end
+        ):
+            raise ValueError("a milestone requires equal planned_start and planned_end")
 
         if len(self.source_refs) != len(set(self.source_refs)):
             raise ValueError("source_refs cannot contain duplicates")

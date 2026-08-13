@@ -195,6 +195,8 @@ Vertical slice gate:
   Overview defined in `docs/UI_UX_OVERHAUL.md`.
 - [x] UI Phase 3 replaces Task and Material card/modal patterns and the Issues
   placeholder with searchable operational registers and accessible detail drawers.
+- [x] UI Phase 4 replaces the Schedule placeholder with task-backed List and
+  Gantt planning views, dependency risk, milestones, filters, and activity detail.
 
 ## Reliability and launch
 

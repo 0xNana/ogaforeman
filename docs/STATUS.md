@@ -256,7 +256,7 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–3 are complete; Phase 4 Schedule is next.
+- UI Phases 0–4 are complete; Phase 5 Daily Logs is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
@@ -273,6 +273,12 @@ project label, with a production-readiness regression guard.
   adding workflows or mutations. Missing domain fields remain labelled.
 - Phase 3 verification: 22 frontend unit tests, 307 Python tests, production
   build, 18 Playwright journeys, register axe, and mobile overflow pass.
+- Phase 4 delivers task-backed List and Gantt schedule views with search,
+  operational filters, milestones, dependency risk, downstream impact, and
+  explicit unscheduled work. Milestones are persisted explicitly rather than
+  inferred from duration; no new schedule-specific mutation was added.
+- Phase 4 verification: 24 frontend unit tests, 307 Python tests, production
+  build, 18 Playwright journeys, schedule axe, and mobile Gantt overflow pass.
 
 ## Phase 8 state
 

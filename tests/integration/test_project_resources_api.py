@@ -166,12 +166,12 @@ async def test_admin_can_create_canonical_resources_before_site_updates() -> Non
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         task = await client.post(
             f"/api/v1/projects/{PROJECT_ID}/tasks",
-            json={"title": "First-floor blockwork"},
+            json={"title": "First-floor blockwork", "planned_start": NOW.isoformat(), "planned_end": NOW.isoformat(), "is_milestone": True},
             headers={"Idempotency-Key": "setup:task:blockwork"},
         )
         task_replay = await client.post(
             f"/api/v1/projects/{PROJECT_ID}/tasks",
-            json={"title": "First-floor blockwork"},
+            json={"title": "First-floor blockwork", "planned_start": NOW.isoformat(), "planned_end": NOW.isoformat(), "is_milestone": True},
             headers={"Idempotency-Key": "setup:task:blockwork"},
         )
         material = await client.post(
@@ -224,6 +224,7 @@ async def test_admin_can_create_canonical_resources_before_site_updates() -> Non
     assert task.status_code == 201
     assert task_replay.status_code == 201
     assert task_replay.json() == task.json()
+    assert task.json()["isMilestone"] is True
     assert material.status_code == 201
     assert material_replay.status_code == 201
     assert material_replay.json()["id"] == material.json()["id"]
@@ -360,6 +361,12 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
         "location": None,
         "trade": None,
         "startLabel": "Not set",
+        "startDate": None,
+        "finishDate": "2026-08-08",
+        "durationDays": None,
+        "isMilestone": False,
+        "downstreamIds": [],
+        "atRisk": False,
         "dueLabel": "Completed 8 Aug",
         "progress": 100,
         "dependencyIds": [],
@@ -370,6 +377,10 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
     }
     assert snapshot["tasks"][1]["title"] == "Follow up: Electrical rough-in"
     assert snapshot["tasks"][1]["needsAttention"] is True
+    assert snapshot["tasks"][1]["startDate"] == "2026-08-08"
+    assert snapshot["tasks"][1]["finishDate"] == "2026-08-08"
+    assert snapshot["tasks"][1]["durationDays"] == 1
+    assert snapshot["tasks"][1]["isMilestone"] is False
     assert snapshot["tasks"][1]["sourceRefs"] == [
         "sup_update123",
         "iss_blocker123",

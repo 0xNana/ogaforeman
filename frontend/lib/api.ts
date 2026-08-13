@@ -30,6 +30,12 @@ export type Task = {
   location?: string | null;
   trade?: string | null;
   startLabel?: string;
+  startDate?: string | null;
+  finishDate?: string | null;
+  durationDays?: number | null;
+  isMilestone?: boolean;
+  downstreamIds?: string[];
+  atRisk?: boolean;
   dueLabel: string;
   progress?: number;
   dependencyIds?: string[];
@@ -68,6 +74,9 @@ export type CreateTaskInput = {
   title: string;
   description?: string;
   priority?: 'low' | 'medium' | 'high' | 'critical';
+  planned_start?: string;
+  planned_end?: string;
+  is_milestone?: boolean;
 };
 
 export type MaterialStatus = 'OK' | 'LOW' | 'REQUESTED' | 'DELAYED';

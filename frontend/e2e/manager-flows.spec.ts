@@ -48,6 +48,11 @@ test('mobile command center navigation remains usable without overflow', async (
   await page.getByRole('button', { name: 'Close details' }).click();
   await page.getByRole('button', { name: 'More' }).click();
   await expect(page.getByRole('dialog', { name: 'More sections' })).toBeVisible();
+  await page.getByRole('link', { name: 'Schedule' }).click();
+  await page.getByRole('button', { name: 'Gantt' }).click();
+  await expect(page.getByLabel('Schedule timeline')).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('link', { name: 'Activity' }).click();
   await expect(page.getByRole('heading', { name: 'What OG has handled' })).toBeVisible();
   await expect(page.getByRole('row', { name: /Cement shortage detected and sent for approval\./ })).toBeVisible();
