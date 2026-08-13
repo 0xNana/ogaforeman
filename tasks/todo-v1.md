@@ -190,18 +190,20 @@ Vertical slice gate:
 - [x] R-01 `tests/production_readiness` maps PR-01 through PR-13 and reports
   13 passing controls with no xfails.
 - [!] R-02 Fixture eval passes 8/8 thresholds and records per-case mutation
-  diffs; a checked-in deliberate-regression adapter proves the gate fails on a
-  forbidden negated-task mutation. Only configured Gemini evidence remains.
-- [!] R-03 Staging liveness, readiness, metrics, exact log correlation, and five
-  deployed alert policies pass; a Cloud Trace span and alert-incident delivery
-  smoke remain open.
-- [!] R-04 Protected Storage and an isolated two-document Firestore export/import
-  restore pass, including historical object-generation recovery. The new daily
-  managed backup schedule has not produced its first visible backup yet.
+  diffs. The billed Vertex Gemini eval is configured and ran live, but passed
+  only 3/8 because model-generated canonical mutation tokens diverge from the
+  deterministic resolver contract; the gate correctly remains closed.
+- [!] R-03 Post-redeploy liveness, readiness, metrics, exact log correlation,
+  sampled Cloud Trace metadata, and five deployed alert policies pass. Alert
+  delivery is blocked because the project has no notification channels.
+- [x] R-04 Protected Storage, isolated Firestore export/import restore, historical
+  object-generation recovery, and managed backup visibility pass. Four READY
+  managed backups were visible on 2026-08-13.
 - [!] L-01 Staging deployment, least-privilege workload IAM, public health smoke,
   real Scheduler dispatch, and explicit API/worker rollback rehearsal pass.
-  Firebase sign-up/bootstrap passes; the post-redeploy authenticated task,
-  material, site-update, run, report, and activity smoke remains open.
+  Firebase sign-up/bootstrap passes. A dedicated authenticated smoke runner is
+  configured, but its post-redeploy run is blocked by missing
+  `iam.serviceAccounts.signBlob` permission for the operator.
 - [!] L-02 Three deterministic dry runs and local browser/API/Firestore evidence
   pass, including terminal approved-material continuation; the configured live
   Gemini route still needs post-setup mutation evidence and review.

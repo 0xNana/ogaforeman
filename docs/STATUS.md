@@ -259,21 +259,21 @@ project label, with a production-readiness regression guard.
 | Work item | Evidence state |
 | --- | --- |
 | R-01 | Complete locally: 13 readiness controls pass without xfails |
-| R-02 | Local gates complete: fixture thresholds pass and a deliberate regression is rejected; configured Gemini remains external |
-| R-03 | Staging health, metrics, log correlation, and five policies pass; Cloud Trace span and alert delivery remain |
-| R-04 | Isolated Firestore export/import and Storage generation recovery pass; first managed backup remains pending |
-| L-01 | Staging deploy, IAM, Scheduler, rollback, and Firebase sign-up/bootstrap pass; post-redeploy authenticated workflow smoke remains |
+| R-02 | Fixture gate passes; billed Vertex Gemini ran live but failed the canonical mutation/entity threshold (3/8 cases) |
+| R-03 | Post-redeploy health, metrics, log correlation, sampled Cloud Trace metadata, and five policies pass; alert delivery is blocked by zero notification channels |
+| R-04 | Firestore restore, Storage generation recovery, and managed backup visibility pass with four READY backups |
+| L-01 | Commit `e168074` is deployed to API/worker/web; authenticated workflow runner is configured but operator `signBlob` IAM is missing |
 | L-02 | Three-run deterministic four-workflow rehearsal passes; live Gemini reached the production worker, while configured eval/review remains open |
 | L-03 | Complete locally: isolated locked install, test, build, browser, eval, demo, capacity, and docs matrix passes |
 
 ## External release gates
 
-- Redeploy the canonical-resource setup slice, then verify authenticated task,
-  material, site-update, agent-run, report, and activity journeys in staging.
-- Record a Cloud Trace span, alert delivery, first managed-backup visibility,
-  projection rebuild timing, and production smoke.
-- Run the configured Gemini eval with a valid key or billed Gemini Enterprise project and
-  review mutation diffs before changing model/prompt configuration.
+- Grant the staging smoke operator narrowly scoped service-account token signing,
+  then verify authenticated project, site-update, agent-run, report, and activity journeys.
+- Attach an approved Monitoring notification channel, trigger a controlled
+  staging incident, confirm receipt, and record projection rebuild timing.
+- Redesign the live eval boundary so Gemini extracts facts while deterministic
+  code owns canonical IDs and mutation tokens, then rerun the billed Vertex gate.
 - Complete human security, safety, scope, and launch review.
 
 ## Release position

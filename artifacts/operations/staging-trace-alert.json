@@ -1,0 +1,19 @@
+{
+  "checked_at": "2026-08-13T11:06:03Z",
+  "project_id": "ogaforeman-cloud-2026",
+  "revision": "oga-api-staging-00017-s5g",
+  "trace": {
+    "passed": true,
+    "request_id": "req_smoke_5d84f24ce9f42fd7",
+    "correlation_id": "cor_smoke_26d1bd09d8aa2e25",
+    "application_trace_id": "trc_smoke_fd3f79dab439b0bfc42d45d1474f613e",
+    "cloud_trace_id": "9f48a6fbb968c472c3d583770fdd1a43",
+    "sampled": true
+  },
+  "alert_delivery": {
+    "passed": false,
+    "enabled_policy_count": 5,
+    "notification_channel_count": 0,
+    "blocker": "No notification channel is configured or attached, so recipient delivery cannot occur."
+  }
+}
