@@ -95,7 +95,7 @@ def get_project_snapshot(project_id: str, request: Request) -> dict[str, object]
     access = configured_project_access(request, project_id)
     project = runtime.projects.require(access)
     store = runtime.store
-    member_names = runtime.project_member_names(project_id)
+    member_names = _project_member_names(runtime, project_id, access.actor.user_id)
     return project_snapshot_projection(
         project,
         tasks=store.repository(Task).list(project_id),
@@ -109,3 +109,15 @@ def get_project_snapshot(project_id: str, request: Request) -> dict[str, object]
         viewer_id=access.actor.user_id,
         member_names=member_names,
     )
+
+
+def _project_member_names(runtime: object, project_id: str, viewer_id: str) -> dict[str, str]:
+    resolver = getattr(runtime, "project_member_names", None)
+    if callable(resolver):
+        names = resolver(project_id)
+        if isinstance(names, dict) and all(
+            isinstance(member_id, str) and isinstance(display_name, str)
+            for member_id, display_name in names.items()
+        ):
+            return names
+    return {viewer_id: "You"}
