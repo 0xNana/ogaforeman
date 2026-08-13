@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams()
 afterEach(cleanup);
 
 const tasks = [
-  { id: 'tsk_mine', title: 'Electrical rough-in', status: 'BLOCKED' as const, assignee: 'usr_me', dueLabel: 'Due today', startLabel: '8 Aug', progress: 20, dependencyIds: ['tsk_done'], blocking: 'Ceiling work', sourceRefs: ['iss_blocker', 'sup_update'] },
+  { id: 'tsk_mine', title: 'Electrical rough-in', status: 'BLOCKED' as const, assignee: 'Kofi Foreman', assigneeId: 'usr_me', location: 'First floor', trade: 'Electrical', dueLabel: 'Due today', startLabel: '8 Aug', progress: 20, dependencyIds: ['tsk_done'], blocking: 'Ceiling work', sourceRefs: ['iss_blocker', 'sup_update'] },
   { id: 'tsk_done', title: 'Blockwork', status: 'COMPLETED' as const, assignee: 'usr_other', dueLabel: 'Completed 7 Aug', progress: 100 },
 ];
 
@@ -19,6 +19,9 @@ describe('TaskBoard', () => {
     render(<TaskBoard projectId="prj_ridge" tasks={tasks} viewerId="usr_me" onRefresh={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'My work' }));
     expect(screen.getByRole('row', { name: /Electrical rough-in/ })).toBeVisible();
+    expect(screen.getByRole('row', { name: /Electrical rough-in/ })).toHaveTextContent('First floor');
+    expect(screen.getByRole('row', { name: /Electrical rough-in/ })).toHaveTextContent('Electrical');
+    expect(screen.getByRole('row', { name: /Electrical rough-in/ })).toHaveTextContent('Kofi Foreman');
     expect(screen.queryByRole('row', { name: /Blockwork/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search tasks' }), { target: { value: 'missing' } });
     expect(screen.getByRole('heading', { name: 'No matching tasks.' })).toBeVisible();

@@ -3,6 +3,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { useProject } from '@/components/project-context';
 
 const MAX_TASK_ROWS = 20;
 const COMMON_TASKS = [
@@ -23,6 +24,11 @@ type TaskDraft = {
   key: number;
   title: string;
   isCustom?: boolean;
+  trade: string;
+  location: string;
+  assigneeId: string;
+  plannedStart: string;
+  plannedEnd: string;
 };
 
 type TaskCreateDialogProps = {
@@ -33,10 +39,11 @@ type TaskCreateDialogProps = {
 };
 
 function emptyTask(key: number): TaskDraft {
-  return { key, title: '', isCustom: false };
+  return { key, title: '', isCustom: false, trade: '', location: '', assigneeId: '', plannedStart: '', plannedEnd: '' };
 }
 
 export function TaskCreateDialog({ projectId, onClose, onRefresh, onSuccess }: Readonly<TaskCreateDialogProps>) {
+  const { snapshot } = useProject();
   const nextKey = useRef(2);
   const firstTitleInput = useRef<HTMLInputElement>(null);
   const firstSelectInput = useRef<HTMLSelectElement>(null);
@@ -72,7 +79,14 @@ export function TaskCreateDialog({ projectId, onClose, onRefresh, onSuccess }: R
     try {
       for (const row of rows) {
         if (!row.title.trim()) continue;
-        await api.createTask(projectId, { title: row.title.trim() });
+        await api.createTask(projectId, {
+          title: row.title.trim(),
+          trade: row.trade.trim() || undefined,
+          location: row.location.trim() || undefined,
+          assigned_to: row.assigneeId || undefined,
+          planned_start: row.plannedStart ? `${row.plannedStart}T00:00:00Z` : undefined,
+          planned_end: row.plannedEnd ? `${row.plannedEnd}T23:59:59Z` : undefined,
+        });
         createdKeys.push(row.key);
       }
       await onRefresh();
@@ -175,6 +189,13 @@ export function TaskCreateDialog({ projectId, onClose, onRefresh, onSuccess }: R
                       </select>
                     )}
                   </label>
+                  <div className="task-operational-fields">
+                    <label>Trade<input value={row.trade} onChange={(event) => updateRow(row.key, { trade: event.target.value })} maxLength={200} placeholder="Electrical" /></label>
+                    <label>Location<input value={row.location} onChange={(event) => updateRow(row.key, { location: event.target.value })} maxLength={500} placeholder="First floor" /></label>
+                    <label>Assignee<select value={row.assigneeId} onChange={(event) => updateRow(row.key, { assigneeId: event.target.value })}><option value="">Unassigned</option>{(snapshot.members ?? []).map((member) => <option value={member.id} key={member.id}>{member.displayName}</option>)}</select></label>
+                    <label>Start<input type="date" value={row.plannedStart} onChange={(event) => updateRow(row.key, { plannedStart: event.target.value })} /></label>
+                    <label>Finish<input type="date" min={row.plannedStart || undefined} value={row.plannedEnd} onChange={(event) => updateRow(row.key, { plannedEnd: event.target.value })} /></label>
+                  </div>
                 </fieldset>
               );
             })}

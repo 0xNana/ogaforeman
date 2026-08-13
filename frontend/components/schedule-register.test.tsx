@@ -26,6 +26,8 @@ describe('ScheduleRegister', () => {
     render(<ScheduleRegister tasks={tasks} />);
     fireEvent.click(screen.getByRole('button', { name: 'Electrical rough-in' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Ceiling installation');
-    expect(screen.getByRole('dialog')).toHaveTextContent('sup_morning');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Available in Activity');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('sup_morning');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('tsk_electrical');
   });
 });

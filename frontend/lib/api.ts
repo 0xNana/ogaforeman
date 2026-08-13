@@ -27,6 +27,7 @@ export type Task = {
   title: string;
   status: TaskStatus;
   assignee: string;
+  assigneeId?: string | null;
   location?: string | null;
   trade?: string | null;
   startLabel?: string;
@@ -74,6 +75,9 @@ export type CreateTaskInput = {
   title: string;
   description?: string;
   priority?: 'low' | 'medium' | 'high' | 'critical';
+  assigned_to?: string;
+  trade?: string;
+  location?: string;
   planned_start?: string;
   planned_end?: string;
   is_milestone?: boolean;
@@ -197,6 +201,7 @@ export type ProjectDocument = {
 
 export type ProjectSnapshot = {
   viewerId?: string | null;
+  members?: Array<{ id: string; displayName: string }>;
   project: Project;
   tasks: Task[];
   issues: Issue[];

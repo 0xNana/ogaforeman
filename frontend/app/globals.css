@@ -756,6 +756,7 @@ p { font-size: 1.05rem; }
 .material-entry-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
 .material-entry-title { color: var(--ink); font-size: 0.82rem; font-weight: 800; }
 .material-entry-grid { display: grid; grid-template-columns: 1.4fr 0.8fr 1fr 1fr; gap: 10px; }
+.task-operational-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .material-remove-button { display: inline-flex; align-items: center; gap: 5px; color: var(--red); background: transparent; font-size: 0.72rem; font-weight: 750; cursor: pointer; }
 .material-add-row { justify-self: start; }
 
@@ -811,6 +812,7 @@ p { font-size: 1.05rem; }
   .approval-list { grid-template-columns: 1fr; }
   .projects-header { align-items: flex-start; flex-direction: column; }
   .material-entry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-operational-fields { grid-template-columns: 1fr; }
   .overview-grid { grid-template-columns: 1fr; gap: 38px; }
   .desktop-overview { display: none; }
   .mobile-field-home { display: block; padding-bottom: 18px; }

@@ -40,7 +40,7 @@ export function TaskBoard({ projectId, tasks, viewerId, onRefresh }: Readonly<{ 
 }
 
 function matchesTask(task: Task, filter: TaskFilter, query: string, viewerId: string | null) {
-  if (filter === 'MINE' && (!viewerId || task.assignee !== viewerId)) return false;
+  if (filter === 'MINE' && (!viewerId || task.assigneeId !== viewerId)) return false;
   if (filter === 'BLOCKED' && task.status !== 'BLOCKED') return false;
   if (filter === 'COMPLETED' && task.status !== 'COMPLETED') return false;
   if (filter === 'DUE_SOON' && !/today|tomorrow|overdue|due/i.test(task.dueLabel)) return false;

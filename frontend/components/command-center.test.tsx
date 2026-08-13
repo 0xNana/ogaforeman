@@ -84,7 +84,7 @@ describe('CommandCenter', () => {
       ...snapshot,
       tasks: [
         { id: 'tsk_done', title: 'Blockwork F1', status: 'COMPLETED', assignee: 'Mason team', dueLabel: 'Aug 13' },
-        { id: 'tsk_blocked', title: 'Electrical rough-in', status: 'BLOCKED', assignee: 'Electrical team', dueLabel: 'Aug 15', blocking: 'Ceiling installation', note: 'Electrician absent' },
+        { id: 'tsk_blocked', title: 'Electrical rough-in', status: 'BLOCKED', assignee: 'Electrical team', startLabel: 'Aug 13', dueLabel: 'Aug 15', blocking: 'Ceiling installation', note: 'Electrician absent' },
         { id: 'tsk_next', title: 'Plastering F1', status: 'PENDING', assignee: 'Finishes team', dueLabel: 'Aug 18' },
       ],
       approvals: [{ id: 'apr_cement', type: 'material_request', title: 'Cement request', status: 'PENDING', quantity: '90 bags', neededBy: 'Tomorrow', neededFor: 'Ground-floor plastering', reason: '10 bags on site against 100 required.', requestedBy: 'OG', date: '10:17', resolvedBy: null, resolvedAt: null, version: 1 }],
@@ -110,6 +110,7 @@ describe('CommandCenter', () => {
     expect(screen.getByRole('heading', { name: 'Two-Week Lookahead' })).toBeVisible();
     expect(screen.getByRole('row', { name: /Blockwork F1/ })).toHaveTextContent('100%');
     expect(screen.getByRole('row', { name: /Electrical rough-in/ })).toHaveTextContent('Blocked');
+    expect(screen.getByRole('row', { name: /Electrical rough-in/ })).toHaveTextContent('Aug 13');
     expect(screen.getByLabelText('OG noticed')).toHaveTextContent('Electrical rough-in is blocking Ceiling installation');
     expect(screen.getByRole('heading', { name: 'Ridge House' })).toBeVisible();
     expect(screen.getByText('2 things need attention')).toBeVisible();
