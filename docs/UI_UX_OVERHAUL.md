@@ -2,7 +2,7 @@
 
 ## Current phase status
 
-- Active phase: Phase 12 — Visual Polish and Production Hardening
+- Active phase: Phase 13 — Golden Scenario UI Acceptance Test
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
@@ -15,6 +15,7 @@
 - Phase 9 — Approval Experience: complete (2026-08-13)
 - Phase 10 — Mobile Field Experience: complete (2026-08-13)
 - Phase 11 — Loading, Empty, Error, and Success States: complete (2026-08-13)
+- Phase 12 — Visual Polish and Production Hardening: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -43,6 +44,13 @@
   lint, typecheck, and the production build pass. True empty states are distinct from
   filter misses, project loading is narrated, and saved processing failures retain
   the original input and reuse its idempotency key for safe retry.
+- Phase 12 evidence: 40 frontend unit tests, lint, typecheck, production build, and
+  all 18 applicable Playwright journeys pass. Desktop, field home, OG drawer,
+  mobile More sheet, schedule, logs, activity, and approvals report no axe WCAG A/AA
+  violations; tested mobile modules do not overflow. The dependency audit reports
+  no high or critical findings.
+- Product/API contracts changed through Phase 12: no — this phase hardens modal
+  focus behavior and corrects visual tokens and table typography only.
 - Product/API contracts changed through Phase 11: yes — a saved-but-not-queued intake
   now has a specific error code, and the frontend may supply a stable idempotency key
   when retrying the unchanged original update.
@@ -61,7 +69,7 @@
   material requests, plus historical daily logs; tasks persist an explicit milestone
   flag, guarded daily-log edits atomically emit activity, and verified attachment
   metadata projects into linked photo and document registers.
-- Do not begin Phase 13 until the Phase 12 acceptance gate passes.
+- Do not declare the overhaul complete until the Phase 13 acceptance gate passes.
 
 ## Objective
 

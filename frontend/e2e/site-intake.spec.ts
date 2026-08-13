@@ -197,7 +197,7 @@ test('rejects an invalid attachment before creating a site update', async ({ pag
 
   await page.getByRole('button', { name: 'Send to OG' }).click();
 
-  await expect(page.locator('.status-banner[role="alert"]')).toContainText('Use a photo, audio note or PDF.');
+  await expect(page.getByRole('region', { name: 'Send a site update' }).getByRole('alert')).toContainText('Use a photo, audio note or PDF.');
   expect(submitted).toBe(false);
   expect(browserErrors).toEqual([]);
 });

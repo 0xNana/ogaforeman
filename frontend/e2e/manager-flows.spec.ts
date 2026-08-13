@@ -78,7 +78,11 @@ test('mobile command center navigation remains usable without overflow', async (
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Close details' }).click();
   await page.getByRole('button', { name: 'More' }).click();
-  await expect(page.getByRole('dialog', { name: 'More sections' })).toBeVisible();
+  const moreSheet = page.getByRole('dialog', { name: 'More sections' });
+  await expect(moreSheet).toBeVisible();
+  await expect(moreSheet.getByRole('button', { name: 'Close more sections' })).toBeFocused();
+  const moreAccessibility = await new AxeBuilder({ page }).include('.mobile-more-sheet').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(moreAccessibility.violations).toEqual([]);
   await page.getByRole('link', { name: 'Schedule' }).click();
   await page.getByRole('button', { name: 'Gantt' }).click();
   await expect(page.getByLabel('Schedule timeline')).toBeVisible();

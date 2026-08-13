@@ -92,6 +92,24 @@ describe('AppShell', () => {
     expect(screen.getByRole('dialog', { name: 'Ask OG' })).toBeVisible();
   });
 
+  it('contains focus in mobile navigation and restores it when closed', async () => {
+    render(
+      <AppShell project={{ id: 'prj_ridge', name: 'Ridge House', location: 'East Legon', status: 'ACTIVE', timezone: 'Africa/Accra' }}>
+        <p>Overview content</p>
+      </AppShell>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'More' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'More sections' });
+    const close = screen.getByRole('button', { name: 'Close more sections' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'More sections' })).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it('ends the session from the account action', async () => {
     render(
       <AppShell

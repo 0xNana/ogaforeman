@@ -256,7 +256,7 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–11 are complete; Phase 12 visual polish and hardening is next.
+- UI Phases 0–12 are complete; Phase 13 Golden Scenario acceptance is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
@@ -332,6 +332,15 @@ project label, with a production-readiness regression guard.
 - Phase 11 verification: 39 frontend unit tests, frontend lint and typecheck, production
   build, and 19 targeted site-update/production-control tests pass; one emulator-only
   restart control remains skipped because `FIRESTORE_EMULATOR_HOST` is not configured.
+- Phase 12 resolves the remaining visual-system token drift, keeps operational row
+  headers distinct from column headers, and gives the mobile More sheet the same
+  Escape, focus containment, scroll lock, and trigger-focus restoration guarantees
+  as the OG and record drawers.
+- Phase 12 verification: 40 frontend unit tests, lint, typecheck, production build,
+  and all 18 applicable Playwright journeys pass. Axe reports no WCAG A/AA violations
+  across the tested desktop and mobile surfaces, mobile overflow checks pass, and
+  `npm audit --audit-level=high` reports no high or critical findings. Five moderate
+  advisories remain confined to the Firebase CLI development dependency chain.
 
 ## Phase 8 state
 

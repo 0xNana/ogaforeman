@@ -215,6 +215,9 @@ Vertical slice gate:
 - [x] UI Phase 11 gives production screens deliberate loading, true-empty, filtered,
   recoverable error, and success states; saved intake failures retain the original
   update and retry through the same idempotency claim.
+- [x] UI Phase 12 completes launch polish with consistent operational table styling,
+  resolved design tokens, keyboard-contained mobile navigation, focus restoration,
+  responsive browser coverage, and WCAG A/AA verification.
 
 ## Reliability and launch
 

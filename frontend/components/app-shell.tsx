@@ -56,6 +56,9 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
   const askOgTrigger = useRef<HTMLElement | null>(null);
   const askOgClose = useRef<HTMLButtonElement>(null);
   const askOgDrawer = useRef<HTMLElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const moreClose = useRef<HTMLButtonElement>(null);
+  const moreSheet = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!askOgOpen) return;
@@ -70,6 +73,13 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
       document.body.classList.remove('overlay-open');
     };
   }, [askOgOpen]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    document.body.classList.add('overlay-open');
+    moreClose.current?.focus();
+    return () => document.body.classList.remove('overlay-open');
+  }, [moreOpen]);
 
   useEffect(() => {
     function openAskOg() {
@@ -89,9 +99,24 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
     window.setTimeout(() => (askOgTrigger.current ?? askOgButton.current)?.focus(), 0);
   }
 
+  function closeMore() {
+    setMoreOpen(false);
+    window.setTimeout(() => moreButton.current?.focus(), 0);
+  }
+
   function containAskOgFocus(event: React.KeyboardEvent) {
     if (event.key !== 'Tab' || !askOgDrawer.current) return;
     const controls = [...askOgDrawer.current.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')];
+    if (!controls.length) return;
+    const first = controls[0]; const last = controls.at(-1)!;
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
+
+  function containMoreFocus(event: React.KeyboardEvent) {
+    if (event.key === 'Escape') { closeMore(); return; }
+    if (event.key !== 'Tab' || !moreSheet.current) return;
+    const controls = [...moreSheet.current.querySelectorAll<HTMLElement>('button:not(:disabled), a[href]')];
     if (!controls.length) return;
     const first = controls[0]; const last = controls.at(-1)!;
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
@@ -162,14 +187,14 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
         </header>
 
         <main className="app-content" id="project-content" tabIndex={-1}>{children}</main>
-        <MobileNavigation projectId={projectId} isActive={isActive} onAskOg={showAskOg} onMore={() => setMoreOpen(true)} />
+        <MobileNavigation projectId={projectId} isActive={isActive} onAskOg={showAskOg} onMore={() => setMoreOpen(true)} moreButton={moreButton} />
       </div>
 
       {moreOpen && (
-        <div className="mobile-more-backdrop" role="presentation" onMouseDown={() => setMoreOpen(false)}>
-          <section className="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="more-navigation-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="sheet-heading"><div><span className="eyebrow">Project</span><h2 id="more-navigation-title">More sections</h2></div><button className="icon-action" type="button" aria-label="Close more sections" onClick={() => setMoreOpen(false)}><X size={20} /></button></div>
-            <ProjectNavigation projectId={projectId} isActive={isActive} onNavigate={() => setMoreOpen(false)} label="All project sections" />
+        <div className="mobile-more-backdrop" role="presentation" onMouseDown={closeMore}>
+          <section ref={moreSheet} className="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="more-navigation-title" onMouseDown={(event) => event.stopPropagation()} onKeyDown={containMoreFocus}>
+            <div className="sheet-heading"><div><span className="eyebrow">Project</span><h2 id="more-navigation-title">More sections</h2></div><button ref={moreClose} className="icon-action" type="button" aria-label="Close more sections" onClick={closeMore}><X size={20} aria-hidden="true" /></button></div>
+            <ProjectNavigation projectId={projectId} isActive={isActive} onNavigate={closeMore} label="All project sections" />
           </section>
         </div>
       )}
@@ -209,8 +234,8 @@ function ProjectSearch({ query, results, projectId, onQueryChange }: Readonly<{ 
   );
 }
 
-function MobileNavigation({ projectId, isActive, onAskOg, onMore }: Readonly<{ projectId: string; isActive: (suffix: string) => boolean; onAskOg: () => void; onMore: () => void }>) {
-  return <nav className="mobile-bottom-nav" aria-label="Mobile project navigation"><Link className={isActive('') ? 'active' : ''} href={`/projects/${projectId}`}><Home size={20} /><span>Home</span></Link><Link className={isActive('/tasks') ? 'active' : ''} href={`/projects/${projectId}/tasks`}><ClipboardList size={20} /><span>Tasks</span></Link><button className="mobile-og-action" type="button" onClick={onAskOg}><span><Sparkles size={20} /></span><strong>OG</strong></button><Link className={isActive('/photos') ? 'active' : ''} href={`/projects/${projectId}/photos`}><Camera size={20} /><span>Photos</span></Link><button type="button" onClick={onMore}><Menu size={20} /><span>More</span></button></nav>;
+function MobileNavigation({ projectId, isActive, onAskOg, onMore, moreButton }: Readonly<{ projectId: string; isActive: (suffix: string) => boolean; onAskOg: () => void; onMore: () => void; moreButton: React.RefObject<HTMLButtonElement | null> }>) {
+  return <nav className="mobile-bottom-nav" aria-label="Mobile project navigation"><Link className={isActive('') ? 'active' : ''} href={`/projects/${projectId}`}><Home size={20} aria-hidden="true" /><span>Home</span></Link><Link className={isActive('/tasks') ? 'active' : ''} href={`/projects/${projectId}/tasks`}><ClipboardList size={20} aria-hidden="true" /><span>Tasks</span></Link><button className="mobile-og-action" type="button" onClick={onAskOg}><span><Sparkles size={20} aria-hidden="true" /></span><strong>OG</strong></button><Link className={isActive('/photos') ? 'active' : ''} href={`/projects/${projectId}/photos`}><Camera size={20} aria-hidden="true" /><span>Photos</span></Link><button ref={moreButton} type="button" onClick={onMore}><Menu size={20} aria-hidden="true" /><span>More</span></button></nav>;
 }
 
 function ProjectSwitcher({ project }: Readonly<{ project: Project }>) {
