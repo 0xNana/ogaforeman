@@ -270,7 +270,9 @@ def approval_projection(approval: Approval, timezone: ZoneInfo) -> dict[str, obj
     affected_task_ids = action.get("affected_task_ids")
     needed_for = _text(action.get("needed_for"))
     if not needed_for and isinstance(affected_task_ids, list) and affected_task_ids:
-        needed_for = f"{len(affected_task_ids)} affected task{'s' if len(affected_task_ids) != 1 else ''}"
+        needed_for = (
+            f"{len(affected_task_ids)} affected task{'s' if len(affected_task_ids) != 1 else ''}"
+        )
     resolved_at = approval.resolved_at.astimezone(timezone) if approval.resolved_at else None
     return {
         "id": approval.id,

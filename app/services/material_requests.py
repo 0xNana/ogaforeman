@@ -207,9 +207,7 @@ class MaterialRequestService:
             task.id: task.title for task in session.repository(Task).list(command.project_id)
         }
         affected_work = ", ".join(
-            task_titles[task_id]
-            for task_id in command.affected_task_ids
-            if task_id in task_titles
+            task_titles[task_id] for task_id in command.affected_task_ids if task_id in task_titles
         )
         source_event_id = context.source_event_id
         if source_event_id is None:
@@ -222,9 +220,9 @@ class MaterialRequestService:
             action_type=ApprovalActionType.PURCHASE,
             proposed_action={
                 "material_id": material_id,
-                "material_name": session.repository(Material).require(
-                    command.project_id, material_id
-                ).name,
+                "material_name": session.repository(Material)
+                .require(command.project_id, material_id)
+                .name,
                 "quantity": str(shortage),
                 "unit": command.unit,
                 "needed_by": command.needed_by.isoformat() if command.needed_by else None,

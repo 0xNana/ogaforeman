@@ -127,15 +127,19 @@ def edit_daily_log(
     project_id: str, report_id: str, payload: EditDailyLogRequest, request: Request
 ) -> dict[str, object]:
     access, context = mutation_context(request, project_id)
-    report = ReportService(auth_runtime(request).store).edit_daily_log(
-        access,
-        EditDailyLogCommand(
-            project_id=project_id,
-            report_id=report_id,
-            **payload.model_dump(),
-        ),
-        context,
-    ).report
+    report = (
+        ReportService(auth_runtime(request).store)
+        .edit_daily_log(
+            access,
+            EditDailyLogCommand(
+                project_id=project_id,
+                report_id=report_id,
+                **payload.model_dump(),
+            ),
+            context,
+        )
+        .report
+    )
     return daily_log_projection(report)
 
 

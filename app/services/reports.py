@@ -18,7 +18,14 @@ from app.domain.authorization import (
     ensure_project_scope,
 )
 from app.domain.enums import ActorType
-from app.domain.models import ActivityEvent, CanonicalId, DailyReport, ReportFact, ReportStatus, SiteUpdate
+from app.domain.models import (
+    ActivityEvent,
+    CanonicalId,
+    DailyReport,
+    ReportFact,
+    ReportStatus,
+    SiteUpdate,
+)
 from app.repositories.interfaces import RepositorySession, RepositoryStore, VersionConflictError
 from app.repositories.reports import ReportRepository
 from app.services.activity import ActivityService
@@ -58,7 +65,9 @@ class ReportService:
         )
         if result.value is None:
             raise RuntimeError("daily log edit replay did not resolve persisted state")
-        return DailyLogChange(report=result.value, activity=result.activity, duplicate=result.duplicate)
+        return DailyLogChange(
+            report=result.value, activity=result.activity, duplicate=result.duplicate
+        )
 
     def project_site_update(
         self,
@@ -263,12 +272,14 @@ def _edit_daily_log(
             f"expected_version {command.expected_version} does not match current version {current.version}"
         )
     return reports.save(
-        current.model_copy(update={
-            "summary": command.summary,
-            "crew_summary": command.crew_summary or None,
-            "weather_summary": command.weather_summary or None,
-            "updated_at": occurred_at,
-        }),
+        current.model_copy(
+            update={
+                "summary": command.summary,
+                "crew_summary": command.crew_summary or None,
+                "weather_summary": command.weather_summary or None,
+                "updated_at": occurred_at,
+            }
+        ),
         expected_version=command.expected_version,
     )
 

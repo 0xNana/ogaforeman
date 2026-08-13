@@ -50,19 +50,31 @@ def main() -> int:
     headers = {"Authorization": f"Bearer {id_token}"}
     checks: list[dict[str, object]] = []
     with httpx.Client(base_url=args.base_url.rstrip("/"), headers=headers, timeout=30) as client:
+
         def call(name: str, method: str, path: str, **kwargs: object) -> httpx.Response:
             response = client.request(method, path, **kwargs)
-            checks.append({"name": name, "status_code": response.status_code, "ok": response.is_success})
+            checks.append(
+                {"name": name, "status_code": response.status_code, "ok": response.is_success}
+            )
             response.raise_for_status()
             return response
 
-        call("bootstrap", "POST", "/api/v1/auth/bootstrap", json={"display_name": "Staging Smoke Operator"})
+        call(
+            "bootstrap",
+            "POST",
+            "/api/v1/auth/bootstrap",
+            json={"display_name": "Staging Smoke Operator"},
+        )
         project = call(
             "create_project",
             "POST",
             "/api/v1/projects",
             headers={**headers, "Idempotency-Key": f"smoke-project-{stamp}"},
-            json={"name": f"Staging workflow smoke {stamp}", "location": "Staging", "timezone": "Africa/Accra"},
+            json={
+                "name": f"Staging workflow smoke {stamp}",
+                "location": "Staging",
+                "timezone": "Africa/Accra",
+            },
         ).json()
         project_id = project["id"]
         accepted = call(
@@ -70,12 +82,16 @@ def main() -> int:
             "POST",
             f"/api/v1/projects/{project_id}/site-updates",
             headers={**headers, "Idempotency-Key": f"smoke-update-{stamp}"},
-            json={"text": "Work started on the staging smoke area. No task should be marked complete."},
+            json={
+                "text": "Work started on the staging smoke area. No task should be marked complete."
+            },
         ).json()
         run_id = accepted["agent_run_id"]
         terminal = None
         for _ in range(20):
-            terminal = call("poll_agent_run", "GET", f"/api/v1/projects/{project_id}/agent-runs/{run_id}").json()
+            terminal = call(
+                "poll_agent_run", "GET", f"/api/v1/projects/{project_id}/agent-runs/{run_id}"
+            ).json()
             if terminal["status"] in {"completed", "failed", "waiting_approval", "blocked"}:
                 break
             time.sleep(2)
