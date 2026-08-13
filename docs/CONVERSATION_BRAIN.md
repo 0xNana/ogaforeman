@@ -4,7 +4,7 @@
 
 **Golden Scenario:** PASS AND LOCKED
 
-**Active phase:** Phase 2 — Project Context Service
+**Active phase:** Phase 3 — Conversational Response Layer
 
 The existing Golden Scenario is the foundation of OG Foreman and must not regress:
 
@@ -1412,6 +1412,9 @@ Phase 1 — Intent Router
 Status: COMPLETE
 
 Phase 2 — Project Context
+Status: COMPLETE
+
+Phase 3 — Conversational Response Layer
 Status: ACTIVE
 
 ...

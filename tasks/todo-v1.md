@@ -15,7 +15,9 @@ real cloud environment, live model credential/billing, or human release gate.
 - [x] C-02 Phase 1 provides a typed intent taxonomy, structured Gemini classifier,
   deterministic eval boundary, contextual response guards, low-confidence mutation gate,
   and explicit routing of site updates to the existing Golden workflow.
-- [ ] C-03 Phase 2 retrieves authorized, query-relevant project context without mutation.
+- [x] C-03 Phase 2 retrieves authorized, query-relevant, bounded project context without
+  mutation and fixes the Golden context's hard-coded issue/approval omissions.
+- [ ] C-04 Phase 3 formats grounded context into concise conversational responses.
 
 ## Audit findings requiring implementation
 

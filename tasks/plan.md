@@ -1,5 +1,18 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 2: Project Context
+
+Acceptance: retrieve permission-aware, query-relevant, bounded typed projections for project,
+task, issue, material, request, approval, schedule, daily-log, activity, and member facts from
+persisted project state without mutation or reliance on conversational memory.
+
+Verify: the nine documented query shapes select relevant domains; cross-project reads fail;
+today/tomorrow use project timezone; low, overdue, pending, and active views are deterministic;
+the backend and Golden Scenario regression suites remain green.
+
+Status: complete locally on 2026-08-13. Phase 3 (conversational response layer) is active and
+not implemented.
+
 ## Conversational Operations — Phase 1: Intent Router
 
 Acceptance: classify conversational input into a typed, non-mutating intent decision; reject
@@ -10,7 +23,7 @@ fact interpretation or mutations.
 Verify: focused intent taxonomy and Gemini structured-output tests pass, the non-backing backend
 suite stays green, and the canonical mobile Golden Scenario passes.
 
-Status: complete locally on 2026-08-13. Phase 2 (project context) is active and not implemented.
+Status: complete locally on 2026-08-13.
 
 ## How to Use This Plan
 

@@ -344,10 +344,12 @@ project label, with a production-readiness regression guard.
 
 ## Conversational operations
 
-- Phase 0 audit and Phase 1 intent routing are complete locally as of 2026-08-13.
+- Phases 0–2 are complete locally as of 2026-08-13.
 - The router is typed and non-mutating; low-confidence actions and context-free confirmations
   stop at clarification, while site updates retain the existing Golden workflow destination.
-- Phase 2 project-context retrieval is active and remains unimplemented.
+- Phase 2 adds permission-aware, query-shaped typed projections for all documented context
+  domains and corrects the Golden context's empty issue/approval projections.
+- Phase 3 conversational response formatting is active and remains unimplemented.
 
 ## Phase 8 state
 

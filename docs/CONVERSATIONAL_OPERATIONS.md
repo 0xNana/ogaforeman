@@ -23,7 +23,7 @@ message
 → IntentClassifier
 → IntentRoutingService
   ├─ casual response
-  ├─ project context (Phase 2)
+  ├─ project context (implemented in Phase 2)
   ├─ advice (later phase)
   ├─ project action (later phase)
   ├─ clarification / confirmation (later phase)
@@ -43,6 +43,8 @@ facts, execute tools, persist conversation state, or mutate project state.
 
 ## Extension points
 
-Phase 2 may implement authorized, query-shaped context retrieval behind the
-`PROJECT_CONTEXT` destination. Later phases may connect mutation destinations to existing typed
+Phase 2 implements authorized, query-shaped context retrieval behind the `PROJECT_CONTEXT`
+destination. It exposes bounded typed projections, uses project-local dates for today/tomorrow,
+loads only selected domains, and treats persisted repositories as truth. Phase 3 may format these
+facts into concise responses. Later phases may connect mutation destinations to existing typed
 services only after entity resolution and explicit policy checks exist.

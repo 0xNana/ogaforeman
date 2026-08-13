@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from collections.abc import Sequence
 
 from app.domain.authorization import ProjectAccessContext
+from app.domain.authorization import ProjectPermission, ensure_permission, ensure_project_scope
+from app.domain.enums import ApprovalStatus, IssueStatus, TaskStatus
 from app.domain.models import Approval, Issue, Material, Task
 from app.repositories.interfaces import RepositoryStore
 from app.repositories.tasks import TaskRepository
@@ -26,17 +28,24 @@ class ContextRepository:
         self._material_repo = MaterialRepository(store)
 
     def get_bounded_context(self, access: ProjectAccessContext) -> ProjectContext:
+        ensure_project_scope(access, access.project_id)
+        ensure_permission(access, ProjectPermission.READ)
         tasks = self._task_repo.list(access)
         materials = self._material_repo.list(access)
-
-        # Currently IssueRepository and ApprovalRepository may not be fully implemented,
-        # so we will initialize empty lists for them.
-        open_issues: Sequence[Issue] = ()
-        pending_approvals: Sequence[Approval] = ()
+        open_issues = tuple(
+            issue
+            for issue in self._store.repository(Issue).list(access.project_id)
+            if issue.status in {IssueStatus.OPEN, IssueStatus.ACKNOWLEDGED, IssueStatus.MITIGATED}
+        )
+        pending_approvals = tuple(
+            approval
+            for approval in self._store.repository(Approval).list(access.project_id)
+            if approval.status is ApprovalStatus.PENDING
+        )
 
         return ProjectContext(
             project_id=access.project_id,
-            active_tasks=tasks,
+            active_tasks=tuple(task for task in tasks if task.status is not TaskStatus.CANCELLED),
             materials=materials,
             open_issues=open_issues,
             pending_approvals=pending_approvals,
