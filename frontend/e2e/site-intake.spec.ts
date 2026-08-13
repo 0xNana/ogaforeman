@@ -41,7 +41,6 @@ test('runs a site update through real approval and same-run continuation', async
   const siteRequest = page.waitForRequest((candidate) => (
     candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
   ));
-
   await page.getByLabel('Type a site update').fill(
     'First-floor blockwork is complete. The electrician did not come today. '
       + 'We have 10 bags of cement left. Plastering starts tomorrow.',
@@ -111,14 +110,28 @@ test('uploads and submits a photo using the signed attachment contract', async (
   const siteRequest = page.waitForRequest((candidate) => (
     candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
   ));
+  const siteResponse = page.waitForResponse((candidate) => (
+    candidate.request().method() === 'POST' && candidate.url().endsWith('/site-updates')
+  ));
 
   await page.getByRole('button', { name: 'Send to OG' }).click();
   await expect(page.getByText('Adding your site photos...')).toBeVisible();
   const payload = JSON.parse((await siteRequest).postData() ?? '{}');
+  const result = await (await siteResponse).json();
 
   expect(payload.input_type).toBe('photo');
   expect(payload.attachment_ids).toHaveLength(1);
   await expect(page.getByRole('status')).toContainText('needs a clearer detail');
+  await page.getByRole('link', { name: 'Photos' }).click();
+  await expect(page.getByRole('heading', { name: 'Photos', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open site-progress.png' }).click();
+  await expect(page.getByRole('dialog', { name: 'site-progress.png' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText(payload.attachment_ids[0]);
+  await expect(page.getByText(result.site_update_id)).toBeVisible();
+  await expect(page.locator('.photo-detail-preview img')).toHaveAttribute('src', /\/e2e-storage\//);
+  const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(accessibility.violations).toEqual([]);
+  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(browserErrors).toEqual([]);
 });
 

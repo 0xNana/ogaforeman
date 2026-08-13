@@ -242,10 +242,12 @@ class Attachment(DomainModel):
     project_id: CanonicalId
     site_update_id: CanonicalId | None = None
     object_path: str = Field(min_length=1, max_length=2_000)
+    original_name: str | None = Field(default=None, max_length=500)
     content_type: str = Field(min_length=1, max_length=255)
     byte_size: int = Field(gt=0)
     sha256: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
     upload_status: AttachmentUploadStatus = AttachmentUploadStatus.INITIATED
+    uploaded_by: CanonicalId | None = None
     metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
     created_at: AwareDatetime = Field(default_factory=utc_now)
 

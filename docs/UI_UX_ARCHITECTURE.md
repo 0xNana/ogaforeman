@@ -326,3 +326,18 @@ remove obsolete UI only after its replacement passes the phase gate.
   uses a print-ready view; neither action creates an unapproved external action.
 - Verification passes with 26 frontend unit tests, 308 Python tests, production
   build, Daily Log desktop axe checks, and mobile overflow coverage.
+
+## Phase 6 acceptance evidence
+
+- Verified `Attachment` records are projected directly from the authorized
+  project store; initiated and rejected uploads never enter customer registers.
+- Upload contracts retain the safe original filename and canonical uploader ID.
+  Photos use short-lived authorized read URLs rather than public object paths.
+- Relationships are derived from the attachment's persisted site-update ID and
+  canonical task source refs, issue evidence refs, and report source-update IDs.
+- Photos provide date, location, task, and uploader filters plus an accessible
+  relationship drawer. PDFs use a deliberately simple document table; missing
+  revision/location metadata is labelled and not synthesized.
+- Verification passes with 29 frontend unit tests, 309 Python tests, production
+  build, the signed-upload rediscovery journey, photo-detail axe checks, and
+  mobile overflow coverage.

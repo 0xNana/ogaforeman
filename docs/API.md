@@ -65,8 +65,10 @@ repository and tool access. Email and display name are never identity keys.
 `main.py` installs the provider when auth settings are present. Local settings
 without an auth audience intentionally fail closed. The project snapshot reads
 the authorized project's persisted tasks, materials, requests, approvals,
-activities, latest report, and historical `dailyLogs`. A newly created project therefore returns empty
-resource lists plus its persisted `project.created` activity rather than a
+activities, latest report, historical `dailyLogs`, verified photos, and PDF
+documents. Attachment projections retain source and linked-record IDs while file
+content remains behind authorized signed-read URLs. A newly created project
+therefore returns empty resource lists plus its persisted `project.created` activity rather than a
 hard-coded empty projection.
 
 Task entries in the snapshot expose `needsAttention` and `sourceRefs`. A current

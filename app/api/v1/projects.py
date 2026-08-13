@@ -7,6 +7,7 @@ from app.domain.authorization import AuthenticatedUser
 from app.domain.models import (
     ActivityEvent,
     Approval,
+    Attachment,
     DailyReport,
     Issue,
     Material,
@@ -102,6 +103,7 @@ def get_project_snapshot(project_id: str, request: Request) -> dict[str, object]
         approvals=store.repository(Approval).list(project_id),
         activities=store.repository(ActivityEvent).list(project_id),
         reports=store.repository(DailyReport).list(project_id),
+        attachments=store.repository(Attachment).list(project_id),
         issues=store.repository(Issue).list(project_id),
         viewer_id=access.actor.user_id,
     )

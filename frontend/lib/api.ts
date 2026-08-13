@@ -161,6 +161,31 @@ export type DailyLog = {
   version: number;
 };
 
+export type ProjectPhoto = {
+  id: string;
+  name: string;
+  contentType: string;
+  date: string;
+  dateIso: string;
+  uploadedBy: string;
+  location: string | null;
+  siteUpdateId: string | null;
+  taskIds: string[];
+  issueIds: string[];
+  dailyLogIds: string[];
+};
+
+export type ProjectDocument = {
+  id: string;
+  name: string;
+  type: string;
+  revision: string | null;
+  uploadedBy: string;
+  updated: string;
+  siteUpdateId: string | null;
+  linkedRecords: string[];
+};
+
 export type ProjectSnapshot = {
   viewerId?: string | null;
   project: Project;
@@ -171,6 +196,8 @@ export type ProjectSnapshot = {
   approvals: Approval[];
   activities: Activity[];
   dailyLogs: DailyLog[];
+  photos: ProjectPhoto[];
+  documents: ProjectDocument[];
   report: DailyReport;
 };
 
@@ -394,6 +421,11 @@ export const api = {
       headers: { 'Idempotency-Key': `daily-log-edit:${crypto.randomUUID()}` },
     },
   ),
+  getAttachmentReadUrl: async (projectId: string, attachmentId: string): Promise<string> => {
+    const result = await remote<{ read_url: string | null }>(`/api/v1/projects/${projectId}/uploads/${attachmentId}/read-url`);
+    if (!result.read_url) throw new Error('The file is not available for viewing.');
+    return result.read_url;
+  },
   uploadSiteMedia: async (projectId: string, file: File): Promise<{ success: boolean; attachmentId?: string; error?: string }> => {
     if (file.size > 10 * 1024 * 1024) return { success: false, error: 'That file is larger than 10 MB.' };
     if (!file.type.startsWith('image/') && !file.type.startsWith('audio/') && file.type !== 'application/pdf') {
@@ -407,6 +439,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         content_type: file.type,
+        original_name: file.name,
         byte_size: file.size,
         sha256: digest,
       }),

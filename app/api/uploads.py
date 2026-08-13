@@ -28,6 +28,7 @@ class SignUploadRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     attachment_id: str | None = Field(default=None, min_length=3, max_length=128)
+    original_name: str | None = Field(default=None, max_length=500)
     content_type: str = Field(min_length=1, max_length=255)
     byte_size: int = Field(gt=0)
     sha256: Sha256

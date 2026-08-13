@@ -199,6 +199,8 @@ Vertical slice gate:
   Gantt planning views, dependency risk, milestones, filters, and activity detail.
 - [x] UI Phase 5 makes Daily Logs a first-class historical module with persisted
   report facts, source-update provenance, guarded edits, share, and print export.
+- [x] UI Phase 6 projects verified attachments into filterable Photos and focused
+  Documents registers with authorized previews and persisted record relationships.
 
 ## Reliability and launch
 

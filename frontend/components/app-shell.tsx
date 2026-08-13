@@ -124,7 +124,7 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
               <Bell size={18} aria-hidden="true" />
               {pendingApprovalCount > 0 && <span className="notification-dot" aria-hidden="true" />}
             </Link>
-            <button className="account-button" type="button" onClick={() => void signOut()} disabled={signingOut}>
+            <button className="account-button" type="button" aria-label={signingOut ? 'Signing out' : 'Sign Out'} onClick={() => void signOut()} disabled={signingOut}>
               <span className="account-avatar" aria-hidden="true">OF</span>
               <span className="account-copy">{signingOut ? 'Signing out…' : 'Sign Out'}</span>
               <LogOut size={15} aria-hidden="true" />

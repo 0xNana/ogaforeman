@@ -14,6 +14,10 @@ test('manager views render task, material, report, and approval resources', asyn
 
   await expect(page.getByRole('link', { name: 'Overview' })).toBeVisible();
 
+  await page.getByRole('link', { name: 'Documents' }).click();
+  await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Blockwork method statement.pdf/ })).toContainText('Not recorded');
+
   await page.getByRole('link', { name: 'Schedule' }).click();
   await expect(page.getByRole('heading', { name: 'Schedule', exact: true })).toBeVisible();
   await expect(page.getByRole('row', { name: /First-floor plastering/ })).toContainText('At risk');

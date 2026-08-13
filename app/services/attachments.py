@@ -40,6 +40,7 @@ class AttachmentInput(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     attachment_id: str | None = Field(default=None, min_length=3, max_length=128)
+    original_name: str | None = Field(default=None, max_length=500)
     content_type: str = Field(min_length=1, max_length=255)
     byte_size: int = Field(gt=0)
     sha256: Sha256
@@ -116,10 +117,12 @@ class AttachmentService:
                 id=attachment_id,
                 project_id=target_project_id,
                 object_path=object_path,
+                original_name=request.original_name,
                 content_type=request.content_type,
                 byte_size=request.byte_size,
                 sha256=request.sha256.lower(),
                 upload_status=AttachmentUploadStatus.INITIATED,
+                uploaded_by=access.actor.user_id,
             )
             try:
                 self._store.run_transaction(
@@ -338,6 +341,7 @@ def _matches_contract(
     return (
         attachment.object_path == object_path
         and attachment.content_type == request.content_type
+        and attachment.original_name == request.original_name
         and attachment.byte_size == request.byte_size
         and attachment.sha256.lower() == request.sha256.lower()
     )

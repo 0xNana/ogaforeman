@@ -13,6 +13,7 @@ from app.domain.activity import MutationContext
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, ProjectPermission
 from app.domain.enums import (
     ActorType,
+    AttachmentUploadStatus,
     ApprovalActionType,
     ApprovalStatus,
     MemberRole,
@@ -29,6 +30,7 @@ from app.domain.enums import (
 from app.domain.models import (
     ActivityEvent,
     Approval,
+    Attachment,
     DailyReport,
     Issue,
     Material,
@@ -134,6 +136,8 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
         "materialRequests": [],
         "approvals": [],
         "dailyLogs": [],
+        "photos": [],
+        "documents": [],
         "activities": [
             {
                 "id": "act_projectcreated123",
@@ -167,12 +171,22 @@ async def test_admin_can_create_canonical_resources_before_site_updates() -> Non
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         task = await client.post(
             f"/api/v1/projects/{PROJECT_ID}/tasks",
-            json={"title": "First-floor blockwork", "planned_start": NOW.isoformat(), "planned_end": NOW.isoformat(), "is_milestone": True},
+            json={
+                "title": "First-floor blockwork",
+                "planned_start": NOW.isoformat(),
+                "planned_end": NOW.isoformat(),
+                "is_milestone": True,
+            },
             headers={"Idempotency-Key": "setup:task:blockwork"},
         )
         task_replay = await client.post(
             f"/api/v1/projects/{PROJECT_ID}/tasks",
-            json={"title": "First-floor blockwork", "planned_start": NOW.isoformat(), "planned_end": NOW.isoformat(), "is_milestone": True},
+            json={
+                "title": "First-floor blockwork",
+                "planned_start": NOW.isoformat(),
+                "planned_end": NOW.isoformat(),
+                "is_milestone": True,
+            },
             headers={"Idempotency-Key": "setup:task:blockwork"},
         )
         material = await client.post(
@@ -416,52 +430,175 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
     assert snapshot["approvals"][0]["quantity"] == "30 bags"
     assert snapshot["report"]["completed"] == ["First-floor blockwork"]
     assert snapshot["report"]["materials"] == ["Cement stock is low"]
-    assert snapshot["dailyLogs"] == [{
-        "id": "rpt_daily123",
-        "date": "Saturday, 8 August",
-        "dateIso": "2026-08-08",
-        "summary": "Blockwork completed; cement is low.",
-        "crew": None,
-        "weather": None,
-        "completed": ["First-floor blockwork"],
-        "inProgress": [],
-        "blocked": [],
-        "materials": ["Cement stock is low"],
-        "deliveries": [],
-        "inspections": [],
-        "photos": [],
-        "tomorrow": [],
-        "risks": ["Cement stock is low"],
-        "sourceUpdateCount": 0,
-        "status": "PUBLISHED",
-        "version": 0,
-    }]
+    assert snapshot["dailyLogs"] == [
+        {
+            "id": "rpt_daily123",
+            "date": "Saturday, 8 August",
+            "dateIso": "2026-08-08",
+            "summary": "Blockwork completed; cement is low.",
+            "crew": None,
+            "weather": None,
+            "completed": ["First-floor blockwork"],
+            "inProgress": [],
+            "blocked": [],
+            "materials": ["Cement stock is low"],
+            "deliveries": [],
+            "inspections": [],
+            "photos": [],
+            "tomorrow": [],
+            "risks": ["Cement stock is low"],
+            "sourceUpdateCount": 0,
+            "status": "PUBLISHED",
+            "version": 0,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_projects_verified_media_with_relationships() -> None:
+    store = InMemoryRepositoryStore()
+    store.repository(Attachment).create(
+        Attachment(
+            id="att_progress123",
+            project_id=PROJECT_ID,
+            site_update_id="sup_progress123",
+            object_path=f"projects/{PROJECT_ID}/attachments/att_progress123",
+            original_name="north-elevation.jpg",
+            content_type="image/jpeg",
+            byte_size=2048,
+            sha256="a" * 64,
+            upload_status=AttachmentUploadStatus.VERIFIED,
+            uploaded_by=ACTOR_ID,
+            created_at=NOW,
+        )
+    )
+    store.repository(Attachment).create(
+        Attachment(
+            id="att_method123",
+            project_id=PROJECT_ID,
+            object_path=f"projects/{PROJECT_ID}/attachments/att_method123",
+            original_name="blockwork-method.pdf",
+            content_type="application/pdf",
+            byte_size=4096,
+            sha256="b" * 64,
+            upload_status=AttachmentUploadStatus.VERIFIED,
+            uploaded_by=ACTOR_ID,
+            created_at=NOW,
+        )
+    )
+    store.repository(Task).create(
+        Task(
+            id="tsk_blockwork123",
+            project_id=PROJECT_ID,
+            title="First-floor blockwork",
+            source=TaskSource.SITE_UPDATE,
+            source_refs=["sup_progress123"],
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+    store.repository(Issue).create(
+        Issue(
+            id="iss_quality123",
+            project_id=PROJECT_ID,
+            type=IssueType.QUALITY,
+            severity=Severity.MEDIUM,
+            description="Check north elevation joints.",
+            evidence_refs=["sup_progress123"],
+            detected_by=IssueDetectedBy.SITE_UPDATE,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+    store.repository(DailyReport).create(
+        DailyReport(
+            id="rpt_media123",
+            project_id=PROJECT_ID,
+            report_date=date(2026, 8, 8),
+            summary="North elevation progress recorded.",
+            source_update_ids=["sup_progress123"],
+            status=ReportStatus.PUBLISHED,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+
+    transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(f"/api/v1/projects/{PROJECT_ID}/snapshot")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["photos"] == [
+        {
+            "id": "att_progress123",
+            "name": "north-elevation.jpg",
+            "contentType": "image/jpeg",
+            "date": "8 Aug 2026, 09:45",
+            "dateIso": "2026-08-08T09:45:00+00:00",
+            "uploadedBy": ACTOR_ID,
+            "location": None,
+            "siteUpdateId": "sup_progress123",
+            "taskIds": ["tsk_blockwork123"],
+            "issueIds": ["iss_quality123"],
+            "dailyLogIds": ["rpt_media123"],
+        }
+    ]
+    assert payload["documents"] == [
+        {
+            "id": "att_method123",
+            "name": "blockwork-method.pdf",
+            "type": "PDF",
+            "revision": None,
+            "uploadedBy": ACTOR_ID,
+            "updated": "8 Aug 2026",
+            "siteUpdateId": None,
+            "linkedRecords": [],
+        }
+    ]
 
 
 @pytest.mark.asyncio
 async def test_admin_edits_daily_log_metadata_with_activity_and_idempotency() -> None:
     store = InMemoryRepositoryStore()
-    store.repository(DailyReport).create(DailyReport(
-        id="rpt_edit123",
-        project_id=PROJECT_ID,
-        report_date=date(2026, 8, 8),
-        summary="Initial summary.",
-        created_at=NOW,
-        updated_at=NOW,
-    ))
+    store.repository(DailyReport).create(
+        DailyReport(
+            id="rpt_edit123",
+            project_id=PROJECT_ID,
+            report_date=date(2026, 8, 8),
+            summary="Initial summary.",
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
     transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
     headers = {"Idempotency-Key": "daily-log:edit:123"}
-    payload = {"summary": "Client-ready summary.", "crew_summary": "12 workers", "weather_summary": "Dry", "expected_version": 0}
+    payload = {
+        "summary": "Client-ready summary.",
+        "crew_summary": "12 workers",
+        "weather_summary": "Dry",
+        "expected_version": 0,
+    }
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        edited = await client.post(f"/api/v1/projects/{PROJECT_ID}/daily-logs/rpt_edit123/edit", json=payload, headers=headers)
-        replay = await client.post(f"/api/v1/projects/{PROJECT_ID}/daily-logs/rpt_edit123/edit", json=payload, headers=headers)
+        edited = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/daily-logs/rpt_edit123/edit",
+            json=payload,
+            headers=headers,
+        )
+        replay = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/daily-logs/rpt_edit123/edit",
+            json=payload,
+            headers=headers,
+        )
 
     assert edited.status_code == 200
     assert replay.json() == edited.json()
     assert edited.json()["crew"] == "12 workers"
     assert edited.json()["weather"] == "Dry"
     assert edited.json()["version"] == 1
-    assert [event.action for event in store.repository(ActivityEvent).list(PROJECT_ID)] == ["daily_log.edited"]
+    assert [event.action for event in store.repository(ActivityEvent).list(PROJECT_ID)] == [
+        "daily_log.edited"
+    ]
 
 
 @pytest.mark.asyncio

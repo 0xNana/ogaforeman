@@ -34,6 +34,8 @@ const snapshot = {
     user: 'OG',
   })),
   dailyLogs: [],
+  photos: [],
+  documents: [],
   report: {
     date: 'Today',
     completed: [],

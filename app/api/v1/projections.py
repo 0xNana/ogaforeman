@@ -5,10 +5,11 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.domain.enums import MaterialRequestStatus, TaskSource, TaskStatus
+from app.domain.enums import AttachmentUploadStatus, MaterialRequestStatus, TaskSource, TaskStatus
 from app.domain.models import (
     ActivityEvent,
     Approval,
+    Attachment,
     DailyReport,
     Issue,
     Material,
@@ -40,6 +41,7 @@ def project_snapshot_projection(
     approvals: Sequence[Approval],
     activities: Sequence[ActivityEvent],
     reports: Sequence[DailyReport],
+    attachments: Sequence[Attachment] = (),
     issues: Sequence[Issue] = (),
     viewer_id: str | None = None,
 ) -> dict[str, object]:
@@ -54,6 +56,11 @@ def project_snapshot_projection(
     latest_report = max(
         reports, key=lambda report: (report.report_date, report.updated_at), default=None
     )
+    verified_attachments = [
+        attachment
+        for attachment in attachments
+        if attachment.upload_status is AttachmentUploadStatus.VERIFIED
+    ]
     return {
         "viewerId": viewer_id,
         "project": {
@@ -96,6 +103,20 @@ def project_snapshot_projection(
             daily_log_projection(report)
             for report in sorted(reports, key=lambda item: item.report_date, reverse=True)
         ],
+        "photos": [
+            photo_projection(attachment, timezone, tasks, issues, reports)
+            for attachment in sorted(
+                verified_attachments, key=lambda item: item.created_at, reverse=True
+            )
+            if attachment.content_type.startswith("image/")
+        ],
+        "documents": [
+            document_projection(attachment, timezone, tasks, issues, reports)
+            for attachment in sorted(
+                verified_attachments, key=lambda item: item.created_at, reverse=True
+            )
+            if attachment.content_type == "application/pdf"
+        ],
         "report": report_projection(latest_report) if latest_report else empty_report_projection(),
     }
 
@@ -124,7 +145,11 @@ def task_projection(
     planned_finish = _local_date(task.planned_end, timezone)
     finish_date = planned_finish or _local_date(task.actual_completion, timezone)
     duration_days = (
-        (task.planned_end.astimezone(timezone).date() - task.planned_start.astimezone(timezone).date()).days + 1
+        (
+            task.planned_end.astimezone(timezone).date()
+            - task.planned_start.astimezone(timezone).date()
+        ).days
+        + 1
         if task.planned_start is not None and task.planned_end is not None
         else None
     )
@@ -299,6 +324,65 @@ def daily_log_projection(report: DailyReport) -> dict[str, object]:
     }
 
 
+def photo_projection(
+    attachment: Attachment,
+    timezone: ZoneInfo,
+    tasks: Sequence[Task],
+    issues: Sequence[Issue],
+    reports: Sequence[DailyReport],
+) -> dict[str, object]:
+    task_ids, issue_ids, daily_log_ids = _attachment_links(attachment, tasks, issues, reports)
+    return {
+        "id": attachment.id,
+        "name": attachment.original_name or attachment.id,
+        "contentType": attachment.content_type,
+        "date": attachment.created_at.astimezone(timezone).strftime("%-d %b %Y, %H:%M"),
+        "dateIso": attachment.created_at.isoformat(),
+        "uploadedBy": attachment.uploaded_by or "Not recorded",
+        "location": _text(attachment.metadata.get("location")) or None,
+        "siteUpdateId": attachment.site_update_id,
+        "taskIds": task_ids,
+        "issueIds": issue_ids,
+        "dailyLogIds": daily_log_ids,
+    }
+
+
+def document_projection(
+    attachment: Attachment,
+    timezone: ZoneInfo,
+    tasks: Sequence[Task],
+    issues: Sequence[Issue],
+    reports: Sequence[DailyReport],
+) -> dict[str, object]:
+    task_ids, issue_ids, daily_log_ids = _attachment_links(attachment, tasks, issues, reports)
+    return {
+        "id": attachment.id,
+        "name": attachment.original_name or attachment.id,
+        "type": "PDF",
+        "revision": _text(attachment.metadata.get("revision")) or None,
+        "uploadedBy": attachment.uploaded_by or "Not recorded",
+        "updated": attachment.created_at.astimezone(timezone).strftime("%-d %b %Y"),
+        "siteUpdateId": attachment.site_update_id,
+        "linkedRecords": [*task_ids, *issue_ids, *daily_log_ids],
+    }
+
+
+def _attachment_links(
+    attachment: Attachment,
+    tasks: Sequence[Task],
+    issues: Sequence[Issue],
+    reports: Sequence[DailyReport],
+) -> tuple[list[str], list[str], list[str]]:
+    source_id = attachment.site_update_id
+    if source_id is None:
+        return [], [], []
+    return (
+        [task.id for task in tasks if source_id in task.source_refs],
+        [issue.id for issue in issues if source_id in issue.evidence_refs],
+        [report.id for report in reports if source_id in report.source_update_ids],
+    )
+
+
 def _latest_requests_by_material(
     requests: Sequence[MaterialRequest],
 ) -> dict[str, MaterialRequest]:
@@ -353,6 +437,8 @@ __all__ = [
     "daily_log_projection",
     "material_projection",
     "material_request_projection",
+    "photo_projection",
+    "document_projection",
     "issue_projection",
     "project_snapshot_projection",
     "report_projection",

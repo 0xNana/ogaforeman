@@ -2,13 +2,14 @@
 
 ## Current phase status
 
-- Active phase: Phase 6 — Photos and Documents
+- Active phase: Phase 7 — OG Interaction Layer
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
 - Phase 3 — Operational Registers: complete (2026-08-13)
 - Phase 4 — Schedule: complete (2026-08-13)
 - Phase 5 — Daily Logs: complete (2026-08-13)
+- Phase 6 — Photos and Documents: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -20,11 +21,14 @@
   Playwright journeys pass; schedule axe and mobile Gantt overflow checks pass.
 - Phase 5 evidence: 26 frontend unit tests, 308 Python tests, and the applicable
   Playwright journeys pass; Daily Log axe and mobile overflow checks pass.
-- Product/API contracts changed through Phase 5: yes — the authenticated project
+- Phase 6 evidence: 29 frontend unit tests, 309 Python tests, and the applicable
+  Playwright journeys pass; photo-detail axe and mobile overflow checks pass.
+- Product/API contracts changed through Phase 6: yes — the authenticated project
   snapshot projects viewer identity, task/register/schedule fields, issues, and
   material requests, plus historical daily logs; tasks persist an explicit milestone
-  flag, and guarded daily-log metadata edits atomically emit activity.
-- Do not begin Phase 7 until the Phase 6 acceptance gate passes.
+  flag, guarded daily-log edits atomically emit activity, and verified attachment
+  metadata projects into linked photo and document registers.
+- Do not begin Phase 8 until the Phase 7 acceptance gate passes.
 
 ## Objective
 
@@ -685,6 +689,13 @@ Do not build full document-management complexity.
 
 A photo uploaded through OG can later be found independently and traced back to its related project records.
 
+Status: complete (2026-08-13). The signed-upload browser journey now proves
+that a verified photo submitted through OG is independently discoverable in a
+filterable visual register, can be opened through an authorized signed-read URL,
+and retains its source site update plus task, issue, and daily-log relationships.
+PDF attachments appear in a focused document register; absent revision and
+location metadata remain explicitly unrecorded.
+
 ---
 
 # PHASE 7 — OG Interaction Layer
@@ -1125,7 +1136,7 @@ Do not declare the overhaul complete unless all are true:
 * [ ] Materials use inventory/request registers.
 * [ ] Schedule has a professional planning view.
 * [x] Daily Logs are first-class.
-* [ ] Photos are linked to project records.
+* [x] Photos are linked to project records.
 * [ ] Activity is a chronological timeline.
 * [ ] OG is available globally via drawer/sheet.
 * [ ] Mobile is field-first.

@@ -20,6 +20,7 @@ from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, Pr
 from app.domain.enums import (
     ActorType,
     ApprovalActionType,
+    AttachmentUploadStatus,
     IssueType,
     MemberRole,
     MemberStatus,
@@ -39,6 +40,7 @@ from app.domain.facts import (
 from app.domain.models import (
     ActivityEvent,
     Approval,
+    Attachment,
     DailyReport,
     Material,
     OutboxMessage,
@@ -91,6 +93,13 @@ class LocalE2EStorage:
         if content_type != expected_type or len(body) != expected_size:
             raise ValueError("uploaded object does not match its signed contract")
         self._objects[object_path] = (body, content_type)
+
+    def seed(self, object_path: str, body: bytes, content_type: str) -> None:
+        self._objects[object_path] = (body, content_type)
+
+    def get(self, token: str) -> tuple[bytes, str]:
+        object_path, _content_type, _byte_size = self._contracts[token]
+        return self._objects[object_path]
 
     def inspect(self, *, object_path: str, expected_sha256: str, max_bytes: int) -> StoredObject:
         body, content_type = self._objects[object_path]
@@ -378,6 +387,23 @@ class LocalE2ERuntime:
                 updated_at=NOW,
             )
         )
+        document_bytes = b"%PDF-1.4\n% OG Foreman test document\n"
+        document_path = f"projects/{PROJECT_ID}/attachments/att_method123"
+        self.storage.seed(document_path, document_bytes, "application/pdf")
+        self.store.repository(Attachment).create(
+            Attachment(
+                id="att_method123",
+                project_id=PROJECT_ID,
+                object_path=document_path,
+                original_name="Blockwork method statement.pdf",
+                content_type="application/pdf",
+                byte_size=len(document_bytes),
+                sha256=hashlib.sha256(document_bytes).hexdigest(),
+                upload_status=AttachmentUploadStatus.VERIFIED,
+                uploaded_by=ACTOR_ID,
+                created_at=NOW,
+            )
+        )
         for task in (
             Task(
                 id="tsk_blockwork123",
@@ -550,6 +576,11 @@ def create_app() -> FastAPI:
             request.headers.get("content-type", ""),
         )
         return Response(status_code=204)
+
+    @app.get("/e2e-storage/{token}")
+    def download(token: str) -> Response:
+        body, content_type = runtime.storage.get(token)
+        return Response(content=body, media_type=content_type)
 
     @app.get("/health/live")
     def health() -> dict[str, str]:
