@@ -1,241 +1,61 @@
 'use client';
 
-import { ArrowRight, PackageOpen, Plus, Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2, PackageOpen, Plus, Search } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useProject } from '@/components/project-context';
+
 import { MaterialCreateDialog } from '@/components/material-create-dialog';
-import { Pagination } from '@/components/pagination';
-import { api, type Material } from '@/lib/api';
+import { PageHeader } from '@/components/page-header';
+import { useProject } from '@/components/project-context';
+import { RecordDetails, RecordDrawer } from '@/components/record-drawer';
+import { api, type Material, type MaterialRequest } from '@/lib/api';
 
 export default function MaterialsPage() {
   const { projectId, snapshot, refresh } = useProject();
-  const searchParams = useSearchParams();
-  const isSetup = searchParams?.get('setup') === '1';
-  const materials = snapshot.materials;
-
-  const [page, setPage] = useState(1);
-  const pageSize = 15;
-  const paginatedMaterials = useMemo(() => {
-    return materials.slice((page - 1) * pageSize, page * pageSize);
-  }, [materials, page, pageSize]);
-
+  const isSetup = useSearchParams()?.get('setup') === '1';
+  const [tab, setTab] = useState<'INVENTORY' | 'REQUESTS'>('INVENTORY');
+  const [query, setQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [selected, setSelected] = useState<Material | null>(null);
+  const [adjusting, setAdjusting] = useState(false);
   const [delta, setDelta] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const needle = query.trim().toLowerCase();
+  const materials = useMemo(() => snapshot.materials.filter((item) => !needle || [item.id, item.name, item.forWork].some((value) => value.toLowerCase().includes(needle))), [needle, snapshot.materials]);
+  const visibleRequests = useMemo(() => snapshot.materialRequests.filter((item) => !needle || [item.id, item.materialName, item.reason].some((value) => value.toLowerCase().includes(needle))), [needle, snapshot.materialRequests]);
 
-  function closeModal() {
-    setSelectedMaterial(null);
-    setIsUpdating(false);
-    setDelta('');
-    setReason('');
-    setError(null);
+  function closeDrawer() { setSelected(null); setAdjusting(false); setDelta(''); setReason(''); setError(null); }
+  async function submitAdjustment(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selected) return;
+    const quantityDelta = Number(delta);
+    if (!Number.isFinite(quantityDelta) || quantityDelta === 0 || !reason.trim()) { setError('Enter a non-zero adjustment and a reason.'); return; }
+    setSubmitting(true); setError(null);
+    try { await api.adjustMaterialQuantity(projectId, selected.id, quantityDelta, selected.unit, selected.version, reason.trim()); await refresh(); closeDrawer(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update quantity.'); }
+    finally { setSubmitting(false); }
   }
 
-  async function handleUpdateSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedMaterial || !delta.trim() || !reason.trim()) return;
-
-    const numericDelta = Number(delta);
-    if (isNaN(numericDelta) || numericDelta === 0) {
-      setError("Please enter a valid non-zero adjustment.");
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.adjustMaterialQuantity(
-        projectId,
-        selectedMaterial.id,
-        numericDelta,
-        selectedMaterial.unit,
-        selectedMaterial.version,
-        reason.trim()
-      );
-      await refresh();
-      closeModal();
-    } catch (err: any) {
-      setError(err.message || 'Could not update quantity.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div>
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">Materials</span>
-          <h1>What you have. What&apos;s at risk.</h1>
-          <p>Current stock, upcoming need and the requests waiting on you.</p>
-        </div>
-        <div className="page-heading-actions">
-          <button className="btn btn-primary btn-small" type="button" onClick={() => setShowCreate(true)}>
-            <Plus size={15} /> Add material
-          </button>
-          {isSetup && materials.length > 0 && (
-            <Link href={`/projects/${projectId}?setup=1`} className="btn btn-accent btn-small">
-              Finish setup <ArrowRight size={15} />
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {materials.length > 0 ? (
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Material</th>
-                <th>Available</th>
-                <th className="action-cell"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedMaterials.map((material) => (
-                <tr key={material.id} onClick={() => setSelectedMaterial(material)} style={{ cursor: 'pointer' }}>
-                  <td>
-                    <span className={`status-pill ${material.status.toLowerCase()}`}>
-                      {material.status === 'LOW' ? 'Running low' : material.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="primary-cell">{material.name}</div>
-                  </td>
-                  <td>
-                    <span className="numeric-cell">{material.quantity}</span> <span className="secondary-cell">{material.unit}</span>
-                  </td>
-                  <td className="action-cell">
-                    <button className="btn btn-quiet btn-small">View details</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination
-            currentPage={page}
-            totalItems={materials.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-          />
-        </div>
-      ) : (
-        <div className="empty-state">
-          <span className="empty-state-icon"><PackageOpen size={20} /></span>
-          <h2>No materials tracked.</h2>
-          <p>Add stock items to let OG monitor availability and requests.</p>
-        </div>
-      )}
-
-      {showCreate && (
-        <MaterialCreateDialog
-          projectId={projectId}
-          onClose={() => setShowCreate(false)}
-          onRefresh={refresh}
-        />
-      )}
-
-      {selectedMaterial && (
-        <div className="modal-backdrop" role="presentation">
-          <section className="create-project-modal material-create-modal" role="dialog" aria-modal="true">
-            <button className="modal-close" onClick={closeModal} aria-label="Close">×</button>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <span className={`status-pill ${selectedMaterial.status.toLowerCase()}`}>
-                {selectedMaterial.status === 'LOW' ? 'Running low' : selectedMaterial.status}
-              </span>
-            </div>
-
-            <h2 style={{ fontSize: '1.45rem', marginBottom: '20px', letterSpacing: '-0.035em' }}>{selectedMaterial.name}</h2>
-
-            {!isUpdating ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '20px' }}>
-                  <strong style={{ fontSize: '3rem', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.07em', lineHeight: 1 }}>{selectedMaterial.quantity}</strong>
-                  <span style={{ color: 'var(--ink-soft)', fontSize: '0.8rem' }}>{selectedMaterial.unit} available</span>
-                </div>
-
-                <dl style={{ display: 'grid', gridTemplateColumns: '0.7fr 1.3fr', gap: '9px', padding: '14px 0', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
-                  <div>
-                    <dt style={{ color: 'var(--ink-faint)', fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase' }}>Need</dt>
-                    <dd style={{ margin: '4px 0 0', fontSize: '0.82rem', fontWeight: 700 }}>{selectedMaterial.need} {selectedMaterial.unit}</dd>
-                  </div>
-                  <div>
-                    <dt style={{ color: 'var(--ink-faint)', fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase' }}>For Work</dt>
-                    <dd style={{ margin: '4px 0 0', fontSize: '0.82rem', fontWeight: 700 }}>{selectedMaterial.forWork}</dd>
-                  </div>
-                </dl>
-
-                <div style={{ marginTop: '20px', padding: '16px', background: 'var(--paper)', borderRadius: '12px' }}>
-                  <strong style={{ fontSize: '0.8rem', color: 'var(--ink-faint)', textTransform: 'uppercase' }}>OG&apos;s Assessment</strong>
-                  <p style={{ marginTop: '8px', color: 'var(--ink-soft)', fontSize: '0.88rem' }}>{selectedMaterial.note || 'No active notes on this material.'}</p>
-                </div>
-
-                <div style={{ marginTop: '30px' }}>
-                  {selectedMaterial.status === 'LOW' ? (
-                    <Link href={`/projects/${projectId}/approvals`} className="btn btn-primary btn-block">
-                      Review stock request <ArrowRight size={14} />
-                    </Link>
-                  ) : (
-                    <button type="button" onClick={() => setIsUpdating(true)} className="btn btn-primary btn-block">
-                      Update quantities <ArrowRight size={14} />
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : (
-              <form onSubmit={handleUpdateSubmit} style={{ marginTop: '20px' }}>
-                <p style={{ fontSize: '0.88rem', color: 'var(--ink-soft)', marginBottom: '20px' }}>
-                  Current stock is <strong>{selectedMaterial.quantity} {selectedMaterial.unit}</strong>. Enter the adjustment below (e.g. 50 or -10).
-                </p>
-                <div className="form-group">
-                  <label htmlFor="delta">Adjustment Amount</label>
-                  <input
-                    id="delta"
-                    type="number"
-                    className="form-input"
-                    value={delta}
-                    onChange={(e) => setDelta(e.target.value)}
-                    required
-                    disabled={submitting}
-                    placeholder="e.g. 100 or -5"
-                  />
-                </div>
-                <div className="form-group" style={{ marginTop: '16px' }}>
-                  <label htmlFor="reason">Reason</label>
-                  <input
-                    id="reason"
-                    type="text"
-                    className="form-input"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    required
-                    disabled={submitting}
-                    placeholder="e.g. New delivery received"
-                  />
-                </div>
-
-                {error && <div className="form-error" style={{ color: 'var(--orange-deep)', fontSize: '0.82rem', marginTop: '16px' }}>{error}</div>}
-
-                <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
-                  <button type="button" className="btn btn-quiet" onClick={() => setIsUpdating(false)} disabled={submitting}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={submitting}>
-                    {submitting ? <><Loader2 size={15} className="spinner" /> Saving...</> : 'Save adjustment'}
-                  </button>
-                </div>
-              </form>
-            )}
-          </section>
-        </div>
-      )}
-    </div>
-  );
+  return <div><PageHeader eyebrow="Material control" title="Materials" description="Review inventory and follow each material request through its recorded lifecycle." actions={<><button className="btn btn-primary btn-small" type="button" onClick={() => setShowCreate(true)}><Plus size={15} aria-hidden="true" /> Add material</button>{isSetup && snapshot.materials.length ? <Link href={`/projects/${projectId}?setup=1`} className="btn btn-accent btn-small">Finish setup <ArrowRight size={15} aria-hidden="true" /></Link> : null}</>} />
+    <div className="register-toolbar"><label className="register-search"><Search size={16} aria-hidden="true" /><span className="sr-only">Search materials</span><input type="search" placeholder="Search inventory or requests" value={query} onChange={(event) => setQuery(event.target.value)} /></label><div className="filter-tabs" aria-label="Material registers"><button className={`filter-tab${tab === 'INVENTORY' ? ' active' : ''}`} type="button" aria-pressed={tab === 'INVENTORY'} onClick={() => setTab('INVENTORY')}>Inventory</button><button className={`filter-tab${tab === 'REQUESTS' ? ' active' : ''}`} type="button" aria-pressed={tab === 'REQUESTS'} onClick={() => setTab('REQUESTS')}>Requests</button></div><span className="register-count">{tab === 'INVENTORY' ? materials.length : visibleRequests.length} records</span></div>
+    {tab === 'INVENTORY' ? <InventoryTable materials={materials} onSelect={setSelected} /> : <RequestTable projectId={projectId} requests={visibleRequests} />}
+    {showCreate ? <MaterialCreateDialog projectId={projectId} onClose={() => setShowCreate(false)} onRefresh={refresh} /> : null}
+    {selected ? <RecordDrawer eyebrow={`Material · ${selected.id}`} title={selected.name} onClose={closeDrawer}><span className={`status-pill ${selected.status.toLowerCase()}`}>{materialStatus(selected.status)}</span>{adjusting ? <form className="drawer-form" onSubmit={submitAdjustment}><p>Current stock: <strong>{selected.quantity} {selected.unit}</strong></p><label>Adjustment amount<input type="number" step="any" value={delta} onChange={(event) => setDelta(event.target.value)} required disabled={submitting} /></label><label>Reason<input value={reason} onChange={(event) => setReason(event.target.value)} required disabled={submitting} /></label>{error ? <p role="alert" className="form-error">{error}</p> : null}<div><button className="btn btn-quiet" type="button" onClick={() => setAdjusting(false)} disabled={submitting}>Cancel</button><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? <><Loader2 size={15} className="spinner" /> Saving…</> : 'Save adjustment'}</button></div></form> : <><RecordDetails items={[{ label: 'On site', value: `${selected.quantity} ${selected.unit}` }, { label: 'Required', value: `${selected.need} ${selected.unit}` }, { label: 'Needed by', value: 'Not specified' }, { label: 'For work', value: selected.forWork }, { label: 'Assessment', value: selected.note }]} /><button className="btn btn-primary btn-block drawer-action" type="button" onClick={() => setAdjusting(true)}>Update quantities</button></>}</RecordDrawer> : null}
+  </div>;
 }
+
+function InventoryTable({ materials, onSelect }: Readonly<{ materials: Material[]; onSelect: (material: Material) => void }>) {
+  if (!materials.length) return <Empty title="No inventory records." text="Add stock items or change the search to see materials." />;
+  return <div className="data-table-wrapper"><table className="data-table register-table"><thead><tr><th>Material</th><th>On site</th><th>Required</th><th>Unit</th><th>Needed by</th><th>Status</th></tr></thead><tbody>{materials.map((material) => <tr key={material.id}><th scope="row"><button className="register-row-link" type="button" onClick={() => onSelect(material)}>{material.name}</button></th><td>{material.quantity}</td><td>{material.need}</td><td>{material.unit}</td><td>Not specified</td><td><span className={`status-pill ${material.status.toLowerCase()}`}>{materialStatus(material.status)}</span></td></tr>)}</tbody></table></div>;
+}
+
+function RequestTable({ projectId, requests }: Readonly<{ projectId: string; requests: MaterialRequest[] }>) {
+  if (!requests.length) return <Empty title="No material requests." text="Requests created from recorded shortages will appear here." />;
+  return <div className="data-table-wrapper"><table className="data-table register-table"><thead><tr><th>Request</th><th>Material</th><th>Quantity</th><th>Reason</th><th>Needed by</th><th>Status</th></tr></thead><tbody>{requests.map((request) => <tr key={request.id}><td className="secondary-cell">{request.id}</td><th scope="row">{request.materialName}</th><td>{request.quantity} {request.unit}</td><td>{request.reason}</td><td>{request.neededBy}</td><td>{request.approvalId ? <Link href={`/projects/${projectId}/approvals`} className="register-status-link"><span className={`status-pill ${request.status.toLowerCase()}`}>{request.status.toLowerCase().replaceAll('_', ' ')}</span></Link> : <span className={`status-pill ${request.status.toLowerCase()}`}>{request.status.toLowerCase().replaceAll('_', ' ')}</span>}</td></tr>)}</tbody></table></div>;
+}
+
+function Empty({ title, text }: Readonly<{ title: string; text: string }>) { return <div className="empty-state"><span className="empty-state-icon"><PackageOpen size={20} aria-hidden="true" /></span><h2>{title}</h2><p>{text}</p></div>; }
+function materialStatus(status: string) { return status === 'LOW' ? 'Running low' : status.toLowerCase().replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase()); }

@@ -1,6 +1,9 @@
-import { MessageSquareWarning } from 'lucide-react';
-import { ModulePlaceholder } from '@/components/module-placeholder';
+'use client';
+
+import { IssueRegister } from '@/components/issue-register';
+import { useProject } from '@/components/project-context';
 
 export default function IssuesPage() {
-  return <ModulePlaceholder title="Issues" description="The project issue log for blockers, quality, safety and coordination." emptyTitle="No issue register available." emptyDescription="Project issues will appear here when the issue projection is available. Existing task blockers remain visible in Tasks." icon={MessageSquareWarning} />;
+  const { snapshot } = useProject();
+  return <IssueRegister issues={snapshot.issues} tasks={snapshot.tasks} />;
 }

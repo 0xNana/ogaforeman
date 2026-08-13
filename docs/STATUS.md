@@ -256,17 +256,23 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- Phase 0 audit/freeze, Phase 1 application shell, and Phase 2 Overview are complete.
+- UI Phases 0–3 are complete; Phase 4 Schedule is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
-- Five projection-dependent modules open with honest empty states; no client-side
-  demo records or backend contract changes were introduced.
+- Four remaining projection-dependent modules open with honest empty states;
+  Phase 1 introduced no client-side demo records or backend contract changes.
 - Phase 2 replaces the card dashboard with projection-backed project metrics,
   a prioritized attention list, today register, task lookahead, and derived OG
   notice. Missing schedule facts are labelled rather than fabricated.
 - Phase 2 verification: 18 unit tests and 18 Playwright journeys pass, including
-  desktop axe WCAG A/AA and mobile overflow checks. Phase 3 registers are next.
+  desktop axe WCAG A/AA and mobile overflow checks.
+- Phase 3 delivers searchable Tasks, Issues, and Materials registers with a
+  shared accessible detail drawer. The snapshot now projects viewer-aware task
+  fields, first-class issues, and material-request lifecycle records without
+  adding workflows or mutations. Missing domain fields remain labelled.
+- Phase 3 verification: 22 frontend unit tests, 307 Python tests, production
+  build, 18 Playwright journeys, register axe, and mobile overflow pass.
 
 ## Phase 8 state
 

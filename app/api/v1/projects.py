@@ -8,6 +8,7 @@ from app.domain.models import (
     ActivityEvent,
     Approval,
     DailyReport,
+    Issue,
     Material,
     MaterialRequest,
     Project,
@@ -101,4 +102,6 @@ def get_project_snapshot(project_id: str, request: Request) -> dict[str, object]
         approvals=store.repository(Approval).list(project_id),
         activities=store.repository(ActivityEvent).list(project_id),
         reports=store.repository(DailyReport).list(project_id),
+        issues=store.repository(Issue).list(project_id),
+        viewer_id=access.actor.user_id,
     )

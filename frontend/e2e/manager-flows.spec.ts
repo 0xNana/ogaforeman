@@ -41,6 +41,11 @@ test('mobile command center navigation remains usable without overflow', async (
 
   await signInToProject(page, testInfo);
   await expect(page.getByRole('navigation', { name: 'Mobile project navigation' })).toBeVisible();
+  await page.getByRole('link', { name: 'Tasks' }).click();
+  await page.getByRole('button', { name: 'Electrical rough-in' }).click();
+  await expect(page.getByRole('dialog', { name: 'Electrical rough-in' })).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Close details' }).click();
   await page.getByRole('button', { name: 'More' }).click();
   await expect(page.getByRole('dialog', { name: 'More sections' })).toBeVisible();
   await page.getByRole('link', { name: 'Activity' }).click();

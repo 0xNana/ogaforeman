@@ -16,8 +16,13 @@ from app.domain.enums import (
     ApprovalActionType,
     ApprovalStatus,
     MemberRole,
+    IssueDetectedBy,
+    IssueStatus,
+    IssueType,
+    MaterialRequestStatus,
     ProjectStatus,
     ReportStatus,
+    Severity,
     TaskSource,
     TaskStatus,
 )
@@ -25,7 +30,9 @@ from app.domain.models import (
     ActivityEvent,
     Approval,
     DailyReport,
+    Issue,
     Material,
+    MaterialRequest,
     Project,
     ReportFact,
     Task,
@@ -120,8 +127,11 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
             "status": "ACTIVE",
             "timezone": "Africa/Accra",
         },
+        "viewerId": ACTOR_ID,
         "tasks": [],
+        "issues": [],
         "materials": [],
+        "materialRequests": [],
         "approvals": [],
         "activities": [
             {
@@ -273,6 +283,39 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
             updated_at=NOW,
         )
     )
+    store.repository(Issue).create(
+        Issue(
+            id="iss_electrical123",
+            project_id=PROJECT_ID,
+            type=IssueType.BLOCKER,
+            severity=Severity.HIGH,
+            description="Electrician absent; ceiling work cannot start.",
+            task_ids=["tsk_followup123"],
+            evidence_refs=["sup_update123"],
+            status=IssueStatus.OPEN,
+            detected_by=IssueDetectedBy.SITE_UPDATE,
+            owner_id="usr_electrician123",
+            due_at=NOW,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+    store.repository(MaterialRequest).create(
+        MaterialRequest(
+            id="mrq_cement123",
+            project_id=PROJECT_ID,
+            material_id="mat_cement123",
+            quantity=Decimal("30"),
+            unit="bags",
+            needed_by=NOW,
+            reason="Cement is needed for plastering.",
+            source_event_id="evt_cement123",
+            status=MaterialRequestStatus.AWAITING_APPROVAL,
+            approval_id="apr_cement123",
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
     store.repository(Approval).create(
         Approval(
             id="apr_cement123",
@@ -314,7 +357,12 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
         "title": "First-floor blockwork",
         "status": "COMPLETED",
         "assignee": "usr_foreman123",
+        "location": None,
+        "trade": None,
+        "startLabel": "Not set",
         "dueLabel": "Completed 8 Aug",
+        "progress": 100,
+        "dependencyIds": [],
         "blocking": None,
         "note": "100% complete.",
         "needsAttention": False,
@@ -327,8 +375,31 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
         "iss_blocker123",
         "tsk_electrical123",
     ]
-    assert snapshot["materials"][0]["status"] == "LOW"
+    assert snapshot["materials"][0]["status"] == "REQUESTED"
     assert snapshot["materials"][0]["quantity"] == 10
+    assert snapshot["issues"][0] == {
+        "id": "iss_electrical123",
+        "description": "Electrician absent; ceiling work cannot start.",
+        "type": "BLOCKER",
+        "severity": "HIGH",
+        "status": "OPEN",
+        "owner": "usr_electrician123",
+        "dueLabel": "8 Aug",
+        "taskIds": ["tsk_followup123"],
+        "evidenceRefs": ["sup_update123"],
+        "location": None,
+    }
+    assert snapshot["materialRequests"][0] == {
+        "id": "mrq_cement123",
+        "materialId": "mat_cement123",
+        "materialName": "Cement",
+        "quantity": 30,
+        "unit": "bags",
+        "reason": "Cement is needed for plastering.",
+        "neededBy": "8 Aug",
+        "status": "AWAITING_APPROVAL",
+        "approvalId": "apr_cement123",
+    }
     assert snapshot["approvals"][0]["version"] == 0
     assert snapshot["approvals"][0]["quantity"] == "30 bags"
     assert snapshot["report"]["completed"] == ["First-floor blockwork"]

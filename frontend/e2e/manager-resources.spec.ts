@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { captureBrowserErrors, projectId, signInToProject } from './support';
@@ -15,13 +16,20 @@ test('manager views render task, material, report, and approval resources', asyn
 
   await page.getByRole('link', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Blocked' }).click();
+  await page.getByRole('button', { name: 'Blocked' }).click();
   await expect(page.getByText('Electrical rough-in')).toBeVisible();
 
+  await page.getByRole('link', { name: 'Issues' }).click();
+  await expect(page.getByRole('heading', { name: 'Issues', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No matching issues.' })).toBeVisible();
+
   await page.getByRole('link', { name: 'Materials' }).click();
-  await expect(page.getByRole('heading', { name: 'What you have. What\'s at risk.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Materials' })).toBeVisible();
   await expect(page.getByRole('row', { name: /Cement/ })).toBeVisible();
   await expect(page.getByText('50', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Requests' }).click();
+  await expect(page.getByRole('heading', { name: 'No material requests.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Inventory' }).click();
 
   await page.getByRole('button', { name: 'Add material' }).click();
   await page.getByLabel('Material name 1').selectOption('custom');
@@ -38,6 +46,8 @@ test('manager views render task, material, report, and approval resources', asyn
   await page.getByRole('button', { name: 'Add 2 materials' }).click();
   await expect(page.getByRole('row', { name: new RegExp(`Timber ${materialSuffix}`) })).toBeVisible();
   await expect(page.getByRole('row', { name: new RegExp(`Nails ${materialSuffix}`) })).toBeVisible();
+  const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(accessibility.violations).toEqual([]);
 
   await page.getByRole('link', { name: 'Reports' }).click();
   await expect(page.getByRole('heading', { name: 'Daily report', exact: true })).toBeVisible();

@@ -193,6 +193,8 @@ Vertical slice gate:
   navigation, honest projection-gap routes, and WCAG/browser evidence.
 - [x] UI Phase 2 replaces the existing command center with the operational
   Overview defined in `docs/UI_UX_OVERHAUL.md`.
+- [x] UI Phase 3 replaces Task and Material card/modal patterns and the Issues
+  placeholder with searchable operational registers and accessible detail drawers.
 
 ## Reliability and launch
 

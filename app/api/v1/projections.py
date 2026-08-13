@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -10,6 +10,7 @@ from app.domain.models import (
     ActivityEvent,
     Approval,
     DailyReport,
+    Issue,
     Material,
     MaterialRequest,
     Project,
@@ -39,13 +40,17 @@ def project_snapshot_projection(
     approvals: Sequence[Approval],
     activities: Sequence[ActivityEvent],
     reports: Sequence[DailyReport],
+    issues: Sequence[Issue] = (),
+    viewer_id: str | None = None,
 ) -> dict[str, object]:
     timezone = ZoneInfo(project.timezone)
     requests_by_material = _latest_requests_by_material(material_requests)
+    material_names = {material.id: material.name for material in materials}
     latest_report = max(
         reports, key=lambda report: (report.report_date, report.updated_at), default=None
     )
     return {
+        "viewerId": viewer_id,
         "project": {
             "id": project.id,
             "name": project.name,
@@ -60,6 +65,14 @@ def project_snapshot_projection(
         "materials": [
             material_projection(material, requests_by_material.get(material.id))
             for material in sorted(materials, key=lambda item: item.name.casefold())
+        ],
+        "materialRequests": [
+            material_request_projection(request, material_names, timezone)
+            for request in sorted(material_requests, key=lambda item: item.updated_at, reverse=True)
+        ],
+        "issues": [
+            issue_projection(issue, timezone)
+            for issue in sorted(issues, key=lambda item: item.updated_at, reverse=True)
         ],
         "approvals": [
             approval_projection(approval, timezone)
@@ -92,12 +105,50 @@ def task_projection(task: Task, timezone: ZoneInfo) -> dict[str, object]:
         "title": task.title,
         "status": status,
         "assignee": task.assigned_to or "Unassigned",
+        "location": None,
+        "trade": None,
+        "startLabel": _date_label(task.planned_start, timezone, default="Not set"),
         "dueLabel": due_label,
+        "progress": _number(task.completion_percent),
+        "dependencyIds": list(task.dependency_ids),
         "blocking": None,
         "note": note,
         "needsAttention": is_follow_up
         and task.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED},
         "sourceRefs": list(task.source_refs),
+    }
+
+
+def issue_projection(issue: Issue, timezone: ZoneInfo) -> dict[str, object]:
+    return {
+        "id": issue.id,
+        "description": issue.description,
+        "type": issue.type.value.upper(),
+        "severity": issue.severity.value.upper(),
+        "status": issue.status.value.upper(),
+        "owner": issue.owner_id or "Unassigned",
+        "dueLabel": _date_label(issue.due_at, timezone),
+        "taskIds": list(issue.task_ids),
+        "evidenceRefs": list(issue.evidence_refs),
+        "location": None,
+    }
+
+
+def material_request_projection(
+    request: MaterialRequest,
+    material_names: Mapping[str, str],
+    timezone: ZoneInfo,
+) -> dict[str, object]:
+    return {
+        "id": request.id,
+        "materialId": request.material_id,
+        "materialName": material_names.get(request.material_id, "Unknown material"),
+        "quantity": _number(request.quantity),
+        "unit": request.unit,
+        "reason": request.reason,
+        "neededBy": _date_label(request.needed_by, timezone),
+        "status": request.status.value.upper(),
+        "approvalId": request.approval_id,
     }
 
 
@@ -220,6 +271,12 @@ def _text(value: Any) -> str:
     return str(value).strip() if value is not None else ""
 
 
+def _date_label(value: Any, timezone: ZoneInfo, *, default: str = "Not specified") -> str:
+    if value is None:
+        return default
+    return value.astimezone(timezone).strftime("%-d %b")
+
+
 def _display_decimal(value: Decimal) -> str:
     return format(value.normalize(), "f")
 
@@ -233,6 +290,8 @@ __all__ = [
     "approval_projection",
     "empty_report_projection",
     "material_projection",
+    "material_request_projection",
+    "issue_projection",
     "project_snapshot_projection",
     "report_projection",
     "task_projection",

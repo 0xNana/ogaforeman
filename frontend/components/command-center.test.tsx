@@ -21,7 +21,9 @@ const snapshot = {
     timezone: 'Africa/Accra',
   },
   tasks: [],
+  issues: [],
   materials: [],
+  materialRequests: [],
   approvals: [],
   activities: Array.from({ length: 7 }, (_, index) => ({
     id: `act_${index + 1}`,

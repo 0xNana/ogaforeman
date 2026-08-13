@@ -2,17 +2,21 @@
 
 ## Current phase status
 
-- Active phase: Phase 3 — Operational Registers
+- Active phase: Phase 4 — Schedule
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
+- Phase 3 — Operational Registers: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
 - Phase 2 evidence: 18 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
-- Product/API contracts changed through Phase 2: no
-- Do not begin Phase 4 until the Phase 3 acceptance gate passes.
+- Phase 3 evidence: 22 frontend unit tests, 307 Python tests, and 18 applicable
+  Playwright journeys pass; register axe and mobile overflow checks pass.
+- Product/API contracts changed through Phase 3: yes — the authenticated project
+  snapshot now projects viewer identity, task register fields, issues, and material requests.
+- Do not begin Phase 5 until the Phase 4 acceptance gate passes.
 
 ## Objective
 

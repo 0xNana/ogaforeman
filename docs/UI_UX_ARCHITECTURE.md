@@ -274,3 +274,22 @@ remove obsolete UI only after its replacement passes the phase gate.
 - Frontend and backend contracts remain unchanged. Eighteen unit tests and all
   18 applicable Playwright journeys pass, including desktop axe WCAG A/AA and
   mobile horizontal-overflow checks.
+
+## Phase 3 acceptance evidence
+
+- Tasks use a searchable, filterable register with viewer-aware My Work,
+  due-soon, blocked, and completed views. The detail drawer exposes recorded
+  progress, dependencies, source references, and explicit projection gaps.
+- Issues now use first-class persisted issue projections and stable IDs instead
+  of blocker-like task/activity inference. The issue log supports status/search
+  filtering and linked-task detail.
+- Materials separate inventory and material-request lifecycle registers while
+  retaining typed material creation and quantity adjustment mutations.
+- A shared keyboard-safe record drawer provides initial focus, Escape/backdrop
+  close, focus containment, and return focus across all three registers.
+- The authenticated snapshot contract adds `viewerId`, task progress/start/
+  dependency fields, `issues`, and `materialRequests`; it does not introduce a
+  new workflow or mutation path. Unsupported location, trade, photo, and richer
+  linkage fields remain visibly unavailable.
+- Verification passes with 22 frontend unit tests, 307 Python tests, production
+  build, desktop register axe checks, and mobile drawer overflow coverage.

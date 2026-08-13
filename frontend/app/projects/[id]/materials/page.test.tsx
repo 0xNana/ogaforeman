@@ -5,18 +5,20 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import MaterialsPage from './page';
+import type { Material, MaterialRequest } from '@/lib/api';
 
 
-const { refresh, createMaterial } = vi.hoisted(() => ({
+const { refresh, createMaterial, snapshot } = vi.hoisted(() => ({
   refresh: vi.fn(),
   createMaterial: vi.fn(),
+  snapshot: { materials: [] as Material[], materialRequests: [] as MaterialRequest[] },
 }));
 
 vi.mock('@/components/project-context', () => ({
   useProject: () => ({
     projectId: 'prj_ridge',
     refresh,
-    snapshot: { materials: [] },
+    snapshot,
   }),
 }));
 
@@ -35,6 +37,20 @@ describe('MaterialsPage', () => {
     createMaterial.mockResolvedValue({});
     refresh.mockReset();
     refresh.mockResolvedValue(undefined);
+    snapshot.materials = [];
+    snapshot.materialRequests = [];
+  });
+
+  it('switches between inventory and request registers and opens material details', () => {
+    snapshot.materials = [{ id: 'mat_cement', name: 'Cement', quantity: 10, unit: 'bags', need: 40, forWork: 'Plastering', status: 'LOW', note: 'Short by 30 bags.', version: 1 }];
+    snapshot.materialRequests = [{ id: 'mrq_cement', materialId: 'mat_cement', materialName: 'Cement', quantity: 30, unit: 'bags', reason: 'Needed for plastering', neededBy: '14 Aug', status: 'AWAITING_APPROVAL', approvalId: 'apr_cement' }];
+    render(<MaterialsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cement' }));
+    expect(screen.getByRole('dialog', { name: 'Cement' })).toHaveTextContent('Short by 30 bags.');
+    fireEvent.click(screen.getByRole('button', { name: 'Close details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Requests' }));
+    expect(screen.getByRole('row', { name: /mrq_cement/ })).toHaveTextContent('awaiting approval');
   });
 
   it('lets a project manager add multiple materials in one submission', async () => {

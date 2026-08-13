@@ -27,11 +27,41 @@ export type Task = {
   title: string;
   status: TaskStatus;
   assignee: string;
+  location?: string | null;
+  trade?: string | null;
+  startLabel?: string;
   dueLabel: string;
+  progress?: number;
+  dependencyIds?: string[];
   blocking?: string;
   note?: string;
   needsAttention?: boolean;
   sourceRefs?: string[];
+};
+
+export type Issue = {
+  id: string;
+  description: string;
+  type: 'BLOCKER' | 'DELAY_RISK' | 'SAFETY' | 'QUALITY' | 'OBSERVATION';
+  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'OPEN' | 'ACKNOWLEDGED' | 'MITIGATED' | 'RESOLVED' | 'DISMISSED';
+  owner: string;
+  dueLabel: string;
+  taskIds: string[];
+  evidenceRefs: string[];
+  location?: string | null;
+};
+
+export type MaterialRequest = {
+  id: string;
+  materialId: string;
+  materialName: string;
+  quantity: number;
+  unit: string;
+  reason: string;
+  neededBy: string;
+  status: string;
+  approvalId?: string | null;
 };
 
 export type CreateTaskInput = {
@@ -102,9 +132,12 @@ export type DailyReport = {
 };
 
 export type ProjectSnapshot = {
+  viewerId?: string | null;
   project: Project;
   tasks: Task[];
+  issues: Issue[];
   materials: Material[];
+  materialRequests: MaterialRequest[];
   approvals: Approval[];
   activities: Activity[];
   report: DailyReport;
