@@ -72,12 +72,12 @@ test('runs a site update through real approval and same-run continuation', async
   await page.goto(`/projects/${projectId}/tasks`);
   const followUpRow = page.getByRole('row').filter({ hasText: 'Follow up: Electrical rough-in' });
   await expect(followUpRow).toBeVisible();
-  await expect(followUpRow).toContainText('usr_kofi123');
+  await expect(followUpRow).toContainText('Project member');
 
   await page.goto(`/projects/${projectId}/approvals`);
   const followUpCard = page.getByRole('article').filter({ hasText: 'Follow up: Electrical rough-in' });
   await expect(followUpCard).toBeVisible();
-  await expect(followUpCard).toContainText('usr_kofi123');
+  await expect(followUpCard).toContainText('Project member');
   const purchaseCard = page.getByRole('article').filter({ hasText: /30(?:\.0)? bags/ });
   await expect(purchaseCard.getByText('PENDING')).toBeVisible();
   await purchaseCard.getByRole('button', { name: 'Approve' }).click();
@@ -96,13 +96,16 @@ test('runs a site update through real approval and same-run continuation', async
   await expect(page.getByRole('listitem').filter({
     hasText: 'Submitted an approved material request to the supplier simulator.',
   })).toBeVisible();
+  await page.getByRole('button', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Task marked complete' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Issues' }).click();
   await expect(page.getByRole('heading', { name: 'Detected a project blocker from the site update.' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Approvals' }).click();
   await expect(page.getByRole('heading', { name: 'Purchase approval requested.' }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Approval approved' }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Reports' }).click();
   await expect(page.getByRole('heading', { name: 'Updated the daily report with observable site-update outcomes.' }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: /daily report · rpt_/ }).first()).toHaveAttribute('href', `/projects/${projectId}/reports`);
+  await expect(page.getByRole('link', { name: 'Daily report' }).first()).toHaveAttribute('href', `/projects/${projectId}/reports`);
   expect(browserErrors).toEqual([]);
 });
 
