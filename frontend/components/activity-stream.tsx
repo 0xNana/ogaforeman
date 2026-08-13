@@ -15,6 +15,12 @@ const routes: Record<string, string> = {
   site_update: 'site', project: 'overview',
 };
 
+const entityLabels: Record<string, string> = {
+  task: 'Task', issue: 'Issue', material: 'Material', material_request: 'Material request',
+  approval: 'Approval', report: 'Report', daily_report: 'Daily report', attachment: 'Photo',
+  site_update: 'Site update', project: 'Project',
+};
+
 function matchesFilter(activity: Activity, filter: ActivityFilter) {
   if (filter === 'All') return true;
   if (filter === 'OG') return activity.actorType === 'agent' || activity.actorType === 'system';
@@ -74,8 +80,8 @@ export function ActivityStream({ activities, projectId }: { activities: Activity
                         <h3>{activity.title}</h3>
                         {activity.description !== activity.title && <p>{activity.description}</p>}
                         <div className="audit-meta">
-                          <span>{activity.actorType === 'user' ? <UserRound aria-hidden="true" size={13} /> : <Bot aria-hidden="true" size={13} />}{activity.user}</span>
-                          {route ? <Link href={`/projects/${projectId}/${route}`}>{activity.entityType.replaceAll('_', ' ')} · {activity.entityId}</Link> : <span>{activity.entityType} · {activity.entityId}</span>}
+                          <span>{activity.actorType === 'user' ? <UserRound aria-hidden="true" size={13} /> : <Bot aria-hidden="true" size={13} />}{activity.actorType === 'user' ? 'Project member' : 'OG'}</span>
+                          {route ? <Link href={`/projects/${projectId}/${route}`}>{entityLabels[activity.entityType] ?? 'Project record'}</Link> : <span>{entityLabels[activity.entityType] ?? 'Project record'}</span>}
                         </div>
                         {activity.needsAction && route && <Link className="activity-action" href={`/projects/${projectId}/${route}`}>{activity.actionLabel ?? 'Review request'}</Link>}
                       </div>

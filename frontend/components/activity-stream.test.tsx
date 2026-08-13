@@ -35,8 +35,10 @@ describe('ActivityStream', () => {
     expect(dates).toEqual(['Saturday, 8 August 2026', 'Friday, 7 August 2026']);
     const entries = screen.getAllByRole('listitem');
     expect(within(entries[0]).getByText('Material request approved')).toBeVisible();
-    expect(screen.getByRole('link', { name: /apr_cement/ })).toHaveAttribute('href', '/projects/prj_ridge/approvals');
-    expect(screen.getByRole('link', { name: /tsk_blockwork/ })).toHaveAttribute('href', '/projects/prj_ridge/tasks');
+    expect(screen.getByRole('link', { name: 'Approval' })).toHaveAttribute('href', '/projects/prj_ridge/approvals');
+    expect(screen.getByRole('link', { name: 'Task' })).toHaveAttribute('href', '/projects/prj_ridge/tasks');
+    expect(screen.queryByText(/apr_cement|tsk_blockwork|rpt_daily|usr_manager/)).not.toBeInTheDocument();
+    expect(screen.getByText('Project member')).toBeVisible();
   });
 
   it('filters by workflow area and actor without losing the audit context', () => {
