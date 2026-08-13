@@ -56,4 +56,24 @@ describe('ActivityStream', () => {
     expect(screen.getByText('Blockwork completed')).toBeVisible();
     expect(screen.getByText('Daily report published')).toBeVisible();
   });
+
+  it('paginates long audit trails and resets pagination when filtering', () => {
+    const longTrail = Array.from({ length: 21 }, (_, index): Activity => ({
+      ...activities[1],
+      id: `act_task_${index}`,
+      title: `Task activity ${index + 1}`,
+      description: `Task activity ${index + 1}`,
+    }));
+    render(<ActivityStream activities={longTrail} projectId="prj_ridge" />);
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(20);
+    expect(screen.getByText('Page 1 of 2')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByText('Task activity 21')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'People' }));
+    expect(screen.queryByText('Page 2 of 2')).not.toBeInTheDocument();
+    expect(screen.getByText('No activity matches this filter.')).toBeVisible();
+  });
 });

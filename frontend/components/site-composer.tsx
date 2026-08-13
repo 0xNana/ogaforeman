@@ -237,7 +237,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
                 <span>Voice note ready</span>
               </div>
             )}
-            {file && state !== 'recorded' && (
+            {file && state !== 'recorded' && shouldShowAttachmentName(file) && (
               <div className="attachment-preview" aria-live="polite">
                 <Paperclip size={15} aria-hidden="true" />
                 <span>{file.name}</span>
@@ -317,7 +317,6 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
             <CheckCircle2 size={16} aria-hidden="true" />
             <span>
               OG updated the clear details. Add the missing task, quantity or timing to finish the rest.
-              {runResult?.result_summary ? ` ${runResult.result_summary}` : ''}
             </span>
           </div>
         )}
@@ -341,6 +340,10 @@ export function composerProgressMessage(state: IntakeState): string | null {
   if (state === 'processing') return 'Checking the project…';
   if (state === 'updating') return 'Updating the project…';
   return null;
+}
+
+export function shouldShowAttachmentName(file: File): boolean {
+  return !(file.type.startsWith('audio/') && file.name === 'site-voice-note.webm');
 }
 
 function inputTypeFor(text: string, file: File | null): SiteUpdateInput['inputType'] {

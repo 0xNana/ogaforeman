@@ -4,6 +4,7 @@ import { AlertTriangle, Bot, CheckCircle2, ClipboardCheck, FileText, PackageChec
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
+import { Pagination } from '@/components/pagination';
 import type { Activity, ActivityKind } from '@/lib/api';
 
 const FILTERS = ['All', 'OG', 'Tasks', 'Issues', 'Materials', 'Approvals', 'Reports', 'People'] as const;
@@ -43,22 +44,30 @@ function ActivityIcon({ kind }: { kind: ActivityKind }) {
 
 export function ActivityStream({ activities, projectId }: { activities: Activity[]; projectId: string }) {
   const [filter, setFilter] = useState<ActivityFilter>('All');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const filtered = useMemo(() => activities.filter((activity) => matchesFilter(activity, filter)), [activities, filter]);
+  const pageActivities = filtered.slice((page - 1) * pageSize, page * pageSize);
   const groups = useMemo(() => {
     const result: Array<{ date: string; activities: Activity[] }> = [];
-    for (const activity of filtered) {
+    for (const activity of pageActivities) {
       const current = result.at(-1);
       if (current?.date === activity.dateLabel) current.activities.push(activity);
       else result.push({ date: activity.dateLabel, activities: [activity] });
     }
     return result;
-  }, [filtered]);
+  }, [pageActivities]);
+
+  function changeFilter(next: ActivityFilter) {
+    setFilter(next);
+    setPage(1);
+  }
 
   return (
     <section aria-label="Project audit trail">
       <div className="activity-filters" role="group" aria-label="Filter activity">
         {FILTERS.map((option) => (
-          <button key={option} type="button" className={filter === option ? 'active' : ''} aria-pressed={filter === option} onClick={() => setFilter(option)}>
+          <button key={option} type="button" className={filter === option ? 'active' : ''} aria-pressed={filter === option} onClick={() => changeFilter(option)}>
             {option}
           </button>
         ))}
@@ -91,6 +100,7 @@ export function ActivityStream({ activities, projectId }: { activities: Activity
               </ol>
             </section>
           ))}
+          <Pagination currentPage={page} totalItems={filtered.length} pageSize={pageSize} onPageChange={setPage} />
         </div>
       ) : <p className="activity-filter-empty">No activity matches this filter.</p>}
     </section>

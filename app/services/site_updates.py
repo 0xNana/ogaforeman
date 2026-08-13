@@ -515,10 +515,7 @@ class SiteUpdateService:
             ),
         )
         self._runtime.update_checkpoint(access.project_id, run_id, "report_projected")
-        summary = (
-            f"Processed site update: {tasks_updated} task update, {issues_created} issues, "
-            f"{materials_updated} material update, and report {report.id}."
-        )
+        summary = _site_update_summary(tasks_updated, issues_created, materials_updated)
         if schedule_risk_summaries:
             summary = f"{summary} {_schedule_response_summary(schedule_risk_summaries)}"
         return SiteUpdateResult(
@@ -535,6 +532,24 @@ class SiteUpdateService:
             summary=summary,
             pending_actions=tuple(pending_actions),
         )
+
+
+def _site_update_summary(tasks_updated: int, issues_created: int, materials_updated: int) -> str:
+    changes: list[str] = []
+    if tasks_updated:
+        changes.append(f"updated {tasks_updated} task{'s' if tasks_updated != 1 else ''}")
+    if issues_created:
+        changes.append(f"created {issues_created} issue{'s' if issues_created != 1 else ''}")
+    if materials_updated:
+        changes.append(
+            f"updated stock for {materials_updated} material{'s' if materials_updated != 1 else ''}"
+        )
+    if not changes:
+        return "OG reviewed the update and refreshed the daily report."
+    change_summary = (
+        changes[0] if len(changes) == 1 else f"{', '.join(changes[:-1])} and {changes[-1]}"
+    )
+    return f"OG {change_summary}. The daily report is refreshed."
 
 
 def _mutation_context(
