@@ -17,6 +17,7 @@ from app.domain.enums import (
     ApprovalActionType,
     ApprovalStatus,
     MemberRole,
+    MemberStatus,
     IssueDetectedBy,
     IssueStatus,
     IssueType,
@@ -36,6 +37,7 @@ from app.domain.models import (
     Material,
     MaterialRequest,
     Project,
+    ProjectMember,
     ReportFact,
     Task,
 )
@@ -66,6 +68,14 @@ class ApiRuntimeStub:
     def authenticate(self, request: Request) -> AuthenticatedUser:
         del request
         return self.actor
+
+    def project_member_names(self, project_id: str) -> dict[str, str]:
+        assert project_id == PROJECT_ID
+        return {
+            ACTOR_ID: "Ama Manager",
+            "usr_foreman123": "Kofi Foreman",
+            "usr_electrician123": "Kojo Electrician",
+        }
 
     def project_access(
         self,
@@ -130,6 +140,11 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
             "timezone": "Africa/Accra",
         },
         "viewerId": ACTOR_ID,
+        "members": [
+            {"id": ACTOR_ID, "displayName": "Ama Manager"},
+            {"id": "usr_foreman123", "displayName": "Kofi Foreman"},
+            {"id": "usr_electrician123", "displayName": "Kojo Electrician"},
+        ],
         "tasks": [],
         "issues": [],
         "materials": [],
@@ -172,6 +187,14 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
 @pytest.mark.asyncio
 async def test_admin_can_create_canonical_resources_before_site_updates() -> None:
     store = InMemoryRepositoryStore()
+    store.repository(ProjectMember).create(
+        ProjectMember(
+            project_id=PROJECT_ID,
+            user_id="usr_foreman123",
+            role=MemberRole.FOREMAN,
+            status=MemberStatus.ACTIVE,
+        )
+    )
     transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -179,6 +202,9 @@ async def test_admin_can_create_canonical_resources_before_site_updates() -> Non
             f"/api/v1/projects/{PROJECT_ID}/tasks",
             json={
                 "title": "First-floor blockwork",
+                "trade": "Masonry",
+                "location": "First floor",
+                "assigned_to": "usr_foreman123",
                 "planned_start": NOW.isoformat(),
                 "planned_end": NOW.isoformat(),
                 "is_milestone": True,
@@ -189,6 +215,9 @@ async def test_admin_can_create_canonical_resources_before_site_updates() -> Non
             f"/api/v1/projects/{PROJECT_ID}/tasks",
             json={
                 "title": "First-floor blockwork",
+                "trade": "Masonry",
+                "location": "First floor",
+                "assigned_to": "usr_foreman123",
                 "planned_start": NOW.isoformat(),
                 "planned_end": NOW.isoformat(),
                 "is_milestone": True,
@@ -246,6 +275,9 @@ async def test_admin_can_create_canonical_resources_before_site_updates() -> Non
     assert task_replay.status_code == 201
     assert task_replay.json() == task.json()
     assert task.json()["isMilestone"] is True
+    assert task.json()["trade"] == "Masonry"
+    assert task.json()["location"] == "First floor"
+    assert task.json()["assignee"] == "Project member"
     assert material.status_code == 201
     assert material_replay.status_code == 201
     assert material_replay.json()["id"] == material.json()["id"]
@@ -378,7 +410,8 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
         "id": "tsk_blockwork123",
         "title": "First-floor blockwork",
         "status": "COMPLETED",
-        "assignee": "usr_foreman123",
+        "assignee": "Kofi Foreman",
+        "assigneeId": "usr_foreman123",
         "location": None,
         "trade": None,
         "startLabel": "Not set",
@@ -415,7 +448,7 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
         "type": "BLOCKER",
         "severity": "HIGH",
         "status": "OPEN",
-        "owner": "usr_electrician123",
+        "owner": "Kojo Electrician",
         "dueLabel": "8 Aug",
         "taskIds": ["tsk_followup123"],
         "evidenceRefs": ["sup_update123"],

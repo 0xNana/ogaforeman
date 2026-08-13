@@ -24,8 +24,16 @@ from app.domain.authorization import (
     ensure_permission,
     ensure_project_scope,
 )
-from app.domain.enums import ActorType, IssueType, Severity, TaskPriority, TaskSource, TaskStatus
-from app.domain.models import ActivityEvent, CanonicalId, Issue, SiteUpdate, Task
+from app.domain.enums import (
+    ActorType,
+    IssueType,
+    MemberStatus,
+    Severity,
+    TaskPriority,
+    TaskSource,
+    TaskStatus,
+)
+from app.domain.models import ActivityEvent, CanonicalId, Issue, ProjectMember, SiteUpdate, Task
 from app.domain.policies import InvalidTransitionError, ensure_task_transition
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.tasks import TaskRepository
@@ -63,6 +71,9 @@ class CreateTaskCommand(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str | None = Field(default=None, max_length=10_000)
     priority: TaskPriority = TaskPriority.MEDIUM
+    assigned_to: CanonicalId | None = None
+    trade: str | None = Field(default=None, max_length=200)
+    location: str | None = Field(default=None, max_length=500)
     planned_start: AwareDatetime | None = None
     planned_end: AwareDatetime | None = None
     is_milestone: bool = False
@@ -156,6 +167,7 @@ class TaskService:
     """Apply task updates with authorization, policy, idempotency, and audit."""
 
     def __init__(self, store: RepositoryStore) -> None:
+        self._store = store
         self._activities = ActivityService(store)
 
     def create_task(
@@ -169,6 +181,12 @@ class TaskService:
         ensure_permission(access, ProjectPermission.MANAGE)
         if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
             raise PermissionError("task setup requires the authorized user actor")
+        if command.assigned_to is not None:
+            membership = self._store.repository(ProjectMember).get(
+                command.project_id, command.assigned_to
+            )
+            if membership is None or membership.status is not MemberStatus.ACTIVE:
+                raise PermissionError("task assignee must be an active project member")
         task_id = _created_task_id(context)
         result = self._activities.mutate(
             context,
@@ -187,6 +205,9 @@ class TaskService:
                     description=command.description,
                     status=TaskStatus.PLANNED,
                     priority=command.priority,
+                    assigned_to=command.assigned_to,
+                    trade=command.trade,
+                    location=command.location,
                     planned_start=command.planned_start,
                     planned_end=command.planned_end,
                     is_milestone=command.is_milestone,
@@ -328,6 +349,8 @@ class TaskService:
                 status=TaskStatus.PLANNED,
                 priority=_follow_up_priority(issue.severity),
                 assigned_to=blocked_task.assigned_to,
+                trade=blocked_task.trade,
+                location=blocked_task.location,
                 planned_start=command.occurred_at,
                 planned_end=command.occurred_at,
                 source_refs=[site_update.id, issue.id, blocked_task.id],

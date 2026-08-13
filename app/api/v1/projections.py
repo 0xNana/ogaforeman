@@ -45,6 +45,7 @@ def project_snapshot_projection(
     attachments: Sequence[Attachment] = (),
     issues: Sequence[Issue] = (),
     viewer_id: str | None = None,
+    member_names: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     timezone = ZoneInfo(project.timezone)
     requests_by_material = _latest_requests_by_material(material_requests)
@@ -64,6 +65,12 @@ def project_snapshot_projection(
     ]
     return {
         "viewerId": viewer_id,
+        "members": [
+            {"id": member_id, "displayName": display_name}
+            for member_id, display_name in sorted(
+                (member_names or {}).items(), key=lambda item: item[1].casefold()
+            )
+        ],
         "project": {
             "id": project.id,
             "name": project.name,
@@ -77,6 +84,7 @@ def project_snapshot_projection(
                 timezone,
                 downstream_ids=downstream_ids.get(task.id, []),
                 blocked_task_ids=blocked_task_ids,
+                member_names=member_names,
             )
             for task in sorted(tasks, key=lambda item: item.title.casefold())
         ],
@@ -89,7 +97,7 @@ def project_snapshot_projection(
             for request in sorted(material_requests, key=lambda item: item.updated_at, reverse=True)
         ],
         "issues": [
-            issue_projection(issue, timezone)
+            issue_projection(issue, timezone, member_names=member_names)
             for issue in sorted(issues, key=lambda item: item.updated_at, reverse=True)
         ],
         "approvals": [
@@ -128,6 +136,7 @@ def task_projection(
     *,
     downstream_ids: Sequence[str] = (),
     blocked_task_ids: set[str] | None = None,
+    member_names: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     status = {
         TaskStatus.PROPOSED: "PENDING",
@@ -158,9 +167,12 @@ def task_projection(
         "id": task.id,
         "title": task.title,
         "status": status,
-        "assignee": task.assigned_to or "Unassigned",
-        "location": None,
-        "trade": None,
+        "assignee": (member_names or {}).get(task.assigned_to, "Project member")
+        if task.assigned_to
+        else "Unassigned",
+        "assigneeId": task.assigned_to,
+        "location": task.location,
+        "trade": task.trade,
         "startLabel": _date_label(task.planned_start, timezone, default="Not set"),
         "startDate": planned_start,
         "finishDate": finish_date,
@@ -179,18 +191,22 @@ def task_projection(
     }
 
 
-def issue_projection(issue: Issue, timezone: ZoneInfo) -> dict[str, object]:
+def issue_projection(
+    issue: Issue, timezone: ZoneInfo, *, member_names: Mapping[str, str] | None = None
+) -> dict[str, object]:
     return {
         "id": issue.id,
         "description": issue.description,
         "type": issue.type.value.upper(),
         "severity": issue.severity.value.upper(),
         "status": issue.status.value.upper(),
-        "owner": issue.owner_id or "Unassigned",
+        "owner": (member_names or {}).get(issue.owner_id, "Project member")
+        if issue.owner_id
+        else "Unassigned",
         "dueLabel": _date_label(issue.due_at, timezone),
         "taskIds": list(issue.task_ids),
         "evidenceRefs": list(issue.evidence_refs),
-        "location": None,
+        "location": issue.location,
     }
 
 

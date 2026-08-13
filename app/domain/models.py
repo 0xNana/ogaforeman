@@ -121,6 +121,8 @@ class Task(DomainModel):
     status: TaskStatus = TaskStatus.PROPOSED
     priority: TaskPriority = TaskPriority.MEDIUM
     assigned_to: CanonicalId | None = None
+    trade: str | None = Field(default=None, max_length=200)
+    location: str | None = Field(default=None, max_length=500)
     planned_start: AwareDatetime | None = None
     planned_end: AwareDatetime | None = None
     actual_start: AwareDatetime | None = None
@@ -263,6 +265,7 @@ class Issue(DomainModel):
     status: IssueStatus = IssueStatus.OPEN
     detected_by: IssueDetectedBy
     owner_id: CanonicalId | None = None
+    location: str | None = Field(default=None, max_length=500)
     due_at: AwareDatetime | None = None
     resolved_at: AwareDatetime | None = None
     created_at: AwareDatetime = Field(default_factory=utc_now)

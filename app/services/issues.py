@@ -31,6 +31,7 @@ class CreateIssueCommand(BaseModel):
     description: str = Field(min_length=1, max_length=10_000)
     evidence_refs: list[str] = Field(default_factory=list)
     task_ids: list[str] = Field(default_factory=list)
+    location: str | None = Field(default=None, max_length=500)
     detected_by: IssueDetectedBy = IssueDetectedBy.SITE_UPDATE
     audit_reason_code: str | None = Field(default=None, max_length=128)
     audit_blocked_task_id: str | None = Field(default=None, max_length=145)
@@ -88,6 +89,7 @@ class IssueService:
                     description=command.description,
                     evidence_refs=command.evidence_refs,
                     task_ids=command.task_ids,
+                    location=command.location,
                     detected_by=command.detected_by,
                     created_at=command.occurred_at,
                     updated_at=command.occurred_at,

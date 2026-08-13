@@ -25,6 +25,9 @@ class CreateTaskRequest(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str | None = Field(default=None, max_length=10_000)
     priority: TaskPriority = TaskPriority.MEDIUM
+    assigned_to: str | None = Field(default=None, min_length=1, max_length=256)
+    trade: str | None = Field(default=None, max_length=200)
+    location: str | None = Field(default=None, max_length=500)
     planned_start: AwareDatetime | None = None
     planned_end: AwareDatetime | None = None
     is_milestone: bool = False

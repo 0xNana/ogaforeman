@@ -10,6 +10,7 @@ from app.infrastructure.firestore import create_firestore_client
 from app.repositories.firestore import FirestoreRepository, FirestoreRepositoryStore
 from app.repositories.membership import FirestoreIdentityRepository, MembershipRepository
 from app.domain.models import ProjectMember
+from app.domain.enums import MemberStatus
 from app.services.projects import FirestoreProjectService
 
 from .auth import FirebaseTokenVerifier, authenticate_bearer, authenticate_or_provision_bearer
@@ -67,6 +68,16 @@ class ConfiguredAuthRuntime:
     ) -> ProjectAccessContext:
         actor = self.authenticate(request)
         return self._memberships.require_access(actor, project_id, permission)
+
+    def project_member_names(self, project_id: str) -> dict[str, str]:
+        names: dict[str, str] = {}
+        for membership in self._memberships.list(project_id):
+            if membership.status is not MemberStatus.ACTIVE:
+                continue
+            user = self._identities.get_by_id(membership.user_id)
+            if user is not None:
+                names[user.id] = user.display_name
+        return names
 
 
 __all__ = ["ConfiguredAuthRuntime"]

@@ -95,6 +95,7 @@ def get_project_snapshot(project_id: str, request: Request) -> dict[str, object]
     access = configured_project_access(request, project_id)
     project = runtime.projects.require(access)
     store = runtime.store
+    member_names = runtime.project_member_names(project_id)
     return project_snapshot_projection(
         project,
         tasks=store.repository(Task).list(project_id),
@@ -106,4 +107,5 @@ def get_project_snapshot(project_id: str, request: Request) -> dict[str, object]
         attachments=store.repository(Attachment).list(project_id),
         issues=store.repository(Issue).list(project_id),
         viewer_id=access.actor.user_id,
+        member_names=member_names,
     )

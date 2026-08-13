@@ -38,6 +38,9 @@ _IDENTITY_CREATE_RETRY = Retry(
 
 
 class IdentityRepository(Protocol):
+    def get_by_id(self, user_id: str) -> User | None:
+        """Resolve a canonical application user without exposing identity claims."""
+
     def get_by_subject(self, subject: str) -> User | None:
         """Resolve one verified external subject to a canonical application user."""
 
@@ -56,6 +59,10 @@ class InMemoryIdentityRepository(IdentityRepository):
 
     def get_by_subject(self, subject: str) -> User | None:
         user = self._users.get(subject)
+        return user.model_copy(deep=True) if user else None
+
+    def get_by_id(self, user_id: str) -> User | None:
+        user = next((item for item in self._users.values() if item.id == user_id), None)
         return user.model_copy(deep=True) if user else None
 
     def provision(self, user: User) -> User:
@@ -82,6 +89,14 @@ class FirestoreIdentityRepository(IdentityRepository):
         if not snapshots:
             return None
         data = snapshots[0].to_dict() or {}
+        data.pop("_repository_version", None)
+        return User.model_validate(data)
+
+    def get_by_id(self, user_id: str) -> User | None:
+        snapshot = self._client.collection("users").document(user_id).get()
+        if not snapshot.exists:
+            return None
+        data = snapshot.to_dict() or {}
         data.pop("_repository_version", None)
         return User.model_validate(data)
 
@@ -114,6 +129,9 @@ class MembershipRepository:
 
     def get(self, project_id: str, user_id: str) -> ProjectMember | None:
         return self._repository.get(project_id, user_id)
+
+    def list(self, project_id: str) -> Sequence[ProjectMember]:
+        return self._repository.list(project_id)
 
     def require_access(
         self,
