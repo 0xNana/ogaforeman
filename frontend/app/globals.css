@@ -374,6 +374,10 @@ p { font-size: 1.05rem; }
 .status-banner.success { color: var(--green); background: var(--green-soft); }
 .status-banner.error { color: var(--red); background: var(--red-soft); }
 .status-banner.info { color: var(--amber); background: var(--amber-soft); }
+.processing-failure { display: flex; align-items: flex-start; gap: 14px; margin-top: 16px; padding: 18px; border: 1px solid color-mix(in srgb, var(--red) 28%, var(--line)); border-radius: var(--radius-md); background: var(--red-soft); }
+.processing-failure h2 { margin: 0 0 5px; font-size: 1rem; color: var(--ink); }
+.processing-failure p { margin: 0 0 12px; color: var(--ink-muted); }
+.processing-failure .processing-failure-detail { font-size: 0.78rem; }
 .dashboard-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-top: 1px solid var(--line); }
 .dashboard-pagination > span { color: var(--ink-soft); font-size: 0.76rem; font-weight: 700; }
 .first-site-setup { display: grid; grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr); gap: 28px; margin-bottom: 22px; padding: 28px; background: var(--surface); border: 1px solid var(--orange); border-radius: var(--radius-md); }
@@ -684,6 +688,7 @@ p { font-size: 1.05rem; }
 .workflow-receipt-steps .upcoming .workflow-step-marker { color: var(--line-strong); background: transparent; }
 .workflow-receipt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 19px; padding-top: 15px; border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); }
 .loading-stack { display: grid; gap: 18px; }
+.loading-label { margin: 0; color: var(--ink-muted); font-size: 0.88rem; font-weight: 700; }
 .loading-block { min-height: 84px; background: linear-gradient(90deg, var(--surface-muted), var(--surface), var(--surface-muted)); background-size: 220% 100%; border: 1px solid var(--line); border-radius: var(--radius-md); animation: loading-shimmer 1.4s ease infinite; }
 .loading-heading { width: min(440px, 80%); min-height: 96px; }
 .loading-card { min-height: 260px; }

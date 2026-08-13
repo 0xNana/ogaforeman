@@ -178,7 +178,7 @@ test('explains microphone denial without losing typed-input recovery', async ({ 
 
   await page.getByRole('button', { name: 'Start voice recording' }).click();
 
-  await expect(page.locator('.status-banner[role="alert"]')).toContainText('Microphone access was denied');
+  await expect(page.getByRole('region', { name: 'Send a site update' }).getByRole('alert')).toContainText('Microphone access was denied');
   await expect(page.getByLabel('Type a site update')).toBeEnabled();
   expect(browserErrors).toEqual([]);
 });
@@ -216,7 +216,11 @@ test('persists a recoverable processing failure without a phrase trigger', async
   const submitted = await siteRequest;
   const response = await submitted.response();
   expect(response?.status()).toBe(503);
-  await expect(page.locator('.status-banner[role="alert"]')).toContainText('Retry safely');
+  const failure = page.getByRole('region', { name: 'Send a site update' }).getByRole('alert');
+  await expect(failure).toContainText("OG couldn't finish this update.");
+  await expect(failure).toContainText('Your original site update is saved.');
+  await expect(failure.getByRole('button', { name: 'Try again' })).toBeEnabled();
+  await expect(page.getByText('site-note.pdf')).toBeVisible();
 
   const idempotencyKey = submitted.headers()['idempotency-key'];
   const updateDigest = createHash('sha256')

@@ -2,11 +2,15 @@
 
 import { Download, Share2 } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import { useProject } from '@/components/project-context';
 
 export default function ReportsPage() {
   const { project, report } = useProject().snapshot;
+  if (report.date === 'No report yet') {
+    return <div><div className="page-heading"><div><span className="eyebrow">Reports</span><h1>Daily report</h1><p>Ready to review, share or send to a client.</p></div></div><div className="empty-state"><span className="empty-state-icon">OG</span><h2>Nothing from site yet.</h2><p>Send OG an update when work starts moving.</p><Link className="btn btn-primary btn-small" href={`/projects/${project.id}/site-update`}>Talk to OG</Link></div></div>;
+  }
   return (
     <div>
       <div className="page-heading"><div><span className="eyebrow">Reports</span><h1>Daily report</h1><p>Ready to review, share or send to a client.</p></div><div className="page-heading-actions"><button className="btn btn-quiet btn-small" type="button"><Share2 size={15} /> Share</button><button className="btn btn-primary btn-small" type="button"><Download size={15} /> Export</button></div></div>

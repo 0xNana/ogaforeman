@@ -256,7 +256,7 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–10 are complete; Phase 11 state design is next.
+- UI Phases 0–11 are complete; Phase 12 visual polish and hardening is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
@@ -325,6 +325,13 @@ project label, with a production-readiness regression guard.
   and 18 applicable Playwright journeys pass. Mobile field-home axe and overflow
   checks pass, and the Golden Scenario starts from Talk to OG without entering a
   desktop-style management screen.
+- Phase 11 replaces accidental blank and skeleton-only screens with narrated loading,
+  specific project recovery, true-empty module guidance, and report first-use states.
+  A failed post-persistence intake now identifies that the original is saved, keeps
+  the user's text and attachment visible, and reuses the same idempotency key on retry.
+- Phase 11 verification: 39 frontend unit tests, frontend lint and typecheck, production
+  build, and 19 targeted site-update/production-control tests pass; one emulator-only
+  restart control remains skipped because `FIRESTORE_EMULATOR_HOST` is not configured.
 
 ## Phase 8 state
 

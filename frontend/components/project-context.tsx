@@ -37,10 +37,10 @@ export function ProjectProvider({ projectId, children }: Readonly<{ projectId: s
 
   const value = useMemo(() => snapshot ? { projectId, snapshot, refresh } : null, [projectId, refresh, snapshot]);
 
-  if (auth.state === 'loading') return <div className="loading-stack" aria-busy="true" aria-label="Checking your session"><div className="loading-block loading-heading" /></div>;
-  if (auth.state === 'unavailable') return <ProjectAuthError message={auth.error?.message ?? 'Sign-in is not configured for this environment yet.'} />;
-  if (error && !snapshot) return <ProjectAuthError message="We could not load this project. Check your connection or access." onRetry={() => void refresh()} />;
-  if (!value) return <div className="loading-stack" aria-busy="true" aria-label="Loading project"><div className="loading-block loading-heading" /><div className="loading-block loading-card" /></div>;
+  if (auth.state === 'loading') return <div className="loading-stack" aria-busy="true" aria-label="Checking your session"><p className="loading-label">Checking your session…</p><div className="loading-block loading-heading" /></div>;
+  if (auth.state === 'unavailable') return <ProjectAuthError title="Sign-in unavailable" message={auth.error?.message ?? 'Sign-in is not configured for this environment yet.'} />;
+  if (error && !snapshot) return <ProjectAuthError title="We couldn't load this project." message="Check your connection or confirm that you still have project access." onRetry={() => void refresh()} />;
+  if (!value) return <div className="loading-stack" aria-busy="true" aria-label="Loading project"><p className="loading-label">Loading project…</p><div className="loading-block loading-heading" /><div className="loading-block loading-card" /></div>;
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 }
@@ -51,6 +51,6 @@ export function useProject(): ProjectContextValue {
   return context;
 }
 
-function ProjectAuthError({ message, onRetry }: Readonly<{ message: string; onRetry?: () => void }>) {
-  return <div className="empty-state" role="alert"><span className="empty-state-icon">!</span><h2>We need you signed in.</h2><p>{message}</p>{onRetry ? <button className="btn btn-primary btn-small" type="button" onClick={onRetry}>Try again</button> : null}</div>;
+function ProjectAuthError({ title, message, onRetry }: Readonly<{ title: string; message: string; onRetry?: () => void }>) {
+  return <div className="empty-state" role="alert"><span className="empty-state-icon">!</span><h2>{title}</h2><p>{message}</p>{onRetry ? <button className="btn btn-primary btn-small" type="button" onClick={onRetry}>Try again</button> : null}</div>;
 }

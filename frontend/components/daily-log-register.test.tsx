@@ -11,6 +11,12 @@ const logs = [{ id: 'rpt_13', date: 'Thursday, 13 August', dateIso: '2026-08-13'
 afterEach(cleanup);
 
 describe('DailyLogRegister', () => {
+  it('explains how to create the first daily log', () => {
+    render(<DailyLogRegister projectName="Ridge House" projectId="prj_ridge" logs={[]} onRefresh={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Nothing from site yet.' })).toBeVisible();
+    expect(screen.getAllByText('Send OG an update when work starts moving.').length).toBeGreaterThan(0);
+  });
+
   it('renders a client-ready persisted daily log without inventing missing fields', () => {
     render(<DailyLogRegister projectName="Ridge House" projectId="prj_ridge" logs={logs} onRefresh={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Thursday, 13 August' })).toBeVisible();

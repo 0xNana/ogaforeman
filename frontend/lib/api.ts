@@ -467,7 +467,11 @@ export const api = {
     });
     return { success: true, attachmentId: grant.attachment_id };
   },
-  submitSiteUpdate: async (projectId: string, input: string | SiteUpdateInput): Promise<SiteUpdateResult> => {
+  submitSiteUpdate: async (
+    projectId: string,
+    input: string | SiteUpdateInput,
+    idempotencyKey = `site-update:${crypto.randomUUID()}`,
+  ): Promise<SiteUpdateResult> => {
     const payload: {
       raw_text?: string;
       transcript?: string;
@@ -490,7 +494,7 @@ export const api = {
     return remote<SiteUpdateResult>(`/api/v1/projects/${projectId}/site-updates`, {
       method: 'POST',
       body: JSON.stringify(payload),
-      headers: { 'Idempotency-Key': `site-update:${crypto.randomUUID()}` },
+      headers: { 'Idempotency-Key': idempotencyKey },
     });
   },
   getAgentRun: async (projectId: string, runId: string): Promise<AgentRunState> => {

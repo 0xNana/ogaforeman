@@ -47,7 +47,8 @@ test('manager views render task, material, report, and approval resources', asyn
 
   await page.getByRole('link', { name: 'Issues' }).click();
   await expect(page.getByRole('heading', { name: 'Issues', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'No matching issues.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nothing blocking the site.' })).toBeVisible();
+  await expect(page.getByText('OG is watching for changes.')).toBeVisible();
 
   await page.getByRole('link', { name: 'Materials' }).click();
   await expect(page.getByRole('heading', { name: 'Materials' })).toBeVisible();

@@ -31,6 +31,9 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
   const audioChunks = useRef<Blob[]>([]);
   const speechRecognition = useRef<any>(null);
   const baseTextRef = useRef('');
+  const idempotencyKey = useRef<string | null>(null);
+  const uploadedAttachmentId = useRef<string | null>(null);
+  const [originalSaved, setOriginalSaved] = useState(false);
 
   useEffect(() => () => {
     mediaStream.current?.getTracks().forEach((track) => track.stop());
@@ -107,9 +110,10 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
       return;
     }
     setError(null);
+    setOriginalSaved(false);
     try {
-      let attachmentId: string | undefined;
-      if (file) {
+      let attachmentId = uploadedAttachmentId.current ?? undefined;
+      if (file && !attachmentId) {
         setState('uploading');
         const upload = await api.uploadSiteMedia(projectId, file);
         if (!upload.success) {
@@ -118,6 +122,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
           return;
         }
         attachmentId = upload.attachmentId;
+        uploadedAttachmentId.current = attachmentId ?? null;
       }
       setState('processing');
       const input: SiteUpdateInput = {
@@ -125,7 +130,8 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
         attachmentIds: attachmentId ? [attachmentId] : [],
         inputType: inputTypeFor(text, file),
       };
-      const result = await api.submitSiteUpdate(projectId, input);
+      idempotencyKey.current ??= `site-update:${crypto.randomUUID()}`;
+      const result = await api.submitSiteUpdate(projectId, input, idempotencyKey.current);
       if (result.status !== 'queued') {
         setError('OG could not queue that update.');
         setState('error');
@@ -145,10 +151,12 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
       } else if (run.status === 'waiting_for_clarification') {
         setState('clarification');
       } else {
+        setOriginalSaved(true);
         setError(run.error_summary ?? 'OG could not process that update. Try again safely.');
         setState('error');
       }
     } catch (cause) {
+      setOriginalSaved(cause instanceof ApiRequestError && cause.code === 'SITE_UPDATE_SAVED_NOT_QUEUED');
       setError(
         cause instanceof ApiRequestError
           ? cause.message
@@ -163,6 +171,9 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
     setFile(null);
     setError(null);
     setRunResult(null);
+    setOriginalSaved(false);
+    idempotencyKey.current = null;
+    uploadedAttachmentId.current = null;
     setState('idle');
     speechRecognition.current?.stop();
     speechRecognition.current = null;
@@ -190,6 +201,8 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
           accept="image/*,audio/*,.pdf"
           onChange={(event) => {
             setFile(event.target.files?.[0] ?? null);
+            uploadedAttachmentId.current = null;
+            idempotencyKey.current = null;
             setError(null);
             if (state === 'recorded') setState('idle');
           }}
@@ -222,7 +235,10 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
               id="site-update-text"
               className="composer-textarea"
               value={text}
-              onChange={(event) => setText(event.target.value)}
+              onChange={(event) => {
+                setText(event.target.value);
+                idempotencyKey.current = null;
+              }}
               placeholder="Tell OG what happened on site..."
               rows={2}
               disabled={busy}
@@ -263,7 +279,17 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
           </div>
         )}
 
-        {state === 'error' && <div className="status-banner error" role="alert"><AlertTriangle size={16} /> {error}</div>}
+        {state === 'error' && (
+          <div className="processing-failure" role="alert">
+            <span className="empty-state-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+            <div>
+              <h2>{originalSaved ? "OG couldn't finish this update." : "OG couldn't send this update."}</h2>
+              <p>{originalSaved ? 'Your original site update is saved. Try again when you are ready.' : error}</p>
+              {originalSaved && error ? <p className="processing-failure-detail">{error}</p> : null}
+              {originalSaved || canSubmit ? <button className="btn btn-primary btn-small" type="button" onClick={() => void submit()}>Try again</button> : null}
+            </div>
+          </div>
+        )}
         {state === 'clarification' && <div className="status-banner info" role="status"><AlertTriangle size={16} /> OG needs a clearer detail before changing the project. Add the task, quantity or timing and send again.</div>}
         {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
         {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}

@@ -212,6 +212,9 @@ Vertical slice gate:
 - [x] UI Phase 10 provides a dedicated one-handed field home with concise attention,
   large Talk to OG and photo actions, today status, fixed five-item navigation, and
   Golden Scenario submission through the full-screen mobile composer.
+- [x] UI Phase 11 gives production screens deliberate loading, true-empty, filtered,
+  recoverable error, and success states; saved intake failures retain the original
+  update and retry through the same idempotency claim.
 
 ## Reliability and launch
 

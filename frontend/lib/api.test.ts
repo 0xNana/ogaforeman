@@ -186,6 +186,14 @@ describe('production API boundary', () => {
     );
   });
 
+  it('reuses a caller-provided site-update idempotency key for safe retries', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 'queued' }), { status: 202, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await api.submitSiteUpdate('prj_ridge', 'Blockwork is done.', 'site-update:stable-retry');
+    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': 'site-update:stable-retry' }) }));
+  });
+
   it('resolves approvals through the decision endpoint with optimistic concurrency', async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
     const response = {

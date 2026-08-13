@@ -2,7 +2,7 @@
 
 ## Current phase status
 
-- Active phase: Phase 11 — Loading, Empty, Error, and Success States
+- Active phase: Phase 12 — Visual Polish and Production Hardening
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
@@ -14,6 +14,7 @@
 - Phase 8 — Activity Overhaul: complete (2026-08-13)
 - Phase 9 — Approval Experience: complete (2026-08-13)
 - Phase 10 — Mobile Field Experience: complete (2026-08-13)
+- Phase 11 — Loading, Empty, Error, and Success States: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -38,6 +39,13 @@
 - Phase 10 evidence: 36 frontend unit tests, 309 Python tests, and 18 applicable
   Playwright journeys pass. The field home, full-screen OG composer, touch targets,
   mobile axe, overflow, voice/photo controls, and Golden Scenario submission pass.
+- Phase 11 evidence: 39 frontend unit tests, targeted site-update production controls,
+  lint, typecheck, and the production build pass. True empty states are distinct from
+  filter misses, project loading is narrated, and saved processing failures retain
+  the original input and reuse its idempotency key for safe retry.
+- Product/API contracts changed through Phase 11: yes — a saved-but-not-queued intake
+  now has a specific error code, and the frontend may supply a stable idempotency key
+  when retrying the unchanged original update.
 - Product/API contracts changed through Phase 10: no — the dedicated field home
   reuses snapshot truth and the existing authenticated site-update workflow.
 - Product/API contracts changed through Phase 9: yes — approval projections now
@@ -53,7 +61,7 @@
   material requests, plus historical daily logs; tasks persist an explicit milestone
   flag, guarded daily-log edits atomically emit activity, and verified attachment
   metadata projects into linked photo and document registers.
-- Do not begin Phase 12 until the Phase 11 acceptance gate passes.
+- Do not begin Phase 13 until the Phase 12 acceptance gate passes.
 
 ## Objective
 

@@ -80,7 +80,7 @@ async def submit_site_update(
         )
     except SiteUpdatePublishError as exc:
         raise ApiError(
-            "DEPENDENCY_UNAVAILABLE",
+            "SITE_UPDATE_SAVED_NOT_QUEUED",
             "Your update was saved, but Oga could not queue it yet. Retry safely.",
             status_code=503,
         ) from exc
