@@ -185,6 +185,15 @@ Vertical slice gate:
   test/eval boundaries. Authenticated frontend runtime code contains no project
   fixture snapshot or demo API fallback.
 
+## UI/UX overhaul
+
+- [x] UI Phase 0 audits and freezes the authenticated frontend architecture.
+- [x] UI Phase 1 delivers the OG Foreman project shell, locked ten-module
+  navigation, project selector/search, persistent Ask OG, responsive mobile
+  navigation, honest projection-gap routes, and WCAG/browser evidence.
+- [ ] UI Phase 2 replaces the existing command center with the operational
+  Overview defined in `docs/UI_UX_OVERHAUL.md`.
+
 ## Reliability and launch
 
 - [x] R-01 `tests/production_readiness` maps PR-01 through PR-13 and reports

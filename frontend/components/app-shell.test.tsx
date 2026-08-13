@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppShell } from './app-shell';
 
@@ -21,26 +21,71 @@ vi.mock('@/src/lib/auth', () => ({
   useAuth: () => ({ signOutUser }),
 }));
 
+vi.mock('@/components/site-composer', () => ({
+  SiteComposer: () => <div>Site composer</div>,
+}));
+
 describe('AppShell', () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     replace.mockReset();
     signOutUser.mockReset();
     signOutUser.mockResolvedValue(undefined);
   });
 
-  it('places Sign Out after Needs you and ends the session', async () => {
+  it('renders the locked construction navigation and global shell controls', () => {
     render(
       <AppShell
         project={{ id: 'prj_ridge', name: 'Ridge House', location: 'East Legon', status: 'ACTIVE', timezone: 'Africa/Accra' }}
       >
-        <p>Dashboard</p>
+        <p>Overview content</p>
       </AppShell>,
     );
 
-    const footer = screen.getByText('OG keeps watching unresolved work.').parentElement;
-    expect(footer).not.toBeNull();
-    const actions = Array.from((footer as HTMLElement).querySelectorAll('a, button'));
-    expect(actions.map((action) => action.textContent?.trim())).toEqual(['Needs you', 'Sign Out']);
+    const navigation = screen.getByRole('navigation', { name: 'Project sections' });
+    expect(Array.from(navigation.querySelectorAll('a')).map((link) => link.textContent?.trim())).toEqual([
+      'Overview',
+      'Schedule',
+      'Tasks',
+      'Issues',
+      'Materials',
+      'Daily Logs',
+      'Photos',
+      'Documents',
+      'Reports',
+      'Activity',
+    ]);
+    expect(screen.getByRole('searchbox', { name: 'Search project' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Ask OG' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Skip to project content' })).toHaveAttribute('href', '#project-content');
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'project-content');
+  });
+
+  it('opens and closes the Ask OG panel with accessible dialog semantics', () => {
+    render(
+      <AppShell
+        project={{ id: 'prj_ridge', name: 'Ridge House', location: 'East Legon', status: 'ACTIVE', timezone: 'Africa/Accra' }}
+      >
+        <p>Overview content</p>
+      </AppShell>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ask OG' }));
+    expect(screen.getByRole('dialog', { name: 'Ask OG' })).toBeVisible();
+    expect(screen.getByText('Site composer')).toBeVisible();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Ask OG' })).not.toBeInTheDocument();
+  });
+
+  it('ends the session from the account action', async () => {
+    render(
+      <AppShell
+        project={{ id: 'prj_ridge', name: 'Ridge House', location: 'East Legon', status: 'ACTIVE', timezone: 'Africa/Accra' }}
+      >
+        <p>Overview content</p>
+      </AppShell>,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign Out' }));
 

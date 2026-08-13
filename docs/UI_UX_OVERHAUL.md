@@ -2,11 +2,14 @@
 
 ## Current phase status
 
-- Active phase: Phase 1 — New Application Shell
+- Active phase: Phase 2 — Overview / Project Command Center
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
+- Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
-- Product/API behavior changed in Phase 0: no
-- Do not begin Phase 2 until the Phase 1 acceptance gate passes.
+- Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
+  desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
+- Product/API contracts changed through Phase 1: no
+- Do not begin Phase 3 until the Phase 2 acceptance gate passes.
 
 ## Objective
 

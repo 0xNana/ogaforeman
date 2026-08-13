@@ -11,7 +11,7 @@ test('manager views render task, material, report, and approval resources', asyn
   const browserErrors = captureBrowserErrors(page);
   const materialSuffix = Date.now().toString().slice(-8);
 
-  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Overview' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Tasks' })).toBeVisible();
@@ -47,7 +47,7 @@ test('manager views render task, material, report, and approval resources', asyn
   });
   await expect(materialsSection.getByText('Cement stock is low')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Needs you' }).click();
+  await page.locator('.needs-you-link').click();
   await expect(page.getByRole('heading', { name: 'Needs you' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Approve desktop access sequence' })).toBeVisible();
   expect(browserErrors).toEqual([]);

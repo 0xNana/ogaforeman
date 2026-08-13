@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 0 audit and freeze completed on 2026-08-13. This document records the
+Phase 0 audit and freeze and Phase 1 application shell completed on 2026-08-13. This document records the
 frontend baseline and the migration boundary for `docs/UI_UX_OVERHAUL.md`.
 No product behavior or API contract changed during this phase.
 
@@ -240,3 +240,20 @@ remove obsolete UI only after its replacement passes the phase gate.
 - Backend and frontend API contracts are unchanged.
 - No `.tsx`, `.ts`, or `.css` production file changed.
 - Phase 1 has a bounded migration path and explicit data-gap constraints.
+
+## Phase 1 acceptance evidence
+
+- The desktop shell exposes the locked ten-module construction navigation,
+  current project selector, project-section search, approval indicator, and a
+  persistent Ask OG drawer using the existing authenticated composer.
+- Mobile uses a field-oriented bottom navigation for Home, Tasks, OG, Photos,
+  and More; the More sheet exposes every project module without horizontal
+  overflow.
+- Schedule, Issues, Daily Logs, Photos, and Documents have honest project routes
+  with no fabricated records while their backend projections remain unavailable.
+- A skip link, labelled landmarks and controls, focus management, Escape-close,
+  reduced-motion behavior, and minimum mobile target sizes are present.
+- No old `Oga`/`OGA` customer-facing branding or agent-engineering navigation is
+  present in the frontend source.
+- Frontend API and backend domain contracts are unchanged, and the Golden
+  Scenario intake/approval path remains green in Playwright.

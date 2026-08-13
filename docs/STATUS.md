@@ -254,6 +254,17 @@ adapters remain solely as guarded verification infrastructure. Authenticated
 reports now render the API-backed project identity instead of the canonical demo
 project label, with a production-readiness regression guard.
 
+## UI/UX overhaul state
+
+- Phase 0 audit/freeze and Phase 1 application shell are complete.
+- The authenticated shell now uses OG Foreman branding, the locked construction
+  module navigation, project search/selection, persistent Ask OG, and responsive
+  desktop/mobile navigation.
+- Five projection-dependent modules open with honest empty states; no client-side
+  demo records or backend contract changes were introduced.
+- Phase 1 verification: 17 unit tests and 18 Playwright journeys pass, including
+  desktop axe WCAG A/AA and mobile overflow checks. Phase 2 Overview is next.
+
 ## Phase 8 state
 
 | Work item | Evidence state |
