@@ -31,6 +31,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
   const audioChunks = useRef<Blob[]>([]);
   const speechRecognition = useRef<any>(null);
   const baseTextRef = useRef('');
+  const finalizedSpeechRef = useRef('');
   const idempotencyKey = useRef<string | null>(null);
   const uploadedAttachmentId = useRef<string | null>(null);
   const [originalSaved, setOriginalSaved] = useState(false);
@@ -61,17 +62,28 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
       audioChunks.current = [];
 
       baseTextRef.current = text.trim() ? text.trim() + ' ' : '';
+      finalizedSpeechRef.current = '';
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.onresult = (event: any) => {
-          let transcript = '';
+          let interimTranscript = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
+            const segment = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalizedSpeechRef.current = appendSpeechSegment(
+                finalizedSpeechRef.current,
+                segment,
+              );
+            } else {
+              interimTranscript = appendSpeechSegment(interimTranscript, segment);
+            }
           }
-          setText(baseTextRef.current + transcript);
+          setText(
+            `${baseTextRef.current}${appendSpeechSegment(finalizedSpeechRef.current, interimTranscript)}`,
+          );
         };
         recognition.start();
         speechRecognition.current = recognition;
@@ -182,12 +194,14 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
     mediaRecorder.current = null;
     mediaStream.current = null;
     audioChunks.current = [];
+    finalizedSpeechRef.current = '';
     if (fileInput.current) fileInput.current.value = '';
   }
 
   const busy = state === 'uploading' || state === 'processing' || state === 'updating';
   const terminal = state === 'success' || state === 'approval';
   const canSubmit = Boolean(text.trim() || file) && state !== 'recording';
+  const progressMessage = composerProgressMessage(state);
 
   return (
     <div className={`site-composer-page${embedded ? ' embedded' : ''}`}>
@@ -230,19 +244,27 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
               </div>
             )}
 
-            <label className="sr-only" htmlFor="site-update-text">Type a site update</label>
-            <textarea
-              id="site-update-text"
-              className="composer-textarea"
-              value={text}
-              onChange={(event) => {
-                setText(event.target.value);
-                idempotencyKey.current = null;
-              }}
-              placeholder="Tell OG what happened on site..."
-              rows={2}
-              disabled={busy}
-            />
+            {progressMessage ? (
+              <div className="composer-progress" role="status" aria-live="polite">
+                <span className="process-spinner" aria-hidden="true" />
+                <span>{progressMessage}</span>
+              </div>
+            ) : (
+              <>
+                <label className="sr-only" htmlFor="site-update-text">Type a site update</label>
+                <textarea
+                  id="site-update-text"
+                  className="composer-textarea"
+                  value={text}
+                  onChange={(event) => {
+                    setText(event.target.value);
+                    idempotencyKey.current = null;
+                  }}
+                  placeholder="Tell OG what happened on site..."
+                  rows={2}
+                />
+              </>
+            )}
 
             <div className="chat-composer-actions">
               <button
@@ -290,30 +312,35 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
             </div>
           </div>
         )}
-        {state === 'clarification' && <div className="status-banner info" role="status"><AlertTriangle size={16} /> OG needs a clearer detail before changing the project. Add the task, quantity or timing and send again.</div>}
-        {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
-        {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
-        {(state === 'uploading' || state === 'processing' || state === 'updating') && (
-          <div className="process-state" role="status">
-            <div className={`process-state-row${state === 'uploading' ? ' current' : ''}`}>
-              {state === 'uploading' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Adding your site photos...
-            </div>
-            <div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>
-              {state === 'processing' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Checking the project...
-            </div>
-            <div className={`process-state-row${state === 'updating' ? ' current' : ''}`}>
-              {state === 'updating' ? <CheckCircle2 size={17} /> : <LoaderCircle size={17} />} Found project changes...
-            </div>
-            <div className={`process-state-row${state === 'updating' ? ' current' : ''}`}>
-              {state === 'updating' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Updating the site...
-            </div>
+        {state === 'clarification' && (
+          <div className="status-banner info" role="status">
+            <CheckCircle2 size={16} aria-hidden="true" />
+            <span>
+              OG updated the clear details. Add the missing task, quantity or timing to finish the rest.
+              {runResult?.result_summary ? ` ${runResult.result_summary}` : ''}
+            </span>
           </div>
         )}
-
+        {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
+        {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
         {terminal && <div className="composer-reset"><button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button></div>}
       </section>
     </div>
   );
+}
+
+export function appendSpeechSegment(current: string, next: string): string {
+  const segment = next.trim();
+  if (!segment) return current.trim();
+  const prefix = current.trim();
+  return prefix ? `${prefix} ${segment}` : segment;
+}
+
+export function composerProgressMessage(state: IntakeState): string | null {
+  if (state === 'uploading') return 'Adding your attachment…';
+  if (state === 'processing') return 'Checking the project…';
+  if (state === 'updating') return 'Updating the project…';
+  return null;
 }
 
 function inputTypeFor(text: string, file: File | null): SiteUpdateInput['inputType'] {

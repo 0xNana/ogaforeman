@@ -125,13 +125,13 @@ test('uploads and submits a photo using the signed attachment contract', async (
   ));
 
   await page.getByRole('button', { name: 'Send to OG' }).click();
-  await expect(page.getByText('Adding your site photos...')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Adding your attachment');
   const payload = JSON.parse((await siteRequest).postData() ?? '{}');
   const result = await (await siteResponse).json();
 
   expect(payload.input_type).toBe('photo');
   expect(payload.attachment_ids).toHaveLength(1);
-  await expect(page.getByRole('status')).toContainText('needs a clearer detail');
+  await expect(page.getByRole('status')).toContainText('updated the clear details');
   await page.getByRole('link', { name: 'Photos' }).click();
   await expect(page.getByRole('heading', { name: 'Photos', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open site-progress.png' }).click();

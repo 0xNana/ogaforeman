@@ -645,6 +645,7 @@ p { font-size: 1.05rem; }
 .chat-composer.recording { border-color: color-mix(in srgb, var(--red) 55%, var(--line)); }
 .composer-textarea { display: block; width: 100%; min-height: 58px; max-height: 190px; padding: 10px 11px 7px; resize: vertical; overflow-y: auto; background: transparent; border: 0; outline: none; font-size: 0.98rem; line-height: 1.5; }
 .composer-textarea::placeholder { color: var(--ink-faint); }
+.composer-progress { display: flex; min-height: 75px; align-items: center; gap: 10px; padding: 10px 11px 7px; color: var(--ink-soft); font-size: 0.92rem; }
 .chat-composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 3px; }
 .chat-composer-primary-actions { display: flex; align-items: center; gap: 6px; }
 .composer-icon-button { display: inline-flex; width: 42px; height: 42px; flex: 0 0 42px; align-items: center; justify-content: center; color: var(--ink-soft); background: var(--paper); border: 1px solid var(--line); border-radius: 50%; cursor: pointer; transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 150ms ease; }
@@ -662,10 +663,6 @@ p { font-size: 1.05rem; }
 .attachment-preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attachment-input { display: none; }
 .composer-reset { display: flex; justify-content: flex-end; margin-top: 14px; }
-.process-state { display: grid; gap: 14px; margin-top: 24px; padding: 18px; background: var(--paper); border-radius: 14px; }
-.process-state-row { display: flex; align-items: center; gap: 11px; color: var(--ink-soft); font-size: 0.86rem; }
-.process-state-row.current { color: var(--ink); font-weight: 700; }
-.process-state-row svg { color: var(--green); }
 .process-spinner { width: 17px; height: 17px; border: 2px solid var(--line-strong); border-top-color: var(--orange); border-radius: 50%; animation: spin 760ms linear infinite; }
 .workflow-receipt { margin-top: 18px; padding: 20px; background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 24%, transparent); border-radius: 14px; }
 .workflow-receipt.waiting { background: var(--amber-soft); border-color: color-mix(in srgb, var(--amber) 28%, transparent); }
