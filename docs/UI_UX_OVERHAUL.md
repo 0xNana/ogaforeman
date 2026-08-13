@@ -2,7 +2,7 @@
 
 ## Current phase status
 
-- Active phase: Phase 7 — OG Interaction Layer
+- Active phase: Phase 8 — Activity Overhaul
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
@@ -10,6 +10,7 @@
 - Phase 4 — Schedule: complete (2026-08-13)
 - Phase 5 — Daily Logs: complete (2026-08-13)
 - Phase 6 — Photos and Documents: complete (2026-08-13)
+- Phase 7 — OG Interaction Layer: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -23,12 +24,16 @@
   Playwright journeys pass; Daily Log axe and mobile overflow checks pass.
 - Phase 6 evidence: 29 frontend unit tests, 309 Python tests, and the applicable
   Playwright journeys pass; photo-detail axe and mobile overflow checks pass.
+- Phase 7 evidence: 31 frontend unit tests, 309 Python tests, and 18 applicable
+  Playwright journeys pass; desktop drawer axe and mobile full-screen checks pass.
+- Product/API contracts changed through Phase 7: no — Ask OG reuses the authenticated,
+  durable site-update and agent-run contracts rather than adding a chat endpoint.
 - Product/API contracts changed through Phase 6: yes — the authenticated project
   snapshot projects viewer identity, task/register/schedule fields, issues, and
   material requests, plus historical daily logs; tasks persist an explicit milestone
   flag, guarded daily-log edits atomically emit activity, and verified attachment
   metadata projects into linked photo and document registers.
-- Do not begin Phase 8 until the Phase 7 acceptance gate passes.
+- Do not begin Phase 9 until the Phase 8 acceptance gate passes.
 
 ## Objective
 
@@ -793,6 +798,13 @@ Cement request
 ### Acceptance Gate
 
 OG feels like an operational assistant acting across the PM—not a standalone chatbot.
+
+Status: complete (2026-08-13). Ask OG is persistent throughout the authenticated
+project shell, opens as a focus-contained right drawer on desktop and full-screen
+sheet on mobile, and supports text, voice, photos, and PDF attachments through
+the existing durable site-update workflow. Processing and receipts use only
+customer-facing operational language. Outcomes separate what changed, what OG
+handled, and manager decisions that require review.
 
 ---
 

@@ -256,7 +256,7 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–6 are complete; Phase 7 OG Interaction Layer is next.
+- UI Phases 0–7 are complete; Phase 8 Activity Overhaul is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
@@ -291,6 +291,13 @@ project label, with a production-readiness regression guard.
   document table retains familiar metadata without document-management sprawl.
 - Phase 6 verification: 29 frontend unit tests, 309 Python tests, production
   build, applicable Playwright journeys, photo-detail axe, and mobile overflow pass.
+- Phase 7 makes Ask OG a persistent, project-scoped interaction layer: a desktop
+  right drawer and mobile full-screen sheet reuse the production site-update
+  workflow for text, voice, photos, and files. Operational receipts distinguish
+  persisted changes, OG-handled follow-through, and manager decisions.
+- Phase 7 verification: 31 frontend unit tests, 309 Python tests, production
+  build, 18 applicable Playwright journeys, drawer axe, focus containment, and
+  mobile full-screen/overflow checks pass.
 
 ## Phase 8 state
 

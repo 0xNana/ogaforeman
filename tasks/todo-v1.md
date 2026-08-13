@@ -201,6 +201,8 @@ Vertical slice gate:
   report facts, source-update provenance, guarded edits, share, and print export.
 - [x] UI Phase 6 projects verified attachments into filterable Photos and focused
   Documents registers with authorized previews and persisted record relationships.
+- [x] UI Phase 7 makes Ask OG globally available as an accessible desktop drawer
+  and mobile sheet backed by the durable multimodal site-update workflow.
 
 ## Reliability and launch
 

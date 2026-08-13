@@ -54,20 +54,34 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const askOgButton = useRef<HTMLButtonElement>(null);
   const askOgClose = useRef<HTMLButtonElement>(null);
+  const askOgDrawer = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!askOgOpen) return;
+    document.body.classList.add('overlay-open');
     askOgClose.current?.focus();
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') setAskOgOpen(false);
     }
     document.addEventListener('keydown', closeOnEscape);
-    return () => document.removeEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+      document.body.classList.remove('overlay-open');
+    };
   }, [askOgOpen]);
 
   function closeAskOg() {
     setAskOgOpen(false);
     window.setTimeout(() => askOgButton.current?.focus(), 0);
+  }
+
+  function containAskOgFocus(event: React.KeyboardEvent) {
+    if (event.key !== 'Tab' || !askOgDrawer.current) return;
+    const controls = [...askOgDrawer.current.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')];
+    if (!controls.length) return;
+    const first = controls[0]; const last = controls.at(-1)!;
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
 
   async function signOut() {
@@ -148,8 +162,8 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
 
       {askOgOpen && (
         <div className="og-drawer-backdrop" role="presentation" onMouseDown={closeAskOg}>
-          <section className="og-drawer" role="dialog" aria-modal="true" aria-labelledby="ask-og-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="og-drawer-heading"><div><span className="eyebrow">Site update</span><h2 id="ask-og-title">Ask OG</h2><p>Tell OG what is happening on site.</p></div><button ref={askOgClose} className="icon-action" type="button" aria-label="Close Ask OG" onClick={closeAskOg}><X size={20} /></button></div>
+          <section ref={askOgDrawer} className="og-drawer" role="dialog" aria-modal="true" aria-labelledby="ask-og-title" aria-describedby="ask-og-description" onMouseDown={(event) => event.stopPropagation()} onKeyDown={containAskOgFocus}>
+            <div className="og-drawer-heading"><div><span className="eyebrow">Project assistant</span><h2 id="ask-og-title">Ask OG</h2><p id="ask-og-description">What&apos;s happening on site?</p></div><button ref={askOgClose} className="icon-action" type="button" aria-label="Close Ask OG" onClick={closeAskOg}><X size={20} /></button></div>
             <SiteComposer projectId={projectId} embedded />
           </section>
         </div>

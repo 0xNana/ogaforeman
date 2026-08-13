@@ -896,6 +896,16 @@ p { font-size: 1.05rem; }
 .og-drawer-heading, .sheet-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .og-drawer-heading h2, .sheet-heading h2 { margin-top: 5px; font-size: 1.65rem; }
 .og-drawer-heading p { margin-top: 5px; color: var(--ink-soft); font-size: 0.85rem; }
+.overlay-open { overflow: hidden; }
+.og-response-block, .og-handled-block, .og-needs-you { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.og-response-block h3, .og-handled-block h3, .og-needs-you h3 { margin: 0 0 8px; font-size: 0.9rem; }
+.og-response-block p { color: var(--ink-soft); line-height: 1.55; }
+.og-handled-block ul, .og-needs-you ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.og-handled-block li { display: flex; gap: 8px; align-items: flex-start; color: var(--ink-soft); font-size: 0.84rem; }
+.og-handled-block li svg { flex: 0 0 auto; margin-top: 2px; color: var(--success); }
+.og-needs-you { padding: 16px; border: 1px solid #dcc59e; background: var(--amber-soft); }
+.og-needs-you > span { color: var(--amber); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; }
+.og-needs-you .btn { margin-top: 14px; }
 .og-drawer .site-composer-card { margin-top: 20px; border: 0; box-shadow: none; }
 .mobile-more-sheet { align-self: flex-end; width: 100%; max-height: 88vh; overflow-y: auto; padding: 20px 18px 28px; background: var(--surface); border-radius: 14px 14px 0 0; }
 .module-placeholder { display: flex; align-items: flex-start; gap: 14px; padding: 28px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }

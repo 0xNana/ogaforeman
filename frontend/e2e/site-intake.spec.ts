@@ -140,7 +140,7 @@ test('records and submits a voice update', async ({ context, page }) => {
   const browserErrors = captureBrowserErrors(page);
 
   await page.getByRole('button', { name: 'Start voice recording' }).click();
-  await expect(page.getByText('Listening...')).toBeVisible();
+  await expect(page.getByText('Listening to your update...')).toBeVisible();
   await page.waitForTimeout(300);
   await page.getByRole('button', { name: 'Stop recording' }).click();
   await expect(page.locator('.recorded-actions').getByText('Voice note ready')).toBeVisible();

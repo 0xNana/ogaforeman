@@ -200,7 +200,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
             {state === 'recording' && (
               <div className="composer-media-status recording" role="status">
                 <span className="recording-dot" aria-hidden="true" />
-                <span>Listening...</span>
+                <span>Listening to your update...</span>
                 <span className="waveform compact-waveform" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <span key={index} />)}</span>
               </div>
             )}
@@ -274,6 +274,9 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
             </div>
             <div className={`process-state-row${state === 'processing' ? ' current' : ''}`}>
               {state === 'processing' ? <span className="process-spinner" /> : <CheckCircle2 size={17} />} Checking the project...
+            </div>
+            <div className={`process-state-row${state === 'updating' ? ' current' : ''}`}>
+              {state === 'updating' ? <CheckCircle2 size={17} /> : <LoaderCircle size={17} />} Found project changes...
             </div>
             <div className={`process-state-row${state === 'updating' ? ' current' : ''}`}>
               {state === 'updating' ? <span className="process-spinner" /> : <LoaderCircle size={17} />} Updating the site...

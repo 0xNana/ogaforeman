@@ -341,3 +341,19 @@ remove obsolete UI only after its replacement passes the phase gate.
 - Verification passes with 29 frontend unit tests, 309 Python tests, production
   build, the signed-upload rediscovery journey, photo-detail axe checks, and
   mobile overflow coverage.
+
+## Phase 7 acceptance evidence
+
+- Ask OG lives in the authenticated project shell, so navigation does not create
+  a separate assistant product or a second source of project state.
+- Desktop uses a focus-contained right drawer; mobile uses a viewport-filling
+  sheet. Both lock background scrolling, support Escape/close, restore trigger
+  focus, and retain the shared multimodal composer.
+- Text, voice, image, audio, and PDF input continues through signed uploads,
+  project-scoped site-update intake, durable agent runs, typed mutations, and
+  persisted approvals. No chat endpoint or client-side action path was added.
+- Receipts expose “What changed”, “OG handled”, and “Needs you” sections while
+  omitting agent, model, tool, node, and chain-of-thought terminology.
+- Verification passes with 31 frontend unit tests, 309 Python tests, production
+  build, 18 applicable Playwright journeys, desktop drawer axe checks, and mobile
+  full-screen/overflow coverage.
