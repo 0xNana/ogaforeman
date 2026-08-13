@@ -256,7 +256,7 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–7 are complete; Phase 8 Activity Overhaul is next.
+- UI Phases 0–8 are complete; Phase 9 Approval Experience is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
@@ -298,6 +298,15 @@ project label, with a production-readiness regression guard.
 - Phase 7 verification: 31 frontend unit tests, 309 Python tests, production
   build, 18 applicable Playwright journeys, drawer axe, focus containment, and
   mobile full-screen/overflow checks pass.
+- Phase 8 delivers one continuous, date-grouped Activity audit stream with All,
+  OG, Tasks, Issues, Materials, Approvals, Reports, and People filters. Every
+  supported event links to its canonical project record, while the projection
+  excludes event metadata and private model reasoning. The Golden Scenario test
+  verifies task completion, blocker detection, material/approval transitions,
+  daily-report updates, and the approved external action directly in Activity.
+- Phase 8 verification: 33 frontend unit tests, 309 Python tests, production
+  build, and 18 applicable Playwright journeys pass; Activity axe reports no
+  WCAG A/AA violations and mobile overflow checks pass.
 
 ## Phase 8 state
 

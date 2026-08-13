@@ -90,9 +90,16 @@ test('runs a site update through real approval and same-run continuation', async
     return (await response.json()).status;
   }).toBe('completed');
   await purchaseCard.getByRole('link', { name: 'Follow in activity' }).click();
-  await expect(page.getByRole('row', {
-    name: /Submitted an approved material request to the supplier simulator\./,
+  await expect(page.getByRole('listitem').filter({
+    hasText: 'Submitted an approved material request to the supplier simulator.',
   })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Task marked complete' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Detected a project blocker from the site update.' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Purchase approval requested.' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Approval approved' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Reports' }).click();
+  await expect(page.getByRole('heading', { name: 'Updated the daily report with observable site-update outcomes.' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: /daily report · rpt_/ }).first()).toHaveAttribute('href', `/projects/${projectId}/reports`);
   expect(browserErrors).toEqual([]);
 });
 

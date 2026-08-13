@@ -2,7 +2,7 @@
 
 ## Current phase status
 
-- Active phase: Phase 8 — Activity Overhaul
+- Active phase: Phase 9 — Approval Experience
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
@@ -11,6 +11,7 @@
 - Phase 5 — Daily Logs: complete (2026-08-13)
 - Phase 6 — Photos and Documents: complete (2026-08-13)
 - Phase 7 — OG Interaction Layer: complete (2026-08-13)
+- Phase 8 — Activity Overhaul: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -26,6 +27,12 @@
   Playwright journeys pass; photo-detail axe and mobile overflow checks pass.
 - Phase 7 evidence: 31 frontend unit tests, 309 Python tests, and 18 applicable
   Playwright journeys pass; desktop drawer axe and mobile full-screen checks pass.
+- Phase 8 evidence: 33 frontend unit tests, 309 Python tests, and 18 applicable
+  Playwright journeys pass; the Golden Scenario is readable from Activity alone,
+  desktop axe reports no WCAG A/AA violations, and mobile overflow passes.
+- Product/API contracts changed through Phase 8: yes — the activity projection now
+  exposes audit-safe timestamps, actor classes, action keys, and canonical related
+  entity references; event metadata and private model reasoning remain excluded.
 - Product/API contracts changed through Phase 7: no — Ask OG reuses the authenticated,
   durable site-update and agent-run contracts rather than adding a chat endpoint.
 - Product/API contracts changed through Phase 6: yes — the authenticated project
@@ -33,7 +40,7 @@
   material requests, plus historical daily logs; tasks persist an explicit milestone
   flag, guarded daily-log edits atomically emit activity, and verified attachment
   metadata projects into linked photo and document registers.
-- Do not begin Phase 9 until the Phase 8 acceptance gate passes.
+- Do not begin Phase 10 until the Phase 9 acceptance gate passes.
 
 ## Objective
 

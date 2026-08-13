@@ -145,7 +145,13 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
                 "title": "Created project Ridge House.",
                 "description": "Created project Ridge House.",
                 "date": "09:45",
+                "dateLabel": "Saturday, 8 August 2026",
+                "occurredAt": "2026-08-08T09:45:00+00:00",
                 "user": ACTOR_ID,
+                "actorType": "user",
+                "action": "project.created",
+                "entityType": "project",
+                "entityId": PROJECT_ID,
                 "needsAction": False,
                 "actionLabel": None,
             }

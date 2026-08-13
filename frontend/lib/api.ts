@@ -124,7 +124,13 @@ export type Activity = {
   title: string;
   description: string;
   date: string;
+  dateLabel: string;
+  occurredAt: string;
   user: string;
+  actorType: 'user' | 'agent' | 'system';
+  action: string;
+  entityType: string;
+  entityId: string;
   needsAction?: boolean;
   actionLabel?: string;
 };

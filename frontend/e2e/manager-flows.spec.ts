@@ -41,8 +41,12 @@ test('desktop command center and activity use API projections', async ({ page },
 
   await page.getByRole('link', { name: 'Activity' }).click();
   await expect(page).toHaveURL(/\/activity$/);
-  await expect(page.getByRole('heading', { name: 'What OG has handled' })).toBeVisible();
-  await expect(page.getByRole('row', { name: /Electrical work is blocked by the absent electrician\./ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activity', exact: true })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Electrical work is blocked by the absent electrician.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Issues' })).toBeVisible();
+  const activityAccessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(activityAccessibility.violations).toEqual([]);
   expect(browserErrors).toEqual([]);
 });
 
@@ -78,8 +82,8 @@ test('mobile command center navigation remains usable without overflow', async (
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('link', { name: 'Activity' }).click();
-  await expect(page.getByRole('heading', { name: 'What OG has handled' })).toBeVisible();
-  await expect(page.getByRole('row', { name: /Cement shortage detected and sent for approval\./ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activity', exact: true })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Cement shortage detected and sent for approval.' })).toBeVisible();
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(browserErrors).toEqual([]);
 });

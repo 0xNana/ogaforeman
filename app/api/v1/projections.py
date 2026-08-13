@@ -276,13 +276,20 @@ def approval_projection(approval: Approval, timezone: ZoneInfo) -> dict[str, obj
 def activity_projection(activity: ActivityEvent, timezone: ZoneInfo) -> dict[str, object]:
     kind = _activity_kind(activity)
     needs_action = activity.action in {"approval.requested", "material.requested"}
+    occurred_at = activity.created_at.astimezone(timezone)
     return {
         "id": activity.id,
         "kind": kind,
         "title": activity.summary,
         "description": activity.summary,
-        "date": activity.created_at.astimezone(timezone).strftime("%H:%M"),
+        "date": occurred_at.strftime("%H:%M"),
+        "dateLabel": occurred_at.strftime("%A, %-d %B %Y"),
+        "occurredAt": occurred_at.isoformat(),
         "user": activity.actor_id or "Oga",
+        "actorType": activity.actor_type.value,
+        "action": activity.action,
+        "entityType": activity.entity_type,
+        "entityId": activity.entity_id,
         "needsAction": needs_action,
         "actionLabel": "Review request" if needs_action else None,
     }

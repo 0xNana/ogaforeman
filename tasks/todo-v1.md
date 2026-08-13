@@ -203,6 +203,9 @@ Vertical slice gate:
   Documents registers with authorized previews and persisted record relationships.
 - [x] UI Phase 7 makes Ask OG globally available as an accessible desktop drawer
   and mobile sheet backed by the durable multimodal site-update workflow.
+- [x] UI Phase 8 replaces the activity table with a continuous, date-grouped audit
+  stream, eight operational filters, canonical related-record links, and Golden
+  Scenario browser evidence without projecting private model reasoning.
 
 ## Reliability and launch
 
