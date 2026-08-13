@@ -52,6 +52,12 @@ class ContextFocus(StrEnum):
     PENDING = "pending"
 
 
+class ReplyKind(StrEnum):
+    CASUAL = "casual"
+    PROJECT = "project"
+    CLARIFICATION = "clarification"
+
+
 class ReferencedEntity(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -222,8 +228,19 @@ class ConversationalProjectContext(BaseModel):
     members: tuple[MemberContextItem, ...] = ()
 
 
+class ConversationReply(BaseModel):
+    """Concise user-facing text plus internal grounding references."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: ReplyKind
+    text: str = Field(min_length=1, max_length=1_000)
+    cited_record_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
+
+
 __all__ = [
     "ConversationContext",
+    "ConversationReply",
     "ContextDomain",
     "ContextFocus",
     "ContextQuery",
@@ -232,5 +249,6 @@ __all__ = [
     "IntentDestination",
     "IntentRoute",
     "IntentType",
+    "ReplyKind",
     "ReferencedEntity",
 ]

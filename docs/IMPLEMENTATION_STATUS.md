@@ -16,15 +16,19 @@ Status: COMPLETE
 
 Phase 3 — Conversational Response Layer
 
+Status: COMPLETE
+
+Phase 4 — Entity Resolution
+
 Status: ACTIVE
 
-Phases 4–17
+Phases 5–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 3 implementation.
+- None for local Phase 4 implementation.
 
 ## Known regressions
 
@@ -56,3 +60,14 @@ Status: NOT STARTED
 - Results are capped per domain, omit unrelated repositories, and never mutate or emit activity.
 - The shared Golden context now includes persisted open issues and pending approvals instead of
   returning hard-coded empty collections.
+
+## Phase 3 evidence
+
+- Casual routing returns a short `What's up?` without requiring project state.
+- Project replies are deterministic, concise, and composed only from the authorized Phase 2
+  snapshot, with internal record references retained for grounding.
+- Overview, today, blockers, overdue work, low materials, pending approvals, tomorrow's work,
+  ownership, risk, and honest empty-state responses are covered.
+- Operational destinations such as site updates are rejected by the response service and remain
+  owned by their existing workflows.
+- Persisted user-authored text is treated as display data, not as instructions to the formatter.

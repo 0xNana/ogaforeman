@@ -17,7 +17,9 @@ real cloud environment, live model credential/billing, or human release gate.
   and explicit routing of site updates to the existing Golden workflow.
 - [x] C-03 Phase 2 retrieves authorized, query-relevant, bounded project context without
   mutation and fixes the Golden context's hard-coded issue/approval omissions.
-- [ ] C-04 Phase 3 formats grounded context into concise conversational responses.
+- [x] C-04 Phase 3 formats grounded context into concise conversational responses, honest empty
+  states, and rejects operational destinations that belong to existing workflows.
+- [ ] C-05 Phase 4 resolves project entities and clarifies ambiguous references before mutation.
 
 ## Audit findings requiring implementation
 

@@ -1,5 +1,16 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 3: Response Layer
+
+Acceptance: produce concise casual and project replies grounded only in the authorized Phase 2
+snapshot; cover operational overview and focused query/empty states; retain internal grounding
+references; and refuse site-update or action destinations owned by other workflows.
+
+Verify: focused response, context, and intent tests pass; static checks and the full non-backing
+suite remain green; the canonical mobile Golden Scenario still passes.
+
+Status: complete locally on 2026-08-13. Phase 4 (entity resolution) is active and not implemented.
+
 ## Conversational Operations — Phase 2: Project Context
 
 Acceptance: retrieve permission-aware, query-relevant, bounded typed projections for project,

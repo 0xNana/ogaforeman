@@ -45,6 +45,8 @@ facts, execute tools, persist conversation state, or mutate project state.
 
 Phase 2 implements authorized, query-shaped context retrieval behind the `PROJECT_CONTEXT`
 destination. It exposes bounded typed projections, uses project-local dates for today/tomorrow,
-loads only selected domains, and treats persisted repositories as truth. Phase 3 may format these
-facts into concise responses. Later phases may connect mutation destinations to existing typed
-services only after entity resolution and explicit policy checks exist.
+loads only selected domains, and treats persisted repositories as truth. Phase 3 formats those
+facts into concise deterministic replies with honest empty states and internal grounding refs.
+It refuses operational destinations, so Golden site updates and future actions cannot be consumed
+as chat responses. Later phases may connect mutation destinations to existing typed services only
+after entity resolution and explicit policy checks exist.
