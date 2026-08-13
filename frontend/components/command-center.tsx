@@ -1,25 +1,12 @@
 'use client';
 
-import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Clock3,
-  FileText,
-  MessageSquareText,
-  Package,
-  PackageCheck,
-  Info,
-} from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, FileText, MessageSquareText, Package } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { ProjectSnapshot } from '@/lib/api';
 
-const ACTIVITY_PAGE_SIZE = 5;
+import { PageHeader } from '@/components/page-header';
+import type { ProjectSnapshot, Task } from '@/lib/api';
 
 export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
   const router = useRouter();
@@ -28,150 +15,120 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
 
   useEffect(() => {
     if (!isSetup) return;
-    if (snapshot.tasks.length === 0) {
-      router.push(`/projects/${snapshot.project.id}/tasks?setup=1`);
-    } else if (snapshot.materials.length === 0) {
-      router.push(`/projects/${snapshot.project.id}/materials?setup=1`);
-    } else {
-      router.replace(`/projects/${snapshot.project.id}`);
-    }
+    if (snapshot.tasks.length === 0) router.push(`/projects/${snapshot.project.id}/tasks?setup=1`);
+    else if (snapshot.materials.length === 0) router.push(`/projects/${snapshot.project.id}/materials?setup=1`);
+    else router.replace(`/projects/${snapshot.project.id}`);
   }, [isSetup, snapshot.project.id, snapshot.tasks.length, snapshot.materials.length, router]);
-
-  const [activityPage, setActivityPage] = useState(1);
-  const completedCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'COMPLETED').length, [snapshot.tasks]);
-  const attentionCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'BLOCKED' || task.needsAttention).length + snapshot.approvals.filter((approval) => approval.status === 'PENDING').length, [snapshot.approvals, snapshot.tasks]);
-  const waitingCount = useMemo(() => snapshot.tasks.filter((task) => task.status === 'PENDING').length, [snapshot.tasks]);
-  const pendingApprovals = snapshot.approvals.filter((approval) => approval.status === 'PENDING');
-  const blockers = snapshot.tasks.filter((task) => task.status === 'BLOCKED');
-  const followUps = snapshot.tasks.filter((task) => task.needsAttention);
-  const activityPageCount = Math.max(1, Math.ceil(snapshot.activities.length / ACTIVITY_PAGE_SIZE));
-  const currentActivityPage = Math.min(activityPage, activityPageCount);
-  const visibleActivities = snapshot.activities.slice(
-    (currentActivityPage - 1) * ACTIVITY_PAGE_SIZE,
-    currentActivityPage * ACTIVITY_PAGE_SIZE,
-  );
-  const needsFirstSiteSetup = snapshot.report.date === 'No report yet';
 
   if (isSetup && (snapshot.tasks.length === 0 || snapshot.materials.length === 0)) {
     return <div className="loading-stack" aria-busy="true"><div className="loading-block loading-heading" /></div>;
   }
 
+  const completed = snapshot.tasks.filter((task) => task.status === 'COMPLETED').length;
+  const blockers = snapshot.tasks.filter((task) => task.status === 'BLOCKED');
+  const pendingApprovals = snapshot.approvals.filter((approval) => approval.status === 'PENDING');
+  const lowMaterials = snapshot.materials.filter((material) => material.status === 'LOW' || material.status === 'DELAYED');
+  const followUps = snapshot.tasks.filter((task) => task.needsAttention && task.status !== 'BLOCKED');
+  const progress = snapshot.tasks.length === 0 ? 0 : Math.round((completed / snapshot.tasks.length) * 100);
+  const atRisk = new Set(blockers.flatMap((task) => task.blocking ? [task.blocking] : [])).size;
+  const insight = getInsight(snapshot);
+
   return (
     <div>
-      <div className="page-heading">
-        <div><span className="eyebrow">{snapshot.project.location}</span><h1>{snapshot.project.name}</h1><p>Good morning. Here&apos;s what is happening on site.</p></div>
-        <div className="page-heading-actions"><Link href={`/projects/${snapshot.project.id}/reports`} className="btn btn-quiet btn-small"><FileText size={15} /> Daily report</Link></div>
-      </div>
+      <PageHeader
+        eyebrow={snapshot.project.name}
+        title="Project overview"
+        description={`${snapshot.project.location} · ${formatStatus(snapshot.project.status)}`}
+        actions={<Link href={`/projects/${snapshot.project.id}/reports`} className="btn btn-quiet btn-small"><FileText size={15} aria-hidden="true" /> Daily report</Link>}
+      />
 
-      {needsFirstSiteSetup ? <FirstSiteSetup snapshot={snapshot} /> : null}
+      {snapshot.report.date === 'No report yet' ? <FirstSiteSetup snapshot={snapshot} /> : null}
 
-      <div className="app-grid">
-        <div>
-          <div className="stats-row" aria-label="Today summary">
-            <div className="stat-card">
-              <span className="stat-card-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Tasks that have been fully completed.">
-                Completed
-                <Info size={14} style={{ color: 'var(--ink-soft)' }} />
-              </span>
-              <span className="stat-card-value">{completedCount}</span>
-            </div>
-            <div className="stat-card warning">
-              <span className="stat-card-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Blocked tasks and pending approvals that require your action.">
-                Needs attention
-                <Info size={14} style={{ color: 'var(--ink-soft)' }} />
-              </span>
-              <span className="stat-card-value">{attentionCount}</span>
-            </div>
-            <div className="stat-card waiting">
-              <span className="stat-card-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Upcoming tasks that have not started yet.">
-                Waiting
-                <Info size={14} style={{ color: 'var(--ink-soft)' }} />
-              </span>
-              <span className="stat-card-value">{waitingCount}</span>
-            </div>
+      <dl className="overview-status" aria-label="Project status metrics">
+        <Metric label="Overall progress" value={`${progress}%`} />
+        <Metric label="Target completion" value="Not set" />
+        <Metric label="Open issues" value={String(blockers.length)} tone={blockers.length ? 'warning' : undefined} />
+        <Metric label="Work at risk" value={String(atRisk)} tone={atRisk ? 'danger' : undefined} />
+      </dl>
+
+      <div className="overview-grid">
+        <section className="overview-section" aria-labelledby="attention-title">
+          <SectionHeading id="attention-title" title="Needs Attention" meta={`${blockers.length + lowMaterials.length + pendingApprovals.length + followUps.length} open`} />
+          <div className="attention-list">
+            {blockers.map((task) => <AttentionRow key={task.id} type="Blocker" title={task.title} detail={task.blocking ? `${task.blocking} is at risk.` : task.note || 'This task is blocked.'} href={`/projects/${snapshot.project.id}/tasks`} />)}
+            {lowMaterials.map((material) => <AttentionRow key={material.id} type="Material" title={material.name} detail={`${material.quantity} ${material.unit} recorded; ${material.need} needed for ${material.forWork}.`} href={`/projects/${snapshot.project.id}/materials`} />)}
+            {pendingApprovals.map((approval) => <AttentionRow key={approval.id} type="Approval" title={approval.title} detail={`${approval.quantity} · Needed ${approval.neededBy}`} href={`/projects/${snapshot.project.id}/approvals`} />)}
+            {followUps.map((task) => <AttentionRow key={task.id} type="Follow-up" title={task.title} detail={`Assigned to ${task.assignee}.`} href={`/projects/${snapshot.project.id}/tasks`} />)}
+            {!blockers.length && !lowMaterials.length && !pendingApprovals.length && !followUps.length ? <p className="overview-empty">Nothing needs attention.</p> : null}
           </div>
+        </section>
 
-          <section className="app-card feed-card" aria-labelledby="today-title">
-            <div className="card-heading"><h2 id="today-title">Today</h2><span>{snapshot.activities.length} updates</span></div>
-            <div className="activity-list">{visibleActivities.map((activity) => <ActivityItem key={activity.id} activity={activity} />)}</div>
-            {activityPageCount > 1 ? (
-              <nav className="dashboard-pagination" aria-label="Dashboard activity pages">
-                <button
-                  className="btn btn-quiet btn-small"
-                  type="button"
-                  aria-label="Previous activity page"
-                  disabled={currentActivityPage === 1}
-                  onClick={() => setActivityPage(currentActivityPage - 1)}
-                >
-                  <ChevronLeft size={15} aria-hidden="true" /> Previous
-                </button>
-                <span aria-live="polite">Page {currentActivityPage} of {activityPageCount}</span>
-                <button
-                  className="btn btn-quiet btn-small"
-                  type="button"
-                  aria-label="Next activity page"
-                  disabled={currentActivityPage === activityPageCount}
-                  onClick={() => setActivityPage(currentActivityPage + 1)}
-                >
-                  Next <ChevronRight size={15} aria-hidden="true" />
-                </button>
-              </nav>
-            ) : null}
-          </section>
-        </div>
-
-        <aside className="needs-column" aria-labelledby="needs-title"><div className="needs-heading"><h2 id="needs-title">Needs you</h2><span>{pendingApprovals.length + blockers.length + followUps.length} open</span></div>{pendingApprovals.map((approval) => <div className="needs-card material" key={approval.id}><span className="needs-type">Approval</span><h3>{approval.title}</h3><p>{approval.quantity} · Needed {approval.neededBy}</p><Link href={`/projects/${snapshot.project.id}/approvals`} className="btn btn-primary btn-small btn-block">Review <ArrowRight size={14} /></Link></div>)}{blockers.map((task) => <div className="needs-card blocker" key={task.id}><span className="needs-type">Blocker</span><h3>{task.title}</h3><p>{task.blocking ? `${task.blocking} is at risk.` : task.note}</p><Link href={`/projects/${snapshot.project.id}/tasks`} className="btn btn-quiet btn-small btn-block">Review blocker <ArrowRight size={14} /></Link></div>)}{followUps.map((task) => <div className="needs-card blocker" key={task.id}><span className="needs-type">Follow-up</span><h3>{task.title}</h3><p>Assigned to {task.assignee}.</p><Link href={`/projects/${snapshot.project.id}/tasks`} className="btn btn-quiet btn-small btn-block">Open follow-up <ArrowRight size={14} /></Link></div>)}{pendingApprovals.length === 0 && blockers.length === 0 && followUps.length === 0 && <div className="clear-card"><strong>You&apos;re clear.</strong><p>OG will let you know when something needs you.</p></div>}<div className="app-card app-card-pad"><span className="needs-type">OG&apos;s brief</span><h3 style={{ marginTop: '12px', fontSize: '1.05rem' }}>The day is moving.</h3><p style={{ marginTop: '8px', color: 'var(--ink-soft)', fontSize: '0.82rem' }}>Blockwork is done. Electrical work needs a follow-up. Cement is the next decision.</p><Link href={`/projects/${snapshot.project.id}/reports`} className="activity-action">Open today&apos;s report <ArrowRight size={13} /></Link></div></aside>
+        <Today snapshot={snapshot} />
       </div>
+
+      <Lookahead projectId={snapshot.project.id} tasks={snapshot.tasks} />
+
+      <aside className="og-noticed" aria-label="OG noticed">
+        <span>OG noticed</span>
+        <p>{insight}</p>
+      </aside>
     </div>
   );
 }
 
-function FirstSiteSetup({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
-  const steps = [
-    {
-      complete: snapshot.tasks.length > 0,
-      description: 'Add the jobs and milestones OG should recognize in site updates.',
-      href: `/projects/${snapshot.project.id}/tasks`,
-      icon: ClipboardList,
-      label: 'Add your first task',
-    },
-    {
-      complete: snapshot.materials.length > 0,
-      description: 'Record stock names, units and minimum quantities before reporting usage.',
-      href: `/projects/${snapshot.project.id}/materials`,
-      icon: Package,
-      label: 'Add project materials',
-    },
-    {
-      complete: false,
-      description: 'Tell OG what happened today by text, voice, photo or file.',
-      href: `/projects/${snapshot.project.id}/site`,
-      icon: MessageSquareText,
-      label: 'Send the first site update',
-    },
-  ];
-
-  return (
-    <section className="first-site-setup" aria-labelledby="first-site-title">
-      <div className="first-site-intro">
-        <span className="eyebrow">Start here</span>
-        <h2 id="first-site-title">Set up your first site.</h2>
-        <p>Give OG enough project context to recognize what your team reports and follow through safely.</p>
-      </div>
-      <ol className="first-site-steps">
-        {steps.map(({ complete, description, href, icon: Icon, label }, index) => (
-          <li className={complete ? 'complete' : undefined} key={label}>
-            <span className="first-site-step-number" aria-hidden="true">{complete ? <CheckCircle2 size={18} /> : index + 1}</span>
-            <span className="first-site-step-copy"><strong>{label}</strong><span>{description}</span></span>
-            <Link className="btn btn-quiet btn-small" href={href}>{complete ? 'Review' : label} <ArrowRight size={14} aria-hidden="true" /></Link>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
+function Metric({ label, value, tone }: Readonly<{ label: string; value: string; tone?: 'warning' | 'danger' }>) {
+  return <div className={tone ? `overview-metric ${tone}` : 'overview-metric'}><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
-function ActivityItem({ activity }: Readonly<{ activity: ProjectSnapshot['activities'][number] }>) {
-  const Icon = activity.kind === 'progress' ? CheckCircle2 : activity.kind === 'blocker' ? AlertTriangle : activity.kind === 'material' ? PackageCheck : activity.kind === 'report' ? FileText : Clock3;
-  return <article className="activity-item"><span className={`activity-icon ${activity.kind}`}><Icon size={16} aria-hidden="true" /></span><div><h3>{activity.title}</h3><p>{activity.description}</p>{activity.needsAction && <span className="activity-action">{activity.actionLabel} <ArrowRight size={13} /></span>}</div><span className="activity-time">{activity.date}</span></article>;
+function SectionHeading({ id, title, meta }: Readonly<{ id: string; title: string; meta: string }>) {
+  return <div className="overview-section-heading"><h2 id={id}>{title}</h2><span>{meta}</span></div>;
+}
+
+function AttentionRow({ type, title, detail, href }: Readonly<{ type: string; title: string; detail: string; href: string }>) {
+  return <article className="attention-row"><AlertTriangle size={17} aria-hidden="true" /><div><span>{type}</span><h3>{title}</h3><p>{detail}</p></div><Link href={href} aria-label={`Review ${title}`}>Review <ArrowRight size={14} aria-hidden="true" /></Link></article>;
+}
+
+function Today({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
+  const groups = [
+    ['Completed', snapshot.report.completed],
+    ['In progress', snapshot.report.inProgress],
+    ['Blockers', snapshot.report.blocked],
+    ['Materials & deliveries', snapshot.report.materials],
+    ['Next up', snapshot.report.tomorrow],
+  ] as const;
+  const hasWork = groups.some(([, items]) => items.length > 0);
+  return <section className="overview-section" aria-labelledby="today-title"><SectionHeading id="today-title" title="Today" meta={snapshot.report.date} />{hasWork ? <div className="today-register">{groups.map(([label, items]) => items.length ? <div className="today-group" key={label}><h3>{label}</h3><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></div> : null)}</div> : <p className="overview-empty">No work has been reported for today.</p>}</section>;
+}
+
+function Lookahead({ projectId, tasks }: Readonly<{ projectId: string; tasks: Task[] }>) {
+  return <section className="lookahead-section" aria-labelledby="lookahead-title"><SectionHeading id="lookahead-title" title="Two-Week Lookahead" meta={`${tasks.length} activities`} />{tasks.length ? <><div className="lookahead-table-wrapper"><table className="lookahead-table"><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Progress</th><th>Status</th></tr></thead><tbody>{tasks.map((task) => <tr key={task.id}><th scope="row"><Link href={`/projects/${projectId}/tasks`}>{task.title}</Link></th><td>Not set</td><td>{task.dueLabel || 'Not set'}</td><td>{taskProgress(task)}</td><td><span className={`status-pill ${task.status.toLowerCase()}`}>{formatStatus(task.status)}</span></td></tr>)}</tbody></table></div><p className="lookahead-note">Showing recorded tasks. Start dates and numeric progress appear only when project records provide them.</p></> : <p className="overview-empty">No tasks are available for the lookahead.</p>}</section>;
+}
+
+function taskProgress(task: Task) {
+  if (task.status === 'COMPLETED') return '100%';
+  if (task.status === 'PENDING') return '0%';
+  return 'Not reported';
+}
+
+function getInsight(snapshot: ProjectSnapshot) {
+  const blockedDependency = snapshot.tasks.find((task) => task.status === 'BLOCKED' && task.blocking);
+  if (blockedDependency) return `${blockedDependency.title} is blocking ${blockedDependency.blocking}.`;
+  const lowMaterial = snapshot.materials.find((material) => material.status === 'LOW' || material.status === 'DELAYED');
+  if (lowMaterial) return `${lowMaterial.name} is below or behind the recorded project requirement.`;
+  const approval = snapshot.approvals.find((item) => item.status === 'PENDING');
+  if (approval) return `${approval.title} is waiting for a decision.`;
+  return 'No immediate project exception is visible in the current records.';
+}
+
+function formatStatus(status: string) {
+  return status.toLowerCase().replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
+}
+
+function FirstSiteSetup({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
+  const steps = [
+    { complete: snapshot.tasks.length > 0, description: 'Add the jobs and milestones OG should recognize in site updates.', href: `/projects/${snapshot.project.id}/tasks`, icon: ClipboardList, label: 'Add your first task' },
+    { complete: snapshot.materials.length > 0, description: 'Record stock names, units and minimum quantities before reporting usage.', href: `/projects/${snapshot.project.id}/materials`, icon: Package, label: 'Add project materials' },
+    { complete: false, description: 'Tell OG what happened today by text, voice, photo or file.', href: `/projects/${snapshot.project.id}/site`, icon: MessageSquareText, label: 'Send the first site update' },
+  ];
+  return <section className="first-site-setup" aria-labelledby="first-site-title"><div className="first-site-intro"><span className="eyebrow">Start here</span><h2 id="first-site-title">Set up your first site.</h2><p>Give OG enough project context to recognize what your team reports and follow through safely.</p></div><ol className="first-site-steps">{steps.map(({ complete, description, href, icon: Icon, label }, index) => <li className={complete ? 'complete' : undefined} key={label}><span className="first-site-step-number" aria-hidden="true">{complete ? <CheckCircle2 size={18} /> : index + 1}</span><span className="first-site-step-copy"><strong>{label}</strong><span>{description}</span></span><Link className="btn btn-quiet btn-small" href={href}>{complete ? 'Review' : label} <ArrowRight size={14} aria-hidden="true" /></Link></li>)}</ol></section>;
 }

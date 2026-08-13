@@ -257,3 +257,20 @@ remove obsolete UI only after its replacement passes the phase gate.
   present in the frontend source.
 - Frontend API and backend domain contracts are unchanged, and the Golden
   Scenario intake/approval path remains green in Playwright.
+
+## Phase 2 acceptance evidence
+
+- Overview exposes four compact, projection-backed status measures: completed
+  task ratio, unavailable target completion, blocked-task count, and recorded
+  downstream work at risk.
+- Blockers, low or delayed materials, pending approvals, and explicit task
+  follow-ups form one prioritized operational attention list.
+- Today is derived only from the current daily-report projection. The two-week
+  lookahead uses task records and labels absent start dates or numeric progress
+  as unavailable instead of synthesizing schedule facts.
+- The static `OG's brief`, card-grid dashboard, and dashboard-only feed styles
+  were removed. The contextual OG notice is deterministically derived from the
+  first recorded blocker dependency, material exception, or pending approval.
+- Frontend and backend contracts remain unchanged. Eighteen unit tests and all
+  18 applicable Playwright journeys pass, including desktop axe WCAG A/AA and
+  mobile horizontal-overflow checks.

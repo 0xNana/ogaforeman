@@ -191,7 +191,7 @@ Vertical slice gate:
 - [x] UI Phase 1 delivers the OG Foreman project shell, locked ten-module
   navigation, project selector/search, persistent Ask OG, responsive mobile
   navigation, honest projection-gap routes, and WCAG/browser evidence.
-- [ ] UI Phase 2 replaces the existing command center with the operational
+- [x] UI Phase 2 replaces the existing command center with the operational
   Overview defined in `docs/UI_UX_OVERHAUL.md`.
 
 ## Reliability and launch
