@@ -110,9 +110,12 @@ export type Approval = {
   status: ApprovalStatus;
   quantity: string;
   neededBy: string;
+  neededFor: string;
   reason: string;
   requestedBy: string;
   date: string;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
   version: number;
 };
 

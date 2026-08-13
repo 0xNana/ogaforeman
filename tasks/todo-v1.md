@@ -206,6 +206,9 @@ Vertical slice gate:
 - [x] UI Phase 8 replaces the activity table with a continuous, date-grouped audit
   stream, eight operational filters, canonical related-record links, and Golden
   Scenario browser evidence without projecting private model reasoning.
+- [x] UI Phase 9 makes consequential approvals self-explanatory, persists proposal
+  display context, records resolver/time receipts, and scopes stale-version recovery
+  to the affected request without weakening authorization or version guards.
 
 ## Reliability and launch
 

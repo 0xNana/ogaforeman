@@ -256,7 +256,7 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–8 are complete; Phase 9 Approval Experience is next.
+- UI Phases 0–9 are complete; Phase 10 Mobile Field Experience is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
@@ -307,6 +307,15 @@ project label, with a production-readiness regression guard.
 - Phase 8 verification: 33 frontend unit tests, 309 Python tests, production
   build, and 18 applicable Playwright journeys pass; Activity axe reports no
   WCAG A/AA violations and mobile overflow checks pass.
+- Phase 9 makes each consequential proposal readable before a decision: action,
+  quantity, affected work, needed date, and OG's evidence-based reason are visually
+  separated. Approve/reject still use the authenticated version-checked service;
+  terminal receipts now show the persisted resolver/time, and stale conflicts lock
+  only their request until an explicit refresh confirms server truth.
+- Phase 9 verification: 35 frontend unit tests, 309 Python tests, production build,
+  and 18 applicable Playwright journeys pass; approval axe reports no WCAG A/AA
+  violations. `npm audit --audit-level=high` reports no high or critical findings;
+  five moderate findings remain in the Firebase CLI development dependency chain.
 
 ## Phase 8 state
 

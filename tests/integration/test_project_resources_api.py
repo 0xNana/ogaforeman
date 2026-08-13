@@ -434,6 +434,9 @@ async def test_snapshot_projects_persisted_resources_and_latest_report() -> None
     }
     assert snapshot["approvals"][0]["version"] == 0
     assert snapshot["approvals"][0]["quantity"] == "30 bags"
+    assert snapshot["approvals"][0]["neededFor"] == "Not specified"
+    assert snapshot["approvals"][0]["resolvedBy"] is None
+    assert snapshot["approvals"][0]["resolvedAt"] is None
     assert snapshot["report"]["completed"] == ["First-floor blockwork"]
     assert snapshot["report"]["materials"] == ["Cement stock is low"]
     assert snapshot["dailyLogs"] == [
@@ -637,5 +640,7 @@ async def test_approval_decision_updates_projection_and_rejects_stale_version() 
     assert approved.status_code == 200
     assert approved.json()["status"] == ApprovalStatus.APPROVED.value.upper()
     assert approved.json()["version"] == 1
+    assert approved.json()["resolvedBy"] == ACTOR_ID
+    assert approved.json()["resolvedAt"] is not None
     assert stale.status_code == 409
     assert stale.json()["error"]["code"] == "CONFLICT_VERSION_MISMATCH"

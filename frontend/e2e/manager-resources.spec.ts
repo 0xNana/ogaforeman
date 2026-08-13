@@ -86,6 +86,7 @@ test('manager views render task, material, report, and approval resources', asyn
   await page.locator('.needs-you-link').click();
   await expect(page.getByRole('heading', { name: 'Needs you' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Approve desktop access sequence' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Why OG prepared this' }).first()).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
 
@@ -99,7 +100,8 @@ test('manager can approve and reject decisions and persistence survives reload',
   ));
   await approveCard.getByRole('button', { name: 'Approve' }).click();
   await refreshedSnapshot;
-  await expect(approveCard.getByText('APPROVED')).toBeVisible();
+  await expect(approveCard.getByRole('status')).toContainText('APPROVED');
+  await expect(approveCard.getByRole('status')).toContainText(/by usr_playwright123 ·/);
   await expect(approveCard.getByRole('status')).toContainText('OG is resuming from the saved checkpoint.');
   await expect(approveCard.getByRole('link', { name: 'Follow in activity' })).toHaveAttribute(
     'href',
@@ -108,12 +110,12 @@ test('manager can approve and reject decisions and persistence survives reload',
 
   const rejectCard = page.getByRole('article').filter({ hasText: 'Reject desktop access sequence' });
   await rejectCard.getByRole('button', { name: 'Reject' }).click();
-  await expect(rejectCard.getByText('REJECTED')).toBeVisible();
+  await expect(rejectCard.getByRole('status')).toContainText('REJECTED');
   await expect(rejectCard.getByRole('status')).toContainText('No supplier or external action will run.');
 
   await page.reload();
-  await expect(page.getByRole('article').filter({ hasText: 'Approve desktop access sequence' }).getByText('APPROVED')).toBeVisible();
-  await expect(page.getByRole('article').filter({ hasText: 'Reject desktop access sequence' }).getByText('REJECTED')).toBeVisible();
+  await expect(page.getByRole('article').filter({ hasText: 'Approve desktop access sequence' }).getByRole('status')).toContainText('APPROVED');
+  await expect(page.getByRole('article').filter({ hasText: 'Reject desktop access sequence' }).getByRole('status')).toContainText('REJECTED');
   expect(browserErrors).toEqual([]);
 });
 
@@ -136,8 +138,11 @@ test('stale approval decision displays a recoverable conflict', async ({ page, r
   expect(concurrentDecision.ok()).toBe(true);
 
   await staleCard.getByRole('button', { name: 'Reject' }).click();
-  await expect(page.locator('.status-banner[role="alert"]')).toContainText('This approval changed after you opened it.');
-  await expect(page.getByRole('button', { name: 'Refresh approvals' })).toBeVisible();
+  await expect(staleCard.getByRole('alert')).toContainText('This request has already been resolved. Refresh to see the latest status.');
+  await expect(staleCard.getByRole('button', { name: 'Refresh to see latest status' })).toBeVisible();
+  await expect(staleCard.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(accessibility.violations).toEqual([]);
   expect(browserErrors.filter((message) => !message.includes('409 (Conflict)'))).toEqual([]);
   expect(browserErrors.some((message) => message.includes('409 (Conflict)'))).toBe(true);
 });

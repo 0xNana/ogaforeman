@@ -2,7 +2,7 @@
 
 ## Current phase status
 
-- Active phase: Phase 9 — Approval Experience
+- Active phase: Phase 10 — Mobile Field Experience
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
@@ -12,6 +12,7 @@
 - Phase 6 — Photos and Documents: complete (2026-08-13)
 - Phase 7 — OG Interaction Layer: complete (2026-08-13)
 - Phase 8 — Activity Overhaul: complete (2026-08-13)
+- Phase 9 — Approval Experience: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -30,6 +31,12 @@
 - Phase 8 evidence: 33 frontend unit tests, 309 Python tests, and 18 applicable
   Playwright journeys pass; the Golden Scenario is readable from Activity alone,
   desktop axe reports no WCAG A/AA violations, and mobile overflow passes.
+- Phase 9 evidence: 35 frontend unit tests, 309 Python tests, and 18 applicable
+  Playwright journeys pass; approve, reject, persisted resolver/time, and scoped
+  stale-conflict recovery are covered, with no approval-page axe violations.
+- Product/API contracts changed through Phase 9: yes — approval projections now
+  include the persisted resolver/time and material proposals persist safe display
+  context for material name, needed date, and affected work.
 - Product/API contracts changed through Phase 8: yes — the activity projection now
   exposes audit-safe timestamps, actor classes, action keys, and canonical related
   entity references; event metadata and private model reasoning remain excluded.
@@ -40,7 +47,7 @@
   material requests, plus historical daily logs; tasks persist an explicit milestone
   flag, guarded daily-log edits atomically emit activity, and verified attachment
   metadata projects into linked photo and document registers.
-- Do not begin Phase 10 until the Phase 9 acceptance gate passes.
+- Do not begin Phase 11 until the Phase 10 acceptance gate passes.
 
 ## Objective
 

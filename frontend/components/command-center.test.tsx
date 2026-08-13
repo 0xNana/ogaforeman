@@ -87,7 +87,7 @@ describe('CommandCenter', () => {
         { id: 'tsk_blocked', title: 'Electrical rough-in', status: 'BLOCKED', assignee: 'Electrical team', dueLabel: 'Aug 15', blocking: 'Ceiling installation', note: 'Electrician absent' },
         { id: 'tsk_next', title: 'Plastering F1', status: 'PENDING', assignee: 'Finishes team', dueLabel: 'Aug 18' },
       ],
-      approvals: [{ id: 'apr_cement', type: 'material_request', title: 'Cement request', status: 'PENDING', quantity: '90 bags', neededBy: 'Tomorrow', reason: '10 bags on site against 100 required.', requestedBy: 'OG', date: '10:17', version: 1 }],
+      approvals: [{ id: 'apr_cement', type: 'material_request', title: 'Cement request', status: 'PENDING', quantity: '90 bags', neededBy: 'Tomorrow', neededFor: 'Ground-floor plastering', reason: '10 bags on site against 100 required.', requestedBy: 'OG', date: '10:17', resolvedBy: null, resolvedAt: null, version: 1 }],
       report: {
         ...snapshot.report,
         completed: ['Ground-floor blockwork'],

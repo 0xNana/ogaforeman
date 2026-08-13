@@ -21,7 +21,7 @@ from app.domain.enums import (
     MaterialRequestStatus,
 )
 from app.domain.materials import canonicalize_unit, ensure_same_unit
-from app.domain.models import ActivityEvent, Approval, MaterialRequest
+from app.domain.models import ActivityEvent, Approval, Material, MaterialRequest, Task
 from app.repositories.activity import ActivityRepository
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.material_requests import MaterialRequestRepository
@@ -203,6 +203,14 @@ class MaterialRequestService:
         total_cost: Decimal | None,
     ) -> MaterialRequest:
         requests = MaterialRequestRepository.for_session(session, access)
+        task_titles = {
+            task.id: task.title for task in session.repository(Task).list(command.project_id)
+        }
+        affected_work = ", ".join(
+            task_titles[task_id]
+            for task_id in command.affected_task_ids
+            if task_id in task_titles
+        )
         source_event_id = context.source_event_id
         if source_event_id is None:
             raise MaterialRequestError("a source event is required for a material request")
@@ -214,8 +222,14 @@ class MaterialRequestService:
             action_type=ApprovalActionType.PURCHASE,
             proposed_action={
                 "material_id": material_id,
+                "material_name": session.repository(Material).require(
+                    command.project_id, material_id
+                ).name,
                 "quantity": str(shortage),
                 "unit": command.unit,
+                "needed_by": command.needed_by.isoformat() if command.needed_by else None,
+                "needed_for": affected_work or None,
+                "affected_task_ids": command.affected_task_ids,
                 "supplier": command.supplier,
                 "estimated_total_cost": str(total_cost) if total_cost is not None else None,
             },

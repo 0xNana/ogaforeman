@@ -78,7 +78,7 @@ test('runs a site update through real approval and same-run continuation', async
   const purchaseCard = page.getByRole('article').filter({ hasText: /30(?:\.0)? bags/ });
   await expect(purchaseCard.getByText('PENDING')).toBeVisible();
   await purchaseCard.getByRole('button', { name: 'Approve' }).click();
-  await expect(purchaseCard.getByText('APPROVED')).toBeVisible();
+  await expect(purchaseCard.getByRole('status')).toContainText('APPROVED');
   await expect(purchaseCard.getByRole('status')).toContainText(
     'OG is resuming from the saved checkpoint.',
   );

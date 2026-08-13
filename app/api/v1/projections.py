@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -259,6 +260,18 @@ def approval_projection(approval: Approval, timezone: ZoneInfo) -> dict[str, obj
     unit = _text(action.get("unit"))
     quantity = " ".join(part for part in (quantity_value, unit) if part) or "Review proposal"
     needed_by = _text(action.get("needed_by")) or "Not specified"
+    if needed_by != "Not specified":
+        try:
+            parsed_needed_by = datetime.fromisoformat(needed_by)
+            if parsed_needed_by.tzinfo is not None:
+                needed_by = parsed_needed_by.astimezone(timezone).strftime("%d %b").lstrip("0")
+        except ValueError:
+            pass
+    affected_task_ids = action.get("affected_task_ids")
+    needed_for = _text(action.get("needed_for"))
+    if not needed_for and isinstance(affected_task_ids, list) and affected_task_ids:
+        needed_for = f"{len(affected_task_ids)} affected task{'s' if len(affected_task_ids) != 1 else ''}"
+    resolved_at = approval.resolved_at.astimezone(timezone) if approval.resolved_at else None
     return {
         "id": approval.id,
         "type": approval.action_type.value.replace("_", " ").title(),
@@ -266,9 +279,12 @@ def approval_projection(approval: Approval, timezone: ZoneInfo) -> dict[str, obj
         "status": approval.status.value.upper(),
         "quantity": quantity,
         "neededBy": needed_by,
+        "neededFor": needed_for or "Not specified",
         "reason": approval.reason,
         "requestedBy": "Oga" if approval.requested_by == "system" else approval.requested_by,
         "date": approval.requested_at.astimezone(timezone).strftime("%d %b, %H:%M").lstrip("0"),
+        "resolvedBy": approval.resolved_by,
+        "resolvedAt": resolved_at.strftime("%d %b, %H:%M").lstrip("0") if resolved_at else None,
         "version": approval.version,
     }
 

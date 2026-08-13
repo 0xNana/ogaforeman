@@ -7,7 +7,7 @@ import pytest
 
 from app.domain.authorization import ProjectAccessContext, AuthenticatedUser
 from app.domain.enums import MemberRole, ActorType
-from app.domain.models import Material, MaterialRequest
+from app.domain.models import Approval, Material, MaterialRequest
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.material_requests import (
@@ -123,6 +123,8 @@ def test_material_shortage(
     assert len(requests) == 1
     req = requests[0]
     assert req.quantity == Decimal("4")
+    approvals = store.run_transaction(lambda s: list(s.repository(Approval).list("prj_123")))
+    assert approvals[0].proposed_action["material_name"] == "2x4 Studs"
 
 
 def test_material_request_duplicate(
