@@ -84,6 +84,7 @@ def test_deployed_runtime_uses_vertex_even_when_api_key_exists(
         google_cloud_region="us-central1",
         firestore_database="(default)",
         media_bucket="oga-staging-media",
+        storage_signing_service_account="oga-api@oga-staging.iam.gserviceaccount.com",
         pubsub_site_events_topic="oga-site-events",
         pubsub_dead_letter_topic="oga-dead-letter",
         pubsub_worker_subscription="oga-worker",

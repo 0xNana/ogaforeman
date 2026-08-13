@@ -95,6 +95,7 @@ def test_demo_environment_is_local_or_test_only(monkeypatch: pytest.MonkeyPatch)
                 google_cloud_region="africa-south1",
                 firestore_database="(default)",
                 media_bucket="oga-staging-media",
+                storage_signing_service_account="oga-api@oga-staging.iam.gserviceaccount.com",
                 pubsub_site_events_topic="site-events",
                 pubsub_dead_letter_topic="dead-letter",
                 pubsub_worker_subscription="worker",

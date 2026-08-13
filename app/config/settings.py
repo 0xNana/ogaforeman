@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     firestore_emulator_host: str | None = None
     allow_remote_firestore_in_local: bool = False
     media_bucket: str | None = None
+    storage_signing_service_account: str | None = None
 
     pubsub_site_events_topic: str | None = None
     pubsub_dead_letter_topic: str | None = None
@@ -140,6 +141,7 @@ class Settings(BaseSettings):
                 "google_cloud_region",
                 "firestore_database",
                 "media_bucket",
+                "storage_signing_service_account",
                 "pubsub_site_events_topic",
                 "pubsub_dead_letter_topic",
                 "pubsub_worker_subscription",

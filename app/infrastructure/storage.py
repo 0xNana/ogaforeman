@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
+import google.auth
+from google.auth.credentials import Credentials
+from google.auth.transport.requests import Request
 from google.api_core.exceptions import NotFound, PreconditionFailed
 from google.cloud.storage import Client
 
@@ -88,9 +91,25 @@ class GoogleCloudStorageAdapter(StorageAdapter):
     https://cloud.google.com/storage/docs/request-preconditions#the_0_value_in_a_generation-match_precondition
     """
 
-    def __init__(self, bucket_name: str, *, client: Client | None = None) -> None:
+    def __init__(
+        self,
+        bucket_name: str,
+        *,
+        client: Client | None = None,
+        signing_service_account: str | None = None,
+        signing_credentials: Credentials | None = None,
+        auth_request: Request | None = None,
+    ) -> None:
         self._client = client or Client()
         self._bucket = self._client.bucket(bucket_name)
+        self._signing_service_account = signing_service_account
+        self._signing_credentials = signing_credentials
+        self._auth_request = auth_request
+        if signing_service_account and signing_credentials is None:
+            credentials, _ = google.auth.default(
+                scopes=("https://www.googleapis.com/auth/cloud-platform",)
+            )
+            self._signing_credentials = credentials
 
     def sign_upload(
         self,
@@ -116,6 +135,7 @@ class GoogleCloudStorageAdapter(StorageAdapter):
                 "Content-Length": str(byte_size),
                 "x-goog-if-generation-match": "0",
             },
+            **self._iam_signing_arguments(),
         )
         return SignedUpload(url=url, expires_at=expires_at, required_headers=headers)
 
@@ -175,6 +195,7 @@ class GoogleCloudStorageAdapter(StorageAdapter):
             version="v4",
             expiration=timedelta(seconds=expires_in_seconds),
             method="GET",
+            **self._iam_signing_arguments(),
         )
         return SignedUpload(url=url, expires_at=expires_at, required_headers={})
 
@@ -212,12 +233,30 @@ class GoogleCloudStorageAdapter(StorageAdapter):
             raise StorageObjectValidationError("stored media checksum changed after verification")
         return content
 
+    def _iam_signing_arguments(self) -> dict[str, str]:
+        if not self._signing_service_account:
+            return {}
+        credentials = self._signing_credentials
+        if credentials is None:
+            raise RuntimeError("Storage signing credentials are not configured")
+        if not credentials.valid:
+            credentials.refresh(self._auth_request or Request())
+        if not isinstance(credentials.token, str) or not credentials.token:
+            raise RuntimeError("Storage signing credentials did not provide an access token")
+        return {
+            "service_account_email": self._signing_service_account,
+            "access_token": credentials.token,
+        }
+
 
 def create_storage_adapter(settings: Settings | None = None) -> GoogleCloudStorageAdapter:
     runtime = settings or get_settings()
     if not runtime.media_bucket:
         raise RuntimeError("media_bucket is required for Storage access")
-    return GoogleCloudStorageAdapter(runtime.media_bucket)
+    return GoogleCloudStorageAdapter(
+        runtime.media_bucket,
+        signing_service_account=runtime.storage_signing_service_account,
+    )
 
 
 def decode_gcs_checksum(value: str) -> str:

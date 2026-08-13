@@ -20,6 +20,11 @@ rejects demo and fake-model modes.
 deploy applies that same allowlist to the API and the private media bucket so
 signed browser `PUT` uploads work without allowing wildcard origins.
 
+`STORAGE_SIGNING_SERVICE_ACCOUNT` identifies the API runtime service account used
+for IAM-backed V4 upload and read URL signatures. The deploy derives it from the
+API service account and grants that identity `roles/iam.serviceAccountTokenCreator`
+on itself; Cloud Run metadata credentials do not contain a private signing key.
+
 Credentials belong in workload identity or Secret Manager. Never commit service
 account keys, bearer tokens, or Firebase admin credentials.
 

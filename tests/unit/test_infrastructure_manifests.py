@@ -29,6 +29,8 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "gcloud builds get-default-service-account" in source
     assert "roles/artifactregistry.writer" in source
     assert "roles/storage.objectViewer" in source
+    assert "STORAGE_SIGNING_SERVICE_ACCOUNT: '${API_SERVICE_ACCOUNT_EMAIL}'" in source
+    assert "roles/iam.serviceAccountTokenCreator" in source
     assert (
         "projects/${GOOGLE_CLOUD_PROJECT}/serviceAccounts/${BUILD_SERVICE_ACCOUNT_EMAIL}" in source
     )

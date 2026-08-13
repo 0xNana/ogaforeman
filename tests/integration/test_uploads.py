@@ -372,6 +372,53 @@ class FakeStorageClient:
         return self.bucket_instance
 
 
+class FakeSigningCredentials:
+    def __init__(self) -> None:
+        self.valid = False
+        self.token: str | None = None
+        self.refresh_calls = 0
+
+    def refresh(self, _request: object) -> None:
+        self.valid = True
+        self.token = "cloud-run-access-token"
+        self.refresh_calls += 1
+
+
+def test_gcs_adapter_uses_iam_signing_identity_for_cloud_run_credentials() -> None:
+    payload = b"%PDF-staging-evidence"
+    client = FakeStorageClient(payload)
+    credentials = FakeSigningCredentials()
+    adapter = GoogleCloudStorageAdapter(
+        "private-media",
+        client=cast(Any, client),
+        signing_service_account="oga-api-staging@example.iam.gserviceaccount.com",
+        signing_credentials=cast(Any, credentials),
+        auth_request=object(),
+    )
+
+    adapter.sign_upload(
+        object_path="projects/prj_ridge/attachments/att_evidence",
+        content_type="application/pdf",
+        byte_size=len(payload),
+        expires_in_seconds=60,
+    )
+    adapter.sign_read(
+        object_path="projects/prj_ridge/attachments/att_evidence",
+        expires_in_seconds=60,
+    )
+
+    blob = client.bucket_instance.blobs["projects/prj_ridge/attachments/att_evidence"]
+    assert credentials.refresh_calls == 1
+    assert [call["service_account_email"] for call in blob.sign_calls] == [
+        "oga-api-staging@example.iam.gserviceaccount.com",
+        "oga-api-staging@example.iam.gserviceaccount.com",
+    ]
+    assert [call["access_token"] for call in blob.sign_calls] == [
+        "cloud-run-access-token",
+        "cloud-run-access-token",
+    ]
+
+
 def test_gcs_adapter_signs_exact_headers_and_hashes_private_object_bytes() -> None:
     payload = b"\xff\xd8\xff" + b"site-photo"
     client = FakeStorageClient(payload)
