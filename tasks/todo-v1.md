@@ -209,6 +209,9 @@ Vertical slice gate:
 - [x] UI Phase 9 makes consequential approvals self-explanatory, persists proposal
   display context, records resolver/time receipts, and scopes stale-version recovery
   to the affected request without weakening authorization or version guards.
+- [x] UI Phase 10 provides a dedicated one-handed field home with concise attention,
+  large Talk to OG and photo actions, today status, fixed five-item navigation, and
+  Golden Scenario submission through the full-screen mobile composer.
 
 ## Reliability and launch
 

@@ -256,7 +256,7 @@ project label, with a production-readiness regression guard.
 
 ## UI/UX overhaul state
 
-- UI Phases 0–9 are complete; Phase 10 Mobile Field Experience is next.
+- UI Phases 0–10 are complete; Phase 11 state design is next.
 - The authenticated shell now uses OG Foreman branding, the locked construction
   module navigation, project search/selection, persistent Ask OG, and responsive
   desktop/mobile navigation.
@@ -316,6 +316,15 @@ project label, with a production-readiness regression guard.
   and 18 applicable Playwright journeys pass; approval axe reports no WCAG A/AA
   violations. `npm audit --audit-level=high` reports no high or critical findings;
   five moderate findings remain in the Firebase CLI development dependency chain.
+- Phase 10 replaces the compressed desktop overview on field viewports with a
+  dedicated mobile home: project/date, concise blockers/material/decision attention,
+  a large Talk to OG action, rapid photo entry, and completed/in-progress work.
+  Both field actions open the existing full-screen authenticated composer, while
+  Home, Tasks, OG, Photos, and More remain fixed one-handed navigation targets.
+- Phase 10 verification: 36 frontend unit tests, 309 Python tests, production build,
+  and 18 applicable Playwright journeys pass. Mobile field-home axe and overflow
+  checks pass, and the Golden Scenario starts from Talk to OG without entering a
+  desktop-style management screen.
 
 ## Phase 8 state
 

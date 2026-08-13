@@ -38,6 +38,9 @@ test('uses one compact composer for text, attachments and voice', async ({ page 
 
 test('runs a site update through real approval and same-run continuation', async ({ page, request }) => {
   const browserErrors = captureBrowserErrors(page);
+  await page.goto(`/projects/${projectId}`);
+  await page.getByRole('button', { name: /Talk to OG/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Ask OG' })).toBeVisible();
   const siteRequest = page.waitForRequest((candidate) => (
     candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
   ));

@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardList, FileText, MessageSquareText, Package } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Camera, CheckCircle2, CircleDot, ClipboardList, FileText, MessageSquareText, Mic, Package } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -35,12 +35,14 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
 
   return (
     <div>
-      <PageHeader
-        eyebrow={snapshot.project.name}
-        title="Project overview"
-        description={`${snapshot.project.location} · ${formatStatus(snapshot.project.status)}`}
-        actions={<Link href={`/projects/${snapshot.project.id}/reports`} className="btn btn-quiet btn-small"><FileText size={15} aria-hidden="true" /> Daily report</Link>}
-      />
+      <MobileFieldHome snapshot={snapshot} />
+      <div className="desktop-overview">
+        <PageHeader
+          eyebrow={snapshot.project.name}
+          title="Project overview"
+          description={`${snapshot.project.location} · ${formatStatus(snapshot.project.status)}`}
+          actions={<Link href={`/projects/${snapshot.project.id}/reports`} className="btn btn-quiet btn-small"><FileText size={15} aria-hidden="true" /> Daily report</Link>}
+        />
 
       {snapshot.report.date === 'No report yet' ? <FirstSiteSetup snapshot={snapshot} /> : null}
 
@@ -72,7 +74,41 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
         <span>OG noticed</span>
         <p>{insight}</p>
       </aside>
+      </div>
     </div>
+  );
+}
+
+function MobileFieldHome({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
+  const blockers = snapshot.tasks.filter((task) => task.status === 'BLOCKED');
+  const lowMaterials = snapshot.materials.filter((material) => material.status === 'LOW' || material.status === 'DELAYED');
+  const approvals = snapshot.approvals.filter((approval) => approval.status === 'PENDING');
+  const attentionCount = blockers.length + lowMaterials.length + approvals.length;
+  const openOg = () => window.dispatchEvent(new Event('og:open'));
+
+  return (
+    <section className="mobile-field-home" aria-labelledby="mobile-field-title">
+      <header>
+        <span className="eyebrow">{snapshot.report.date === 'No report yet' ? 'Today' : snapshot.report.date}</span>
+        <h1 id="mobile-field-title">{snapshot.project.name}</h1>
+        <p>{attentionCount ? `${attentionCount} thing${attentionCount === 1 ? '' : 's'} need attention` : 'Site is clear right now'}</p>
+      </header>
+
+      {attentionCount ? <div className="mobile-field-attention" aria-label="Site attention">
+        {blockers.map((task) => <Link href={`/projects/${snapshot.project.id}/tasks`} key={task.id}><AlertTriangle size={20} aria-hidden="true" /><span><strong>{task.title}</strong><small>{task.note || 'Work is blocked'}</small></span><ArrowRight size={17} aria-hidden="true" /></Link>)}
+        {lowMaterials.map((material) => <Link href={`/projects/${snapshot.project.id}/materials`} key={material.id}><Package size={20} aria-hidden="true" /><span><strong>{material.name} running low</strong><small>{material.quantity} {material.unit} recorded</small></span><ArrowRight size={17} aria-hidden="true" /></Link>)}
+        {approvals.map((approval) => <Link href={`/projects/${snapshot.project.id}/approvals`} key={approval.id}><CircleDot size={20} aria-hidden="true" /><span><strong>{approval.title}</strong><small>Manager decision needed</small></span><ArrowRight size={17} aria-hidden="true" /></Link>)}
+      </div> : null}
+
+      <button className="mobile-talk-og" type="button" onClick={openOg}><span><Mic size={28} aria-hidden="true" /></span><strong>Talk to OG</strong><small>Voice, text, photo or file</small></button>
+      <button className="mobile-add-photos" type="button" onClick={openOg}><Camera size={20} aria-hidden="true" /> Add site photos</button>
+
+      <section className="mobile-today" aria-labelledby="mobile-today-title">
+        <div><h2 id="mobile-today-title">Today</h2><Link href={`/projects/${snapshot.project.id}/tasks`}>All tasks <ArrowRight size={15} aria-hidden="true" /></Link></div>
+        {[...snapshot.report.completed.map((item) => ({ item, state: 'complete' as const })), ...snapshot.report.inProgress.map((item) => ({ item, state: 'progress' as const }))].map(({ item, state }) => <p key={`${state}-${item}`}><span className={state}>{state === 'complete' ? <CheckCircle2 size={20} aria-hidden="true" /> : <ArrowRight size={20} aria-hidden="true" />}</span><strong>{item}</strong></p>)}
+        {!snapshot.report.completed.length && !snapshot.report.inProgress.length ? <p className="mobile-today-empty">No work reported yet.</p> : null}
+      </section>
+    </section>
   );
 }
 

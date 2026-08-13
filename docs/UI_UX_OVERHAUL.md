@@ -2,7 +2,7 @@
 
 ## Current phase status
 
-- Active phase: Phase 10 — Mobile Field Experience
+- Active phase: Phase 11 — Loading, Empty, Error, and Success States
 - Phase 0 — Audit and Freeze: complete (2026-08-13)
 - Phase 1 — New Application Shell: complete (2026-08-13)
 - Phase 2 — Overview / Project Command Center: complete (2026-08-13)
@@ -13,6 +13,7 @@
 - Phase 7 — OG Interaction Layer: complete (2026-08-13)
 - Phase 8 — Activity Overhaul: complete (2026-08-13)
 - Phase 9 — Approval Experience: complete (2026-08-13)
+- Phase 10 — Mobile Field Experience: complete (2026-08-13)
 - Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
@@ -34,6 +35,11 @@
 - Phase 9 evidence: 35 frontend unit tests, 309 Python tests, and 18 applicable
   Playwright journeys pass; approve, reject, persisted resolver/time, and scoped
   stale-conflict recovery are covered, with no approval-page axe violations.
+- Phase 10 evidence: 36 frontend unit tests, 309 Python tests, and 18 applicable
+  Playwright journeys pass. The field home, full-screen OG composer, touch targets,
+  mobile axe, overflow, voice/photo controls, and Golden Scenario submission pass.
+- Product/API contracts changed through Phase 10: no — the dedicated field home
+  reuses snapshot truth and the existing authenticated site-update workflow.
 - Product/API contracts changed through Phase 9: yes — approval projections now
   include the persisted resolver/time and material proposals persist safe display
   context for material name, needed date, and affected work.
@@ -47,7 +53,7 @@
   material requests, plus historical daily logs; tasks persist an explicit milestone
   flag, guarded daily-log edits atomically emit activity, and verified attachment
   metadata projects into linked photo and document registers.
-- Do not begin Phase 11 until the Phase 10 acceptance gate passes.
+- Do not begin Phase 12 until the Phase 11 acceptance gate passes.
 
 ## Objective
 

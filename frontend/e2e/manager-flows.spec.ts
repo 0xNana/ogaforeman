@@ -56,15 +56,23 @@ test('mobile command center navigation remains usable without overflow', async (
 
   await signInToProject(page, testInfo);
   await expect(page.getByRole('navigation', { name: 'Mobile project navigation' })).toBeVisible();
-  await page.getByRole('button', { name: 'OG' }).click();
+  await expect(page.getByRole('heading', { name: 'Ridge House' })).toBeVisible();
+  await expect(page.getByText(/things need attention/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Talk to OG/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add site photos' })).toBeVisible();
+  const fieldAccessibility = await new AxeBuilder({ page }).include('.mobile-field-home').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(fieldAccessibility.violations).toEqual([]);
+  await page.getByRole('button', { name: /Talk to OG/ }).click();
   const ogSheet = page.getByRole('dialog', { name: 'Ask OG' });
   await expect(ogSheet).toBeVisible();
   await expect.poll(async () => ogSheet.evaluate((element) => {
     const box = element.getBoundingClientRect();
     return box.left === 0 && box.width === window.innerWidth && box.height === window.innerHeight;
   })).toBe(true);
+  await expect(ogSheet.getByRole('button', { name: 'Add attachment' })).toBeVisible();
+  await expect(ogSheet.getByRole('button', { name: 'Start voice recording' })).toBeVisible();
   await ogSheet.getByRole('button', { name: 'Close Ask OG' }).click();
-  await page.getByRole('link', { name: 'Tasks' }).click();
+  await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await page.getByRole('button', { name: 'Electrical rough-in' }).click();
   await expect(page.getByRole('dialog', { name: 'Electrical rough-in' })).toBeVisible();
   await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

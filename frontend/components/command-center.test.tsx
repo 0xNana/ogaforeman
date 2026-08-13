@@ -103,14 +103,18 @@ describe('CommandCenter', () => {
     expect(screen.getByLabelText('Project status metrics')).toHaveTextContent('Open issues1');
     expect(screen.getByLabelText('Project status metrics')).toHaveTextContent('Work at risk1');
     expect(screen.getByRole('heading', { name: 'Needs Attention' })).toBeVisible();
-    expect(screen.getByText('Cement request')).toBeVisible();
+    expect(screen.getAllByText('Cement request')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Electrical rough-in' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Today' })).toBeVisible();
-    expect(screen.getByText('Ground-floor blockwork')).toBeVisible();
+    expect(screen.getAllByRole('heading', { name: 'Today' })).toHaveLength(2);
+    expect(screen.getAllByText('Ground-floor blockwork')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Two-Week Lookahead' })).toBeVisible();
     expect(screen.getByRole('row', { name: /Blockwork F1/ })).toHaveTextContent('100%');
     expect(screen.getByRole('row', { name: /Electrical rough-in/ })).toHaveTextContent('Blocked');
     expect(screen.getByLabelText('OG noticed')).toHaveTextContent('Electrical rough-in is blocking Ceiling installation');
+    expect(screen.getByRole('heading', { name: 'Ridge House' })).toBeVisible();
+    expect(screen.getByText('2 things need attention')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Talk to OG/ })).toHaveTextContent('Voice, text, photo or file');
+    expect(screen.getByRole('button', { name: 'Add site photos' })).toBeVisible();
   });
 
   it('shows calm, explicit empty states without inventing site activity', () => {

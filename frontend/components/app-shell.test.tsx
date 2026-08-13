@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppShell } from './app-shell';
@@ -79,6 +79,17 @@ describe('AppShell', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Ask OG' })).not.toBeInTheDocument();
     expect(document.body).not.toHaveClass('overlay-open');
+  });
+
+  it('opens Ask OG from a field-screen shortcut', () => {
+    render(
+      <AppShell project={{ id: 'prj_ridge', name: 'Ridge House', location: 'East Legon', status: 'ACTIVE', timezone: 'Africa/Accra' }}>
+        <p>Overview content</p>
+      </AppShell>,
+    );
+
+    act(() => window.dispatchEvent(new Event('og:open')));
+    expect(screen.getByRole('dialog', { name: 'Ask OG' })).toBeVisible();
   });
 
   it('ends the session from the account action', async () => {

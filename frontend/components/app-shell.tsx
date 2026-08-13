@@ -53,6 +53,7 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const askOgButton = useRef<HTMLButtonElement>(null);
+  const askOgTrigger = useRef<HTMLElement | null>(null);
   const askOgClose = useRef<HTMLButtonElement>(null);
   const askOgDrawer = useRef<HTMLElement>(null);
 
@@ -70,9 +71,22 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
     };
   }, [askOgOpen]);
 
+  useEffect(() => {
+    function openAskOg() {
+      showAskOg();
+    }
+    window.addEventListener('og:open', openAskOg);
+    return () => window.removeEventListener('og:open', openAskOg);
+  }, []);
+
+  function showAskOg() {
+    askOgTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setAskOgOpen(true);
+  }
+
   function closeAskOg() {
     setAskOgOpen(false);
-    window.setTimeout(() => askOgButton.current?.focus(), 0);
+    window.setTimeout(() => (askOgTrigger.current ?? askOgButton.current)?.focus(), 0);
   }
 
   function containAskOgFocus(event: React.KeyboardEvent) {
@@ -115,7 +129,7 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
         <ProjectSwitcher project={project} />
         <ProjectNavigation projectId={projectId} isActive={isActive} />
         <div className="app-sidebar-footer">
-          <button ref={askOgButton} className="ask-og-button" type="button" onClick={() => setAskOgOpen(true)}>
+          <button ref={askOgButton} className="ask-og-button" type="button" onClick={showAskOg}>
             <Sparkles size={17} aria-hidden="true" /> Ask OG
           </button>
           <Link className="app-nav-link needs-you-link" href={`/projects/${projectId}/approvals`}>
@@ -148,7 +162,7 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
         </header>
 
         <main className="app-content" id="project-content" tabIndex={-1}>{children}</main>
-        <MobileNavigation projectId={projectId} isActive={isActive} onAskOg={() => setAskOgOpen(true)} onMore={() => setMoreOpen(true)} />
+        <MobileNavigation projectId={projectId} isActive={isActive} onAskOg={showAskOg} onMore={() => setMoreOpen(true)} />
       </div>
 
       {moreOpen && (

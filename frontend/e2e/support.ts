@@ -23,5 +23,9 @@ export async function signInToProject(page: Page, testInfo: TestInfo): Promise<v
     () => new URL(page.url()).pathname,
     { timeout: 15_000 },
   ).toBe(`/projects/${projectId}`);
-  await expect(page.getByRole('heading', { name: 'Project overview' })).toBeVisible({ timeout: 15_000 });
+  await expect(
+    testInfo.project.name === 'mobile-chromium'
+      ? page.getByRole('heading', { name: 'Ridge House' })
+      : page.getByRole('heading', { name: 'Project overview' }),
+  ).toBeVisible({ timeout: 15_000 });
 }
