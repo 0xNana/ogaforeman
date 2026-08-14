@@ -16,15 +16,18 @@ from app.domain.authorization import (
     ensure_project_scope,
 )
 from app.domain.enums import (
+    AgentRunStatus,
     ActorType,
     ApprovalActionType,
     MaterialRequestStatus,
+    WorkflowName,
 )
 from app.domain.materials import canonicalize_unit, ensure_same_unit
-from app.domain.models import ActivityEvent, Approval, Material, MaterialRequest, Task
+from app.domain.models import AgentRun, ActivityEvent, Approval, Material, MaterialRequest, Task
 from app.repositories.activity import ActivityRepository
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.material_requests import MaterialRequestRepository
+from app.repositories.materials import MaterialRepository
 from app.services.activity import ActivityService
 from app.services.workflow_audit import workflow_audit_activity
 from app.services.materials import MaterialService
@@ -69,6 +72,25 @@ class MaterialShortageCommand(BaseModel):
         return self
 
 
+class MaterialPurchaseRequestCommand(BaseModel):
+    """Exact purchase quantity handed to the existing approval workflow."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: str
+    material_id: str
+    quantity: Decimal = Field(gt=0)
+    unit: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=5_000)
+    expected_material_version: int = Field(ge=0)
+    source_event_id: str
+    agent_run_id: str
+    needed_by: AwareDatetime | None = None
+    supplier: str | None = Field(default=None, max_length=500)
+    estimated_total_cost: Decimal | None = Field(default=None, ge=0)
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 @dataclass(frozen=True, slots=True)
 class ShortageResult:
     is_shortage: bool
@@ -77,6 +99,15 @@ class ShortageResult:
     request: MaterialRequest | None
     approval: Approval | None
     activity: ActivityEvent | None
+    duplicate: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PurchaseRequestResult:
+    request: MaterialRequest
+    approval: Approval
+    run: AgentRun
+    activity: ActivityEvent
     duplicate: bool
 
 
@@ -192,6 +223,169 @@ class MaterialRequestService:
             duplicate=result.duplicate,
         )
 
+    def prepare_purchase(
+        self,
+        access: ProjectAccessContext,
+        command: MaterialPurchaseRequestCommand,
+        context: MutationContext,
+    ) -> PurchaseRequestResult:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.OPERATE)
+        if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
+            raise PermissionError("purchase requester does not match the authorized user")
+        if (
+            context.source_event_id != command.source_event_id
+            or context.agent_run_id != command.agent_run_id
+        ):
+            raise MaterialRequestError("purchase workflow causality does not match its command")
+
+        request_id = _request_id(context)
+        approval_id = _approval_id(request_id)
+        request_spec = ActivitySpec(
+            action="material.requested",
+            entity_type="material_request",
+            entity_id=request_id,
+            summary=f"Requested purchase of {command.quantity} {command.unit}",
+            metadata={
+                "material_id": command.material_id,
+                "quantity": str(command.quantity),
+                "unit": canonicalize_unit(command.unit),
+                "approval_id": approval_id,
+            },
+        )
+        approval_context = context.model_copy(
+            update={
+                "idempotency_key": (
+                    "approval:" + sha256(context.idempotency_key.encode("utf-8")).hexdigest()[:32]
+                )
+            }
+        )
+        run_context = context.model_copy(
+            update={
+                "idempotency_key": (
+                    "workflow-wait:"
+                    + sha256(context.idempotency_key.encode("utf-8")).hexdigest()[:32]
+                )
+            }
+        )
+        result = self._activities.mutate(
+            context,
+            request_spec,
+            lambda session: self._create_exact_purchase(
+                session, access, command, request_id, approval_id
+            ),
+            replay=lambda session, _event: MaterialRequestRepository.for_session(
+                session, access
+            ).require(command.project_id, request_id),
+            additional_activities=(
+                (
+                    approval_context,
+                    ActivitySpec(
+                        action="approval.requested",
+                        entity_type="approval",
+                        entity_id=approval_id,
+                        summary="Purchase approval requested.",
+                        metadata={"material_request_id": request_id},
+                    ),
+                ),
+                (
+                    run_context,
+                    ActivitySpec(
+                        action=WorkflowActivityAction.WORKFLOW_PAUSED.value,
+                        entity_type="agent_run",
+                        entity_id=command.agent_run_id,
+                        summary="Material purchase workflow paused for approval.",
+                        metadata={
+                            "approval_id": approval_id,
+                            "material_request_id": request_id,
+                            "status": AgentRunStatus.WAITING_FOR_APPROVAL.value,
+                        },
+                    ),
+                ),
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("purchase request replay did not resolve persisted state")
+        return PurchaseRequestResult(
+            request=result.value,
+            approval=self._store.repository(Approval).require(command.project_id, approval_id),
+            run=self._store.repository(AgentRun).require(command.project_id, command.agent_run_id),
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
+
+    def _create_exact_purchase(
+        self,
+        session: RepositorySession,
+        access: ProjectAccessContext,
+        command: MaterialPurchaseRequestCommand,
+        request_id: str,
+        approval_id: str,
+    ) -> MaterialRequest:
+        materials = MaterialRepository.for_session(session, access)
+        material = materials.require(command.project_id, command.material_id)
+        material_version = materials.version_of(command.project_id, command.material_id)
+        if material_version != command.expected_material_version:
+            raise MaterialRequestError("material changed after the purchase was composed")
+        unit = ensure_same_unit(material.unit, command.unit)
+        session.repository(Approval).create(
+            Approval(
+                id=approval_id,
+                project_id=command.project_id,
+                action_type=ApprovalActionType.PURCHASE,
+                proposed_action={
+                    "material_id": material.id,
+                    "material_name": material.name,
+                    "quantity": str(command.quantity),
+                    "unit": unit,
+                    "needed_by": command.needed_by.isoformat() if command.needed_by else None,
+                    "supplier": command.supplier,
+                    "estimated_total_cost": (
+                        str(command.estimated_total_cost)
+                        if command.estimated_total_cost is not None
+                        else None
+                    ),
+                },
+                reason=command.reason,
+                evidence_refs=[command.source_event_id],
+                requested_by=access.actor.user_id,
+                requested_at=command.occurred_at,
+            )
+        )
+        session.repository(AgentRun).create(
+            AgentRun(
+                id=command.agent_run_id,
+                project_id=command.project_id,
+                trigger_event_id=command.source_event_id,
+                workflow=WorkflowName.MATERIAL_SHORTAGE,
+                status=AgentRunStatus.WAITING_FOR_APPROVAL,
+                step="approval_required",
+                trace_id=command.agent_run_id,
+                pending_actions=[f"Review purchase approval {approval_id}"],
+                started_at=command.occurred_at,
+                updated_at=command.occurred_at,
+            )
+        )
+        return MaterialRequestRepository.for_session(session, access).create(
+            MaterialRequest(
+                id=request_id,
+                project_id=command.project_id,
+                material_id=material.id,
+                quantity=command.quantity,
+                unit=unit,
+                needed_by=command.needed_by,
+                reason=command.reason,
+                source_event_id=command.source_event_id,
+                supplier=command.supplier,
+                estimated_total_cost=command.estimated_total_cost,
+                status=MaterialRequestStatus.AWAITING_APPROVAL,
+                approval_id=approval_id,
+                created_at=command.occurred_at,
+                updated_at=command.occurred_at,
+            )
+        )
+
     def _create_request(
         self,
         session: RepositorySession,
@@ -299,7 +493,9 @@ def _approval_id(request_id: str) -> str:
 
 __all__ = [
     "MaterialRequestService",
+    "MaterialPurchaseRequestCommand",
     "MaterialShortageCommand",
+    "PurchaseRequestResult",
     "ShortageResult",
     "MissingUnitError",
     "MaterialRequestError",

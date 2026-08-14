@@ -9,8 +9,8 @@
 | P0.3 Pending-command wiring | Complete | Signed typed commands persist in `ConversationMemory` with audited lifecycle transitions. |
 | P0.4 Proposal identity and versions | Complete | Server-derived IDs, signatures, entity/memory CAS, and durable confirmation fencing. |
 | P0.5 Confirm/cancel APIs | Complete | Idempotent server-only confirm/cancel endpoints with stale, replay, expiry, collision, and restart coverage. |
-| P0.6 Purchase approval handoff | Active | Next implementation slice. |
-| P0.7 Major schedule approval | Pending | Depends on the shared approval handoff. |
+| P0.6 Purchase approval handoff | Complete | Exact-quantity request, approval, waiting run, replay, approval resume, supplier simulation, and terminal cleanup use the existing workflow. |
+| P0.7 Major schedule approval | Active | Next implementation slice. |
 | P0.8 Drawer proposal controls | Pending | Depends on finalized approval and proposal response contracts. |
 | P0.9 Runtime conversational evals | Pending | Depends on all backend routes. |
 | P0.10 Golden Flow | Pending | Final API, Firestore restart, and browser gate. |

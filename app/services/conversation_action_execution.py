@@ -56,6 +56,10 @@ from app.services.conversation_task_operations import ConversationTaskService
 from app.services.conversation_schedule_operations import ConversationScheduleService
 from app.services.issues import IssueService
 from app.services.materials import MaterialService
+from app.services.material_requests import (
+    MaterialPurchaseRequestCommand,
+    MaterialRequestService,
+)
 from app.services.tasks import TaskService
 
 
@@ -77,6 +81,9 @@ class ConversationActionOutcome:
     proposed_action: str | None = None
     proposal_id: str | None = None
     memory_version: int | None = None
+    approval_id: str | None = None
+    material_request_id: str | None = None
+    agent_run_id: str | None = None
     proposal: (
         PendingTaskCommand
         | PendingMaterialCommand
@@ -118,6 +125,7 @@ class ConversationActionExecutionService:
         self._context = ProjectContextService(store, projects, member_names=member_names)
         self._tasks = ConversationTaskService(TaskService(store), store)
         self._materials = ConversationMaterialService(MaterialService(store))
+        self._material_requests = MaterialRequestService(store)
         self._issues = ConversationIssueService(IssueService(store), store)
         self._memory = ConversationMemoryService(
             store,
@@ -203,11 +211,49 @@ class ConversationActionExecutionService:
                 mutation_performed=False,
             )
         if isinstance(proposal.command, ConversationPurchaseCommand):
+            material_id = proposal.command.material.entity_id
+            if material_id is None:
+                raise ValueError("purchase command requires a resolved material")
+            source_event_id = _workflow_id(
+                "evt", access.project_id, access.actor.user_id, idempotency_key
+            )
+            run_id = _workflow_id("run", access.project_id, access.actor.user_id, idempotency_key)
+            purchase_context = MutationContext(
+                project_id=access.project_id,
+                actor_type=ActorType.USER,
+                actor_id=access.actor.user_id,
+                idempotency_key=idempotency_key,
+                source_event_id=source_event_id,
+                agent_run_id=run_id,
+                request_fingerprint=sha256(message.encode("utf-8")).hexdigest(),
+            )
+            purchase = self._material_requests.prepare_purchase(
+                access,
+                MaterialPurchaseRequestCommand(
+                    project_id=access.project_id,
+                    material_id=material_id,
+                    quantity=proposal.command.quantity,
+                    unit=proposal.command.unit,
+                    reason=proposal.command.reason,
+                    expected_material_version=proposal.command.expected_material_version,
+                    source_event_id=source_event_id,
+                    agent_run_id=run_id,
+                    needed_by=proposal.command.needed_by,
+                    supplier=proposal.command.supplier,
+                    estimated_total_cost=proposal.command.estimated_total_cost,
+                    occurred_at=purchase_context.occurred_at,
+                ),
+                purchase_context,
+            )
             return ConversationActionOutcome(
                 kind="needs_approval",
-                text="This purchase requires the existing approval workflow before anything can proceed.",
-                mutation_performed=False,
+                text="This purchase is waiting for approval. No supplier action has been taken.",
+                mutation_performed=not purchase.duplicate,
                 proposed_action=message,
+                activity_id=purchase.activity.id,
+                approval_id=purchase.approval.id,
+                material_request_id=purchase.request.id,
+                agent_run_id=purchase.run.id,
             )
         if proposal.policy_decision.policy is not MutationPolicyClass.AUTO_EXECUTE:
             memory = self._memory.load(access)
@@ -503,6 +549,11 @@ def _observed_entity_versions(
     elif command.issue and command.issue.entity_id and command.expected_version is not None:
         versions[command.issue.entity_id] = command.expected_version
     return versions
+
+
+def _workflow_id(prefix: str, project_id: str, actor_id: str, key: str) -> str:
+    digest = sha256(f"{project_id}\x00{actor_id}\x00{key}\x00{prefix}".encode()).hexdigest()
+    return f"{prefix}_{digest[:32]}"
 
 
 __all__ = ["ActionInterpreter", "ConversationActionExecutionService", "ConversationActionOutcome"]

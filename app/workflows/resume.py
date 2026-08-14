@@ -83,6 +83,7 @@ class ResumeWorkflow:
                         update={
                             "status": AgentRunStatus.RUNNING,
                             "step": "supplier_submission",
+                            "pending_actions": [],
                             "updated_at": transition_at,
                         }
                     ),
@@ -160,6 +161,7 @@ class ResumeWorkflow:
                         update={
                             "status": AgentRunStatus.COMPLETED,
                             "step": "completed",
+                            "pending_actions": [],
                             "completed_at": transition_at,
                             "updated_at": transition_at,
                         }

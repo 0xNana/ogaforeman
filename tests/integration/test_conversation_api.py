@@ -7,27 +7,36 @@ import pytest
 from fastapi import FastAPI
 
 from app.agents.conversation import FakeIntentClassifier
+from app.domain.activity import MutationContext
 from app.api.errors import install_error_handlers
 from app.api.v1.router import api_router
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
 from app.domain.conversation import IntentDecision, IntentType, PendingConversationCommand
 from app.domain.conversation import IssueOperation, MaterialOperation, TaskOperation
 from app.domain.enums import (
+    AgentRunStatus,
+    ActorType,
+    ApprovalStatus,
     IssueDetectedBy,
     IssueStatus,
     IssueType,
     MemberRole,
     MemberStatus,
+    MaterialRequestStatus,
     ProjectStatus,
     Severity,
     TaskStatus,
 )
 from app.domain.models import (
+    AgentRun,
     ActivityEvent,
+    Approval,
     ConversationMemory,
     ConversationProposalClaim,
     Issue,
     Material,
+    MaterialRequest,
+    OutboxMessage,
     Project,
     ProjectMember,
     Task,
@@ -36,13 +45,17 @@ from app.repositories.memory import InMemoryRepositoryStore
 from app.services.conversation_action_composer import (
     IssueActionInterpretation,
     MaterialActionInterpretation,
+    PurchaseActionInterpretation,
     TaskActionInterpretation,
     ScheduleActionInterpretation,
 )
+from app.services.approvals import ApprovalService, ResolutionCommand
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_operations import ConversationScheduleService
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService
+from app.services.external_actions import ExternalActionService
+from app.workflows.resume import ResumeWorkflow
 
 
 PROJECT_ID = "prj_conversation123"
@@ -57,6 +70,7 @@ class FakeActionInterpreter:
         | TaskActionInterpretation
         | IssueActionInterpretation
         | ScheduleActionInterpretation
+        | PurchaseActionInterpretation
     ):
         assert context is not None
         assert context.project is not None
@@ -103,6 +117,13 @@ class FakeActionInterpreter:
                 task_reference="plastering",
                 planned_start=datetime(2026, 8, 21, 8, tzinfo=UTC),
                 planned_end=datetime(2026, 8, 21, 17, tzinfo=UTC),
+            )
+        if message == "buy 100 bags of cement":
+            return PurchaseActionInterpretation(
+                material_reference="cement",
+                quantity=Decimal("100"),
+                unit="bags",
+                reason="Cement requested for upcoming work.",
             )
         raise AssertionError(f"unexpected action message: {message}")
 
@@ -224,6 +245,13 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
                 requires_project_context=True,
                 requires_mutation=True,
                 reason_code="issue_resolve",
+            ),
+            "buy 100 bags of cement": IntentDecision(
+                intent=IntentType.PROJECT_MUTATION,
+                confidence=0.99,
+                requires_project_context=True,
+                requires_mutation=True,
+                reason_code="material_purchase",
             ),
             "what's blocking plastering?": IntentDecision(
                 intent=IntentType.PROJECT_QUERY,
@@ -750,6 +778,85 @@ async def test_routine_material_action_dispatches_through_typed_service_and_repl
     assert len(activities) == 1
     assert activities[0].action == "material.quantity_set"
     assert response.json()["activity_id"] == activities[0].id
+
+
+@pytest.mark.asyncio
+async def test_purchase_routes_to_existing_durable_approval_workflow_exactly_once() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        responses = [
+            await client.post(
+                f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+                json={"message": "buy 100 bags of cement"},
+                headers={"Idempotency-Key": "conversation:purchase:cement100"},
+            )
+            for _ in range(2)
+        ]
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert [response.json()["kind"] for response in responses] == [
+        "needs_approval",
+        "needs_approval",
+    ]
+    assert [response.json()["mutation_performed"] for response in responses] == [True, False]
+    assert store.repository(Material).require(
+        PROJECT_ID, "mat_cement123"
+    ).available_quantity == Decimal("10")
+    requests = store.repository(MaterialRequest).list(PROJECT_ID)
+    approvals = store.repository(Approval).list(PROJECT_ID)
+    runs = store.repository(AgentRun).list(PROJECT_ID)
+    assert len(requests) == len(approvals) == len(runs) == 1
+    assert requests[0].quantity == Decimal("100")
+    assert requests[0].status is MaterialRequestStatus.AWAITING_APPROVAL
+    assert approvals[0].status is ApprovalStatus.PENDING
+    assert runs[0].status is AgentRunStatus.WAITING_FOR_APPROVAL
+    assert requests[0].approval_id == approvals[0].id
+    assert runs[0].trigger_event_id == requests[0].source_event_id
+    assert responses[0].json()["approval_id"] == approvals[0].id
+    assert responses[0].json()["workflow_run_id"] == runs[0].id
+
+    decision_context = MutationContext(
+        project_id=PROJECT_ID,
+        actor_type=ActorType.USER,
+        actor_id="usr_ace123",
+        idempotency_key="conversation:purchase:cement100:approve",
+    )
+    ApprovalService(store).approve(
+        _access(),
+        ResolutionCommand(
+            project_id=PROJECT_ID,
+            approval_id=approvals[0].id,
+            expected_version=approvals[0].version,
+        ),
+        decision_context,
+    )
+    continuation = ResumeWorkflow(store).handle_approval_granted(
+        PROJECT_ID,
+        approvals[0].id,
+        "usr_ace123",
+    )
+    assert continuation.run_id == runs[0].id
+    assert (
+        store.repository(MaterialRequest).require(PROJECT_ID, requests[0].id).status
+        is MaterialRequestStatus.APPROVED
+    )
+    assert (
+        store.repository(AgentRun).require(PROJECT_ID, runs[0].id).status is AgentRunStatus.RUNNING
+    )
+    assert store.repository(AgentRun).require(PROJECT_ID, runs[0].id).pending_actions == []
+    outbox = store.repository(OutboxMessage).list(PROJECT_ID)
+    assert len(outbox) == 1
+    ExternalActionService(store).process_outbox_message(PROJECT_ID, outbox[0].id)
+    ResumeWorkflow(store).complete_approved_purchase(
+        PROJECT_ID,
+        approvals[0].id,
+        "usr_ace123",
+    )
+    completed = store.repository(AgentRun).require(PROJECT_ID, runs[0].id)
+    assert completed.status is AgentRunStatus.COMPLETED
+    assert completed.pending_actions == []
 
 
 @pytest.mark.asyncio

@@ -61,6 +61,8 @@ class ConversationMessageResponse(BaseModel):
     proposal_id: str | None = None
     memory_version: int | None = None
     activity_id: str | None = None
+    approval_id: str | None = None
+    material_request_id: str | None = None
     proposal: PendingConversationCommand | None = None
 
 
@@ -289,6 +291,9 @@ async def send_message(
             proposal_id=outcome.proposal_id,
             memory_version=outcome.memory_version,
             activity_id=outcome.activity_id,
+            approval_id=outcome.approval_id,
+            material_request_id=outcome.material_request_id,
+            workflow_run_id=outcome.agent_run_id,
             proposal=outcome.proposal,
         )
     return ConversationMessageResponse(
