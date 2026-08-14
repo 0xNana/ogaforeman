@@ -20,6 +20,9 @@ Implementation slices:
 6. Add accessible drawer confirm/cancel controls and refresh-safe response state.
 7. Add runtime-backed API, restart, authorization, replay, conflict, approval, and browser Golden
    Flow gates; run the original Golden Scenario and complete phase documentation.
+8. Consolidate the drawer and mobile entry into the existing universal multimodal composer; route
+   every modality through the conversational API and preserve Golden site-update execution after
+   intent routing without duplicating upload, recording, attachment, or send state.
 
 Verification: focused unit/API/Firestore tests after each slice; Ruff, formatting, mypy, frontend
 lint/typecheck/tests/build, full non-backing and backing-service suites, conversational runtime

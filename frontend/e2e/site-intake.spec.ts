@@ -10,17 +10,17 @@ test.beforeEach(async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Site intake evidence runs on mobile.');
   await signInToProject(page, testInfo);
   await page.goto(`/projects/${projectId}/site`);
-  await expect(page.getByRole('heading', { name: 'Tell OG what happened.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Talk to OG.' })).toBeVisible();
 });
 
 test('uses one compact composer for text, attachments and voice', async ({ page }) => {
-  const textInput = page.getByLabel('Type a site update');
+  const textInput = page.getByRole('textbox', { name: 'Message OG' });
   const attachmentButton = page.getByRole('button', { name: 'Add attachment' });
   const microphoneButton = page.getByRole('button', { name: 'Start voice recording' });
   const sendButton = page.getByRole('button', { name: 'Send to OG' });
 
   await expect(textInput).toBeVisible();
-  await expect(textInput).toHaveAttribute('placeholder', 'Tell OG what happened on site...');
+  await expect(textInput).toHaveAttribute('placeholder', 'Ask OG or share what happened on site...');
   await expect(attachmentButton).toBeVisible();
   await expect(attachmentButton).toHaveText('');
   await expect(microphoneButton).toBeVisible();
@@ -42,9 +42,9 @@ test('runs a site update through real approval and same-run continuation', async
   await page.getByRole('button', { name: /Talk to OG/ }).click();
   await expect(page.getByRole('dialog', { name: 'Ask OG' })).toBeVisible();
   const siteRequest = page.waitForRequest((candidate) => (
-    candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
+    candidate.method() === 'POST' && candidate.url().endsWith('/conversations/messages')
   ));
-  await page.getByLabel('Type a site update').fill(
+  await page.getByRole('textbox', { name: 'Message OG' }).fill(
     'First-floor blockwork is complete. The electrician did not come today. '
       + 'We have 10 bags of cement left. Plastering starts tomorrow.',
   );
@@ -55,6 +55,7 @@ test('runs a site update through real approval and same-run continuation', async
   const accepted = await acceptedResponse?.json();
 
   expect(accepted).toBeTruthy();
+  const statusUrl = `/api/v1/projects/${projectId}/agent-runs/${accepted.workflow_run_id}`;
   await expect(page.getByRole('heading', { name: 'OG understood the update.' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('One decision is waiting for a manager');
   await expect(page.getByLabel('OG response')).toContainText(
@@ -63,7 +64,7 @@ test('runs a site update through real approval and same-run continuation', async
   await expect(page.getByLabel('OG pending actions')).toContainText(
     'Review schedule impact on First-floor plastering',
   );
-  const pausedRun = await request.get(`http://127.0.0.1:8001${accepted.status_url}`, {
+  const pausedRun = await request.get(`http://127.0.0.1:8001${statusUrl}`, {
     headers: { Authorization: 'Bearer local-e2e-token' },
   });
   expect(pausedRun.ok()).toBe(true);
@@ -87,7 +88,7 @@ test('runs a site update through real approval and same-run continuation', async
   );
 
   await expect.poll(async () => {
-    const response = await request.get(`http://127.0.0.1:8001${accepted.status_url}`, {
+    const response = await request.get(`http://127.0.0.1:8001${statusUrl}`, {
       headers: { Authorization: 'Bearer local-e2e-token' },
     });
     return (await response.json()).status;
@@ -121,10 +122,10 @@ test('uploads and submits a photo using the signed attachment contract', async (
   });
   await expect(page.getByText('site-progress.png')).toBeVisible();
   const siteRequest = page.waitForRequest((candidate) => (
-    candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
+    candidate.method() === 'POST' && candidate.url().endsWith('/conversations/messages')
   ));
   const siteResponse = page.waitForResponse((candidate) => (
-    candidate.request().method() === 'POST' && candidate.url().endsWith('/site-updates')
+    candidate.request().method() === 'POST' && candidate.url().endsWith('/conversations/messages')
   ));
 
   await page.getByRole('button', { name: 'Send to OG' }).click();
@@ -158,7 +159,7 @@ test('records and submits a voice update', async ({ context, page }) => {
   await page.getByRole('button', { name: 'Stop recording' }).click();
   await expect(page.locator('.recorded-actions').getByText('Voice note ready')).toBeVisible();
   const siteRequest = page.waitForRequest((candidate) => (
-    candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
+    candidate.method() === 'POST' && candidate.url().endsWith('/conversations/messages')
   ));
 
   await page.getByRole('button', { name: 'Send to OG' }).click();
@@ -181,8 +182,8 @@ test('explains microphone denial without losing typed-input recovery', async ({ 
 
   await page.getByRole('button', { name: 'Start voice recording' }).click();
 
-  await expect(page.getByRole('region', { name: 'Send a site update' }).getByRole('alert')).toContainText('Microphone access was denied');
-  await expect(page.getByLabel('Type a site update')).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'Message OG' }).getByRole('alert')).toContainText('Microphone access was denied');
+  await expect(page.getByRole('textbox', { name: 'Message OG' })).toBeEnabled();
   expect(browserErrors).toEqual([]);
 });
 
@@ -190,7 +191,7 @@ test('rejects an invalid attachment before creating a site update', async ({ pag
   const browserErrors = captureBrowserErrors(page);
   let submitted = false;
   page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url().endsWith('/site-updates')) submitted = true;
+    if (request.method() === 'POST' && request.url().endsWith('/conversations/messages')) submitted = true;
   });
   await page.locator('#site-attachment').setInputFiles({
     name: 'unsafe.html',
@@ -200,7 +201,7 @@ test('rejects an invalid attachment before creating a site update', async ({ pag
 
   await page.getByRole('button', { name: 'Send to OG' }).click();
 
-  await expect(page.getByRole('region', { name: 'Send a site update' }).getByRole('alert')).toContainText('Use a photo, audio note or PDF.');
+  await expect(page.getByRole('region', { name: 'Message OG' }).getByRole('alert')).toContainText('Use a photo, audio note or PDF.');
   expect(submitted).toBe(false);
   expect(browserErrors).toEqual([]);
 });
@@ -213,13 +214,13 @@ test('persists a recoverable processing failure without a phrase trigger', async
     buffer: Buffer.from('%PDF-1.4\n%%EOF\n'),
   });
   const siteRequest = page.waitForRequest((candidate) => (
-    candidate.method() === 'POST' && candidate.url().endsWith('/site-updates')
+    candidate.method() === 'POST' && candidate.url().endsWith('/conversations/messages')
   ));
   await page.getByRole('button', { name: 'Send to OG' }).click();
   const submitted = await siteRequest;
   const response = await submitted.response();
   expect(response?.status()).toBe(503);
-  const failure = page.getByRole('region', { name: 'Send a site update' }).getByRole('alert');
+  const failure = page.getByRole('region', { name: 'Message OG' }).getByRole('alert');
   await expect(failure).toContainText("OG couldn't finish this update.");
   await expect(failure).toContainText('Your original site update is saved.');
   await expect(failure.getByRole('button', { name: 'Try again' })).toBeEnabled();

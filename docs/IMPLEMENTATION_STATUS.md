@@ -104,6 +104,9 @@ Status: COMPLETE
   external execution before approval.
 - Signed server proposals persist in `ConversationMemory`; confirm/cancel clients send only the
   proposal ID and observed memory version.
+- The existing multimodal composer is the single OG input in the drawer and standalone/mobile
+  entry points. It sends text, voice, photo, and attachments through `/conversations/messages`;
+  `SITE_UPDATE` continues through the existing intake, event, worker, and receipt path.
 - Runtime evals exercise the production API and persisted outcomes. Fresh Firestore clients prove
   restart-safe confirmation/replay, and Playwright proves drawer recovery after reload.
 

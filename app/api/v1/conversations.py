@@ -75,6 +75,8 @@ class ConversationMessageResponse(BaseModel):
     activity_id: str | None = None
     approval_id: str | None = None
     material_request_id: str | None = None
+    site_update_id: str | None = None
+    event_id: str | None = None
     proposal: PendingConversationCommand | None = None
 
 
@@ -276,6 +278,8 @@ async def send_message(
             kind="workflow",
             text="Got it. I saved the update and started the site workflow.",
             workflow_run_id=result.agent_run_id,
+            site_update_id=result.site_update_id,
+            event_id=result.event_id,
         )
     memory_service = ConversationMemoryService(
         runtime.store, ConversationEntityResolver(runtime.store)
@@ -346,6 +350,8 @@ async def send_message(
             kind="workflow",
             text="Got it. I saved the update and started the site workflow.",
             workflow_run_id=result.agent_run_id,
+            site_update_id=result.site_update_id,
+            event_id=result.event_id,
         )
     if route.destination is IntentDestination.PROJECT_ACTION:
         access = configured_project_access(request, project_id, ProjectPermission.OPERATE)

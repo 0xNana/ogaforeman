@@ -153,14 +153,16 @@ describe('production API boundary', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('submits site updates with the accepted contract and an idempotency key', async () => {
+  it('submits multimodal input through the universal conversation contract', async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
     const accepted = {
+      kind: 'workflow',
+      text: 'I saved the update and started the site workflow.',
+      cited_record_ids: [],
+      mutation_performed: false,
       site_update_id: 'sup_update123',
       event_id: 'evt_update123',
-      agent_run_id: 'run_update123',
-      status: 'queued' as const,
-      status_url: '/api/v1/projects/prj_ridge/agent-runs/run_update123',
+      workflow_run_id: 'run_update123',
     };
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(accepted), {
@@ -170,28 +172,27 @@ describe('production API boundary', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(api.submitSiteUpdate('prj_ridge', '  Blockwork is done.  ')).resolves.toEqual(
-      accepted,
-    );
+    await expect(api.sendConversationMessage(
+      'prj_ridge',
+      'Blockwork is done.',
+      'conversation:stable-retry',
+      { attachmentIds: ['att_photo123'], inputType: 'mixed' },
+    )).resolves.toEqual(accepted);
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.example.test/api/v1/projects/prj_ridge/site-updates',
+      'https://api.example.test/api/v1/projects/prj_ridge/conversations/messages',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ raw_text: 'Blockwork is done.' }),
+        body: JSON.stringify({
+          message: 'Blockwork is done.',
+          attachment_ids: ['att_photo123'],
+          input_type: 'mixed',
+        }),
         headers: expect.objectContaining({
           Authorization: 'Bearer firebase-id-token',
-          'Idempotency-Key': expect.stringMatching(/^site-update:/),
+          'Idempotency-Key': 'conversation:stable-retry',
         }),
       }),
     );
-  });
-
-  it('reuses a caller-provided site-update idempotency key for safe retries', async () => {
-    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 'queued' }), { status: 202, headers: { 'Content-Type': 'application/json' } }));
-    vi.stubGlobal('fetch', fetchMock);
-    await api.submitSiteUpdate('prj_ridge', 'Blockwork is done.', 'site-update:stable-retry');
-    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': 'site-update:stable-retry' }) }));
   });
 
   it('resolves approvals through the decision endpoint with optimistic concurrency', async () => {

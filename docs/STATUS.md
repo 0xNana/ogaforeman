@@ -20,6 +20,10 @@ The final Phase 1–16 audit also aligned mutation-policy permissions and bound 
 to signed actor/project/versioned proposals. Phase 17 composes and dispatches typed routine
 mutations, persists exact signed confirmation commands behind server-issued IDs, reuses existing
 purchase/schedule approvals, and proves confirmation through Firestore restart and browser reload.
+The OG drawer and mobile `Talk to OG` action now use one universal multimodal composer. Text,
+voice, photo, and attachment submissions enter the same conversational API; intent routing decides
+whether to answer, advise, mutate, confirm, or invoke the existing Golden site-update workflow.
+The frontend has no competing conversational/site-update form or duplicate upload/send path.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed

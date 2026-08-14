@@ -16,7 +16,7 @@ test('desktop command center and activity use API projections', async ({ page },
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Two-Week Lookahead' })).toBeVisible();
   await expect(page.getByRole('row', { name: /First-floor blockwork/ })).toBeVisible();
-  await expect(page.getByLabel('Type a site update')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Message OG' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add attachment' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Start voice recording' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Site update' })).toHaveCount(0);
@@ -27,7 +27,7 @@ test('desktop command center and activity use API projections', async ({ page },
   const ogDrawer = page.getByRole('dialog', { name: 'Ask OG' });
   await expect(ogDrawer).toBeVisible();
   await expect(ogDrawer.getByText("What's happening on site?")).toBeVisible();
-  await expect(ogDrawer.getByLabel('Type a site update')).toBeVisible();
+  await expect(ogDrawer.getByRole('textbox', { name: 'Message OG' })).toBeVisible();
   await expect(ogDrawer.getByRole('button', { name: 'Add attachment' })).toBeVisible();
   await expect(ogDrawer.getByRole('button', { name: 'Start voice recording' })).toBeVisible();
   const ogAccessibility = await new AxeBuilder({ page }).include('.og-drawer').withTags(['wcag2a', 'wcag2aa']).analyze();
@@ -92,7 +92,7 @@ test('conversation proposal survives refresh and confirms through the server con
   await page.getByRole('button', { name: 'Ask OG' }).click();
   let drawer = page.getByRole('dialog', { name: 'Ask OG' });
   await drawer.getByRole('textbox', { name: 'Message OG' }).fill('move plastering to Friday');
-  await drawer.getByRole('button', { name: 'Send message' }).click();
+  await drawer.getByRole('button', { name: 'Send to OG' }).click();
   await expect(drawer.getByRole('button', { name: 'Confirm' })).toBeVisible();
 
   await page.reload();

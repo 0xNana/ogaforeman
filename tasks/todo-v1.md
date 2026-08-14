@@ -46,6 +46,8 @@ real cloud environment, live model credential/billing, or human release gate.
 - [x] C-18 Phase 17 connects the conversational API to typed mutations, durable signed proposals,
   existing purchase and schedule approvals, accessible drawer confirmation, runtime evals, and
   Firestore/browser restart proof.
+- [x] C-19 The existing multimodal composer is the single OG input across drawer and mobile entry;
+  all modalities use the conversational API and `SITE_UPDATE` preserves the Golden workflow.
 
 ## Audit findings requiring implementation
 

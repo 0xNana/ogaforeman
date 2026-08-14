@@ -14,6 +14,7 @@
 | P0.8 Drawer proposal controls | Complete | Drawer reloads durable server proposals and sends only the proposal ID plus observed memory version to accessible Confirm/Cancel controls. |
 | P0.9 Runtime conversational evals | Complete | CI executes 11 runtime cases through the production API, resolver, composer, policy, typed services, repositories, activities, proposal lifecycle, and approval handoff. |
 | P0.10 Golden Flow | Complete | Fresh Firestore clients preserve and confirm the signed schedule proposal exactly once; Playwright proves drawer proposal recovery after reload and server-only confirmation. |
+| P0.11 Universal composer | Complete | The existing text/voice/photo/attachment composer is the drawer and mobile `Talk to OG` entry point; every submission enters `/conversations/messages`, while site-update intent reuses the Golden intake and worker. No parallel conversational form or frontend site-update submission path remains. |
 
 ### 1. Build the Action Composer
 

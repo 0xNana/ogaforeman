@@ -1,19 +1,17 @@
 'use client';
 
-import { ArrowUp, LoaderCircle, Paperclip } from 'lucide-react';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { LoaderCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { ApiRequestError, api, type ConversationMessageResult, type PendingConversationProposal } from '@/lib/api';
 import { SiteComposer } from '@/components/site-composer';
 
 type Turn = { id: string; role: 'user' | 'og'; text: string; result?: ConversationMessageResult };
 
 export function OgConversation({ projectId }: Readonly<{ projectId: string }>) {
-  const [message, setMessage] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<{ proposal: PendingConversationProposal; memoryVersion: number; label: string } | null>(null);
-  const key = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -27,26 +25,23 @@ export function OgConversation({ projectId }: Readonly<{ projectId: string }>) {
     return () => { active = false; };
   }, [projectId]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const text = message.trim();
-    if (!text || busy) return;
-    setBusy(true);
-    setError(null);
-    setTurns((items) => [...items, { id: crypto.randomUUID(), role: 'user', text }]);
-    setMessage('');
-    key.current ??= `conversation:${crypto.randomUUID()}`;
-    try {
-      const result = await api.sendConversationMessage(projectId, text, key.current);
-      setTurns((items) => [...items, { id: crypto.randomUUID(), role: 'og', text: result.text, result }]);
-      if (result.kind === 'proposed_change' && result.proposal && result.memory_version !== null && result.memory_version !== undefined) {
-        setPending({ proposal: result.proposal, memoryVersion: result.memory_version, label: result.proposed_action ?? result.proposal.requested_action });
-      }
-      key.current = null;
-    } catch (cause) {
-      setError(cause instanceof ApiRequestError ? cause.message : 'OG could not reach the project. Try again.');
-    } finally {
-      setBusy(false);
+  function handleConversationResult(text: string, result: ConversationMessageResult) {
+    setTurns((items) => [
+      ...items,
+      ...(text ? [{ id: crypto.randomUUID(), role: 'user' as const, text }] : []),
+      { id: crypto.randomUUID(), role: 'og', text: result.text, result },
+    ]);
+    if (
+      result.kind === 'proposed_change'
+      && result.proposal
+      && result.memory_version !== null
+      && result.memory_version !== undefined
+    ) {
+      setPending({
+        proposal: result.proposal,
+        memoryVersion: result.memory_version,
+        label: result.proposed_action ?? result.proposal.requested_action,
+      });
     }
   }
 
@@ -87,15 +82,11 @@ export function OgConversation({ projectId }: Readonly<{ projectId: string }>) {
       </div>
     </section> : null}
     {error ? <p className="auth-error" role="alert">{error}</p> : null}
-    <form className="og-message-form" onSubmit={(event) => void submit(event)}>
-      <label className="sr-only" htmlFor="og-message">Message OG</label>
-      <textarea id="og-message" value={message} onChange={(event) => { setMessage(event.target.value); key.current = null; }} placeholder="Ask OG about this project…" rows={3} />
-      <button className="composer-submit" type="submit" aria-label="Send message" disabled={!message.trim() || busy}><ArrowUp size={18} aria-hidden="true" /></button>
-    </form>
-    <section className="og-site-update" aria-labelledby="og-site-update-title">
-      <h3 id="og-site-update-title"><Paperclip size={15} aria-hidden="true" /> Send a site update</h3>
-      <SiteComposer projectId={projectId} embedded />
-    </section>
+    <SiteComposer
+      projectId={projectId}
+      embedded
+      onConversationResult={handleConversationResult}
+    />
   </div>;
 }
 

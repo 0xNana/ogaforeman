@@ -12,11 +12,13 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.agents.interpreter import MediaEvidence
+from app.agents.conversation import FakeIntentClassifier
 from app.api.errors import ApiError, install_error_handlers, install_request_id_middleware
 from app.api.uploads import router as upload_router
 from app.api.v1.router import api_router
 from app.config.settings import RuntimeEnvironment, Settings
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, ProjectPermission
+from app.domain.conversation import IntentDecision, IntentType
 from app.domain.enums import (
     ActorType,
     ApprovalActionType,
@@ -541,6 +543,20 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Oga Foreman local E2E API")
     app.state.auth_runtime = runtime
     app.state.project_access_provider = runtime.project_access
+    app.state.intent_classifier = FakeIntentClassifier(
+        {
+            (
+                "First-floor blockwork is complete. The electrician did not come today. "
+                "We have 10 bags of cement left. Plastering starts tomorrow."
+            ): IntentDecision(
+                intent=IntentType.SITE_UPDATE,
+                confidence=1,
+                requires_project_context=True,
+                requires_mutation=True,
+                reason_code="e2e_site_update",
+            )
+        }
+    )
     signing_key = runtime.settings.conversation_proposal_signing_key
     if signing_key is None:
         raise RuntimeError("E2E conversation proposal signing key is required")

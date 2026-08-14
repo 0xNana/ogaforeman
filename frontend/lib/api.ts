@@ -215,14 +215,6 @@ export type ProjectSnapshot = {
   report: DailyReport;
 };
 
-export type SiteUpdateResult = {
-  site_update_id: string;
-  event_id: string;
-  agent_run_id: string;
-  status: 'queued';
-  status_url: string;
-};
-
 export type AgentRunState = {
   id: string;
   run_id: string;
@@ -242,12 +234,7 @@ export type AgentRunState = {
   completed_at: string | null;
 };
 
-export type SiteUpdateInput = {
-  rawText?: string;
-  transcript?: string;
-  attachmentIds?: string[];
-  inputType?: 'text' | 'voice' | 'photo' | 'mixed' | 'file';
-};
+export type ConversationInputType = 'text' | 'voice' | 'photo' | 'mixed' | 'file';
 
 export type ConversationMessageResult = {
   kind: 'casual' | 'project' | 'advice' | 'clarification' | 'proposed_change' | 'workflow' | 'done' | 'proposal_cancelled' | 'needs_approval';
@@ -261,6 +248,8 @@ export type ConversationMessageResult = {
   memory_version?: number | null;
   activity_id?: string | null;
   approval_id?: string | null;
+  site_update_id?: string | null;
+  event_id?: string | null;
   proposal?: PendingConversationProposal | null;
 };
 
@@ -279,6 +268,11 @@ export type PendingConversationProposal = {
 export type PendingConversationProposalResult = {
   proposal: PendingConversationProposal | null;
   memory_version: number;
+};
+
+export type ConversationInput = {
+  attachmentIds?: string[];
+  inputType?: ConversationInputType;
 };
 
 type UploadGrant = {
@@ -416,11 +410,16 @@ export const api = {
     projectId: string,
     message: string,
     idempotencyKey = `conversation:${crypto.randomUUID()}`,
+    input: ConversationInput = {},
   ): Promise<ConversationMessageResult> => remote<ConversationMessageResult>(
     `/api/v1/projects/${projectId}/conversations/messages`,
     {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({
+        message,
+        attachment_ids: input.attachmentIds ?? [],
+        input_type: input.inputType,
+      }),
       headers: { 'Idempotency-Key': idempotencyKey },
     },
   ),
@@ -534,36 +533,6 @@ export const api = {
       method: 'POST',
     });
     return { success: true, attachmentId: grant.attachment_id };
-  },
-  submitSiteUpdate: async (
-    projectId: string,
-    input: string | SiteUpdateInput,
-    idempotencyKey = `site-update:${crypto.randomUUID()}`,
-  ): Promise<SiteUpdateResult> => {
-    const payload: {
-      raw_text?: string;
-      transcript?: string;
-      attachment_ids?: string[];
-      input_type?: SiteUpdateInput['inputType'];
-    } = typeof input === 'string'
-      ? { raw_text: input.trim() }
-      : {
-          raw_text: input.rawText?.trim() || undefined,
-          transcript: input.transcript?.trim() || undefined,
-          attachment_ids: input.attachmentIds ?? [],
-          input_type: input.inputType,
-        };
-    if (!payload.raw_text && !payload.transcript && !payload.attachment_ids?.length) {
-      throw new ApiRequestError('Tell OG what happened first.', {
-        status: 400,
-        code: 'VALIDATION_FAILED',
-      });
-    }
-    return remote<SiteUpdateResult>(`/api/v1/projects/${projectId}/site-updates`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      headers: { 'Idempotency-Key': idempotencyKey },
-    });
   },
   getAgentRun: async (projectId: string, runId: string): Promise<AgentRunState> => {
     return remote<AgentRunState>(`/api/v1/projects/${projectId}/agent-runs/${runId}`);

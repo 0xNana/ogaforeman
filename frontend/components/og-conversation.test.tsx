@@ -8,6 +8,8 @@ import { OgConversation } from './og-conversation';
 
 const apiMocks = vi.hoisted(() => ({
   sendConversationMessage: vi.fn(),
+  uploadSiteMedia: vi.fn(),
+  getAgentRun: vi.fn(),
   getPendingConversationProposal: vi.fn(),
   confirmConversationProposal: vi.fn(),
   cancelConversationProposal: vi.fn(),
@@ -16,7 +18,12 @@ vi.mock('@/lib/api', () => ({
   api: apiMocks,
   ApiRequestError: class ApiRequestError extends Error {},
 }));
-vi.mock('@/components/site-composer', () => ({ SiteComposer: () => <div>Multimodal site update</div> }));
+vi.mock('@/components/project-context', () => ({
+  useProject: () => ({ refresh: vi.fn() }),
+}));
+vi.mock('@/components/workflow-receipt', () => ({
+  WorkflowReceipt: () => <div>Workflow receipt</div>,
+}));
 
 describe('OgConversation', () => {
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -29,8 +36,10 @@ describe('OgConversation', () => {
     apiMocks.sendConversationMessage.mockResolvedValue({ kind: 'advice', text: "I'd hold off committing yet. Cement is low.", recommendation: 'hold', cited_record_ids: ['mat_cement'] });
     render(<OgConversation projectId="prj_ridge" />);
 
+    expect(screen.getAllByRole('textbox', { name: 'Message OG' })).toHaveLength(1);
+
     fireEvent.change(screen.getByRole('textbox', { name: 'Message OG' }), { target: { value: 'wdyt about plastering tomorrow?' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send to OG' }));
 
     await waitFor(() => expect(screen.getByText("I'd hold off committing yet. Cement is low.")).toBeVisible());
     expect(screen.getByText('ADVICE')).toBeVisible();
@@ -51,7 +60,7 @@ describe('OgConversation', () => {
     });
     render(<OgConversation projectId="prj_ridge" />);
     fireEvent.change(screen.getByRole('textbox', { name: 'Message OG' }), { target: { value: 'move plastering to Friday' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send to OG' }));
 
     await waitFor(() => expect(screen.getAllByText('PROPOSED CHANGE')).toHaveLength(2));
     expect(screen.queryByText('DONE')).not.toBeInTheDocument();

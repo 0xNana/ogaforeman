@@ -12,19 +12,24 @@ import {
   Square,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { ApiRequestError, api, type AgentRunState, type SiteUpdateInput } from '@/lib/api';
+import { ApiRequestError, api, type AgentRunState, type ConversationInputType, type ConversationMessageResult } from '@/lib/api';
 import { useProject } from '@/components/project-context';
 import { WorkflowReceipt } from '@/components/workflow-receipt';
 
 type IntakeState = 'idle' | 'recording' | 'recorded' | 'uploading' | 'processing' | 'updating' | 'approval' | 'clarification' | 'success' | 'error';
 
-export function SiteComposer({ projectId, embedded = false }: Readonly<{ projectId: string; embedded?: boolean }>) {
+export function SiteComposer({ projectId, embedded = false, onConversationResult }: Readonly<{
+  projectId: string;
+  embedded?: boolean;
+  onConversationResult?: (message: string, result: ConversationMessageResult) => void;
+}>) {
   const { refresh } = useProject();
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<IntakeState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [runResult, setRunResult] = useState<AgentRunState | null>(null);
+  const [conversationResult, setConversationResult] = useState<ConversationMessageResult | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
@@ -122,6 +127,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
       return;
     }
     setError(null);
+    setConversationResult(null);
     setOriginalSaved(false);
     try {
       let attachmentId = uploadedAttachmentId.current ?? undefined;
@@ -137,19 +143,28 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
         uploadedAttachmentId.current = attachmentId ?? null;
       }
       setState('processing');
-      const input: SiteUpdateInput = {
-        rawText: text.trim() || undefined,
-        attachmentIds: attachmentId ? [attachmentId] : [],
-        inputType: inputTypeFor(text, file),
-      };
-      idempotencyKey.current ??= `site-update:${crypto.randomUUID()}`;
-      const result = await api.submitSiteUpdate(projectId, input, idempotencyKey.current);
-      if (result.status !== 'queued') {
+      const submittedText = text.trim();
+      const inputType = inputTypeFor(text, file);
+      idempotencyKey.current ??= `conversation:${crypto.randomUUID()}`;
+      const result = await api.sendConversationMessage(
+        projectId,
+        submittedText,
+        idempotencyKey.current,
+        { attachmentIds: attachmentId ? [attachmentId] : [], inputType },
+      );
+      if (result.kind !== 'workflow') {
+        setConversationResult(result);
+        onConversationResult?.(submittedText, result);
+        clearDraft();
+        setState('idle');
+        return;
+      }
+      if (!result.workflow_run_id) {
         setError('OG could not queue that update.');
         setState('error');
         return;
       }
-      const run = await waitForRun(projectId, result.agent_run_id, (currentRun) => {
+      const run = await waitForRun(projectId, result.workflow_run_id, (currentRun) => {
         if (currentRun.status === 'running') {
           setState('updating');
         }
@@ -179,14 +194,19 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
   }
 
   function reset() {
+    clearDraft();
+    setConversationResult(null);
+    setRunResult(null);
+    setOriginalSaved(false);
+    setState('idle');
+  }
+
+  function clearDraft() {
     setText('');
     setFile(null);
     setError(null);
-    setRunResult(null);
-    setOriginalSaved(false);
     idempotencyKey.current = null;
     uploadedAttachmentId.current = null;
-    setState('idle');
     speechRecognition.current?.stop();
     speechRecognition.current = null;
     mediaRecorder.current?.stop();
@@ -205,8 +225,8 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
 
   return (
     <div className={`site-composer-page${embedded ? ' embedded' : ''}`}>
-      {!embedded && <div className="page-heading"><div><span className="eyebrow">Site update</span><h1>Tell OG what happened.</h1><p>Talk, type or add photos. OG will handle the follow-through.</p></div></div>}
-      <section className="site-composer-card" aria-label="Send a site update">
+      {!embedded && <div className="page-heading"><div><span className="eyebrow">OG</span><h1>Talk to OG.</h1><p>Ask, talk, type or add photos. OG will decide what happens next.</p></div></div>}
+      <section className="site-composer-card" aria-label="Message OG">
         <input
           ref={fileInput}
           className="attachment-input"
@@ -251,7 +271,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
               </div>
             ) : (
               <>
-                <label className="sr-only" htmlFor="site-update-text">Type a site update</label>
+                <label className="sr-only" htmlFor="site-update-text">Message OG</label>
                 <textarea
                   id="site-update-text"
                   className="composer-textarea"
@@ -260,7 +280,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
                     setText(event.target.value);
                     idempotencyKey.current = null;
                   }}
-                  placeholder="Tell OG what happened on site..."
+                  placeholder="Ask OG or share what happened on site..."
                   rows={2}
                 />
               </>
@@ -312,6 +332,12 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
             </div>
           </div>
         )}
+        {conversationResult && !onConversationResult ? (
+          <div className="status-banner info" role="status" aria-live="polite">
+            <CheckCircle2 size={16} aria-hidden="true" />
+            <span>{conversationResult.text}</span>
+          </div>
+        ) : null}
         {state === 'clarification' && (
           <div className="status-banner info" role="status">
             <CheckCircle2 size={16} aria-hidden="true" />
@@ -322,7 +348,7 @@ export function SiteComposer({ projectId, embedded = false }: Readonly<{ project
         )}
         {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
         {state === 'success' && <WorkflowReceipt outcome="completed" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
-        {terminal && <div className="composer-reset"><button className="btn btn-quiet" type="button" onClick={reset}>Send another update</button></div>}
+        {terminal && <div className="composer-reset"><button className="btn btn-quiet" type="button" onClick={reset}>Talk to OG again</button></div>}
       </section>
     </div>
   );
@@ -346,7 +372,7 @@ export function shouldShowAttachmentName(file: File): boolean {
   return !(file.type.startsWith('audio/') && file.name === 'site-voice-note.webm');
 }
 
-function inputTypeFor(text: string, file: File | null): SiteUpdateInput['inputType'] {
+function inputTypeFor(text: string, file: File | null): ConversationInputType {
   if (!file) return 'text';
   if (text.trim()) return 'mixed';
   if (file.type.startsWith('audio/')) return 'voice';
