@@ -72,9 +72,46 @@ class ConversationProposalResponse(BaseModel):
     memory_version: int = Field(ge=0)
 
 
+class PendingConversationProposalResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposal: PendingConversationCommand | None = None
+    memory_version: int = Field(ge=0)
+
+
 class ConversationConfirmationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     observed_memory_version: int = Field(ge=0)
+
+
+@router.get(
+    "/proposals/pending",
+    response_model=PendingConversationProposalResponse,
+)
+def get_pending_proposal(
+    project_id: str,
+    request: Request,
+) -> PendingConversationProposalResponse:
+    access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
+    runtime = auth_runtime(request)
+    memory_service = ConversationMemoryService(
+        runtime.store,
+        ConversationEntityResolver(runtime.store),
+        proposal_signing_key=_proposal_signing_key(request),
+    )
+    memory = memory_service.load(access)
+    if memory.pending_command is None:
+        return PendingConversationProposalResponse(memory_version=memory.version)
+    try:
+        proposal = memory_service.require_command(
+            access, memory.pending_command.proposal_id, memory.version
+        )
+    except (ValueError, PermissionError) as exc:
+        raise ApiError(
+            "PROPOSAL_CONFLICT",
+            "The saved proposal is stale or expired. Send the request again to refresh it.",
+            status_code=409,
+        ) from exc
+    return PendingConversationProposalResponse(proposal=proposal, memory_version=memory.version)
 
 
 @router.get(

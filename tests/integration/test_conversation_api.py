@@ -322,6 +322,9 @@ async def test_project_change_is_proposed_audited_and_replay_safe() -> None:
             json={"message": "move plastering to Friday"},
             headers={"Idempotency-Key": "conversation:move:1"},
         )
+        pending = await client.get(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/pending"
+        )
         task = store.repository(Task).require(PROJECT_ID, "tsk_plaster123")
         store.repository(Task).save(
             task.model_copy(update={"description": "Changed after proposal."}),
@@ -338,6 +341,9 @@ async def test_project_change_is_proposed_audited_and_replay_safe() -> None:
         )
 
     assert response.status_code == 200
+    assert pending.status_code == 200
+    assert pending.json()["proposal"]["proposal_id"] == first.json()["proposal_id"]
+    assert pending.json()["memory_version"] == first.json()["memory_version"]
     assert stale.status_code == 409
     assert stale.json()["error"]["code"] == "PROPOSAL_CONFLICT"
     assert response.json() == first.json()

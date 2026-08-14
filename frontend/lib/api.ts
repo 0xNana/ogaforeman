@@ -250,13 +250,35 @@ export type SiteUpdateInput = {
 };
 
 export type ConversationMessageResult = {
-  kind: 'casual' | 'project' | 'advice' | 'clarification' | 'proposed_change' | 'workflow';
+  kind: 'casual' | 'project' | 'advice' | 'clarification' | 'proposed_change' | 'workflow' | 'done' | 'proposal_cancelled' | 'needs_approval';
   text: string;
   cited_record_ids: string[];
   recommendation?: 'proceed' | 'hold' | 'review' | null;
   mutation_performed: boolean;
   workflow_run_id?: string | null;
   proposed_action?: string | null;
+  proposal_id?: string | null;
+  memory_version?: number | null;
+  activity_id?: string | null;
+  approval_id?: string | null;
+  proposal?: PendingConversationProposal | null;
+};
+
+export type PendingConversationProposal = {
+  proposal_id: string;
+  kind: 'task' | 'material' | 'issue' | 'schedule';
+  project_id: string;
+  actor_id: string;
+  requested_action: string;
+  created_at: string;
+  expires_at: string;
+  observed_memory_version: number;
+  observed_entity_versions: Record<string, number>;
+};
+
+export type PendingConversationProposalResult = {
+  proposal: PendingConversationProposal | null;
+  memory_version: number;
 };
 
 type UploadGrant = {
@@ -371,6 +393,25 @@ function authenticatedFetch(path: string, token: string, init?: RequestInit): Pr
 }
 
 export const api = {
+  getPendingConversationProposal: async (projectId: string): Promise<PendingConversationProposalResult> => remote<PendingConversationProposalResult>(
+    `/api/v1/projects/${projectId}/conversations/proposals/pending`,
+  ),
+  confirmConversationProposal: async (
+    projectId: string,
+    proposalId: string,
+    observedMemoryVersion: number,
+  ): Promise<ConversationMessageResult> => remote<ConversationMessageResult>(
+    `/api/v1/projects/${projectId}/conversations/proposals/${proposalId}/confirm`,
+    { method: 'POST', body: JSON.stringify({ observed_memory_version: observedMemoryVersion }) },
+  ),
+  cancelConversationProposal: async (
+    projectId: string,
+    proposalId: string,
+    memoryVersion: number,
+  ): Promise<ConversationMessageResult> => remote<ConversationMessageResult>(
+    `/api/v1/projects/${projectId}/conversations/proposals/${proposalId}?memory_version=${memoryVersion}`,
+    { method: 'DELETE' },
+  ),
   sendConversationMessage: async (
     projectId: string,
     message: string,

@@ -1005,6 +1005,11 @@ p { font-size: 1.05rem; }
 .og-turn-label { color: var(--ink-soft); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.09em; }
 .og-working { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 0.82rem; }
 .og-working svg { animation: spin 900ms linear infinite; }
+.og-proposal-card { display: grid; gap: 8px; padding: 16px; border: 1px solid #dcc59e; border-radius: 12px; background: var(--amber-soft); }
+.og-proposal-card > span { color: var(--amber); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; }
+.og-proposal-card h3, .og-proposal-card p { margin: 0; }
+.og-proposal-card p { color: var(--ink-soft); font-size: 0.84rem; line-height: 1.5; }
+.og-proposal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .og-message-form { position: relative; padding: 9px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: var(--shadow-sm); }
 .og-message-form:focus-within { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft), var(--shadow-sm); }
 .og-message-form textarea { width: 100%; min-height: 72px; resize: vertical; padding: 7px 48px 7px 7px; border: 0; outline: 0; color: var(--ink); background: transparent; font: inherit; }
