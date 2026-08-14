@@ -23,6 +23,7 @@ from app.services.materials import (
     SetMaterialQuantityCommand,
     UpdateMaterialDetailsCommand,
 )
+from app.repositories.interfaces import VersionConflictError
 
 
 class MaterialRiskWorkflowRequired(ValueError):
@@ -74,6 +75,10 @@ class ConversationMaterialService:
 
         material_id = _resolved_id(command.material, EntityKind.MATERIAL, "material")
         current = self._materials.resolve_material(access, material_id)
+        if command.expected_version is not None and command.expected_version != current.version:
+            raise VersionConflictError(
+                "the material changed after OG loaded it; review the fresh quantity and retry"
+            )
         if command.operation is MaterialOperation.SET_ON_SITE:
             quantity, unit = _quantity_and_unit(command)
             changed = self._materials.set_quantity(

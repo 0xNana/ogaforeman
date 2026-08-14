@@ -365,6 +365,7 @@ class ConversationTaskCommand(BaseModel):
     evidence: str | None = Field(default=None, min_length=1, max_length=5_000)
     negated: bool = False
     ambiguous: bool = False
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 class ConversationMaterialCommand(BaseModel):
@@ -381,6 +382,7 @@ class ConversationMaterialCommand(BaseModel):
     reason: str | None = Field(default=None, min_length=1, max_length=5_000)
     delivery_complete: bool = False
     requires_material_risk_workflow: bool = False
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 class ConversationIssueCommand(BaseModel):
@@ -397,6 +399,7 @@ class ConversationIssueCommand(BaseModel):
     evidence: str | None = Field(default=None, min_length=1, max_length=5_000)
     negated: bool = False
     ambiguous: bool = False
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 class MutationPolicyRequest(BaseModel):

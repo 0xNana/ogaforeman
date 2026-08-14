@@ -16,6 +16,7 @@ from app.domain.conversation import (
 from app.domain.enums import TaskPriority, TaskStatus
 from app.domain.models import Task
 from app.repositories.interfaces import RepositoryStore
+from app.repositories.interfaces import VersionConflictError
 from app.repositories.tasks import TaskRepository
 from app.services.tasks import (
     CreateTaskCommand,
@@ -73,6 +74,10 @@ class ConversationTaskService:
 
         task_id = _resolved_id(command.task, EntityKind.TASK, "task")
         current = TaskRepository(self._store).require(access, task_id)
+        if command.expected_version is not None and command.expected_version != current.version:
+            raise VersionConflictError(
+                "the task changed after OG loaded it; review the fresh state and retry"
+            )
         if command.operation is TaskOperation.COMPLETE:
             if command.negated or command.ambiguous:
                 raise TaskEvidenceRejectedError(

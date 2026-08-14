@@ -16,6 +16,7 @@ from app.domain.conversation import (
 from app.domain.enums import ActorType, MemberRole, MemberStatus, TaskPriority, TaskStatus
 from app.domain.models import ActivityEvent, ProjectMember, Task
 from app.repositories.memory import InMemoryRepositoryStore
+from app.repositories.interfaces import VersionConflictError
 from app.services.conversation_task_operations import ConversationTaskService
 from app.services.tasks import TaskEvidenceRejectedError, TaskService
 
@@ -223,3 +224,35 @@ def test_create_task_uses_existing_manage_only_service_and_is_idempotent() -> No
         )
         == 1
     )
+
+
+def test_stale_conversational_task_command_surfaces_conflict_without_overwrite() -> None:
+    task_store = store()
+    service = ConversationTaskService(TaskService(task_store), task_store)
+    current = task_store.repository(Task).require(PROJECT_ID, "tsk_plumbing123")
+    service.execute(
+        access(),
+        ConversationTaskCommand(
+            operation=TaskOperation.ADD_NOTE,
+            task=resolution(),
+            note="Fresh change",
+            expected_version=current.version,
+        ),
+        context("og:fresh-note"),
+    )
+
+    with pytest.raises(VersionConflictError, match="changed after OG loaded"):
+        service.execute(
+            access(),
+            ConversationTaskCommand(
+                operation=TaskOperation.CHANGE_PRIORITY,
+                task=resolution(),
+                priority=TaskPriority.HIGH,
+                expected_version=current.version,
+            ),
+            context("og:stale-priority"),
+        )
+
+    persisted = task_store.repository(Task).require(PROJECT_ID, "tsk_plumbing123")
+    assert persisted.notes == ["Fresh change"]
+    assert persisted.priority is TaskPriority.MEDIUM

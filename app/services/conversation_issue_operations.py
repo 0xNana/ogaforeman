@@ -14,6 +14,7 @@ from app.domain.conversation import (
 from app.domain.enums import IssueDetectedBy, IssueStatus
 from app.domain.models import Issue
 from app.repositories.interfaces import RepositoryStore
+from app.repositories.interfaces import VersionConflictError
 from app.services.issues import CreateIssueCommand, IssueChange, IssueService, UpdateIssueCommand
 
 
@@ -63,6 +64,10 @@ class ConversationIssueService:
         version = self._store.repository(Issue).version_of(access.project_id, issue_id)
         if version is None:
             raise RuntimeError("resolved issue has no persisted version")
+        if command.expected_version is not None and command.expected_version != version:
+            raise VersionConflictError(
+                "the issue changed after OG loaded it; review the fresh state and retry"
+            )
         if command.operation is IssueOperation.RESOLVE:
             if command.negated or command.ambiguous or not command.evidence:
                 raise ValueError("issue resolution requires clear positive evidence")
