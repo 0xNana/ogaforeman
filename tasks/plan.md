@@ -1,11 +1,18 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 10: Unified Site Update Routing
+
+Acceptance: route text/chat site facts into existing durable intake and the Golden workflow with
+project scope, idempotency, outbox, and AgentRun evidence; no duplicate chat path.
+
+Status: complete locally on 2026-08-14. Phase 11 advice mode is active.
+
 ## Conversational Operations — Phase 9: Schedule Operations
 
 Acceptance: resolve scheduled tasks, calculate downstream dependency impact, propose before write,
 require deterministic confirmation/approval policy, and atomically shift supported dates.
 
-Status: complete locally on 2026-08-14. Phase 10 unified site-update routing is active.
+Status: complete locally on 2026-08-14.
 
 ## Conversational Operations — Phase 8: Mutation Policy Engine
 

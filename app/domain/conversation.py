@@ -417,6 +417,14 @@ class ScheduleChangeCommand(BaseModel):
         return self
 
 
+class SiteUpdateRouteCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+    project_id: str
+    text: str = Field(min_length=1, max_length=1_000_000)
+    idempotency_key: str = Field(min_length=1, max_length=256)
+    occurred_at: AwareDatetime | None = None
+
+
 __all__ = [
     "ConversationContext",
     "ConversationIssueCommand",
@@ -443,6 +451,7 @@ __all__ = [
     "MutationPolicyRequest",
     "ReplyKind",
     "ScheduleChangeCommand",
+    "SiteUpdateRouteCommand",
     "TaskOperation",
     "ReferencedEntity",
 ]

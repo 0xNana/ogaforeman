@@ -367,7 +367,9 @@ project label, with a production-readiness regression guard.
 - Phase 8 adds explicit testable policy for routine, confirmation, approval, and deny/escalate
   mutations.
 - Phase 9 adds dependency-aware, confirm-first schedule proposals and atomic downstream date
-  shifts. Phase 10 unified site-update routing is active.
+  shifts.
+- Phase 10 routes conversational text through the existing durable site-update intake and Golden
+  workflow. Phase 11 advice mode is active.
 
 ## Phase 8 state
 

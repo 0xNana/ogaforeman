@@ -44,15 +44,19 @@ Status: COMPLETE
 
 Phase 10 — Unified Site Update Routing
 
+Status: COMPLETE
+
+Phase 11 — Advice Mode
+
 Status: ACTIVE
 
-Phases 11–17
+Phases 12–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 10 implementation.
+- None for local Phase 11 implementation.
 
 ## Known regressions
 
@@ -155,3 +159,11 @@ Status: NOT STARTED
 - Routine schedule changes require explicit confirmation; major changes retain approval policy.
 - Confirmed changes shift the selected task and supported downstream dates atomically and replay
   through one persisted activity claim.
+
+## Phase 10 evidence
+
+- Text conversational updates use a typed routing boundary into `SiteUpdateIntakeService`, the
+  same durable event, outbox, AgentRun, coordinator, and Golden workflow path used by voice and
+  photo intake.
+- Routing validates project scope and preserves the supplied idempotency key; it does not create a
+  second fact interpreter or chat-specific mutation path.

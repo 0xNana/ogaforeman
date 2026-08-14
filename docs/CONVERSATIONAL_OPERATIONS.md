@@ -81,3 +81,7 @@ Phase 9 adds dependency-aware schedule proposals. The service resolves the selec
 downstream impact, applies mutation policy, and returns a confirmation prompt without writing.
 Only a confirmed routine proposal executes; selected and downstream dates persist atomically with
 one replay-safe schedule activity. Major changes remain on the approval-required path.
+
+Phase 10 routes text/chat site facts through a typed `ConversationSiteUpdateRouter` into the
+existing `SiteUpdateIntakeService`, preserving durable event, outbox, AgentRun, coordinator, and
+Golden workflow behavior without duplicating fact interpretation or mutations.

@@ -29,7 +29,8 @@ real cloud environment, live model credential/billing, or human release gate.
   membership, authorization, atomic activity, and replay guards.
 - [x] C-09 Phase 8 classifies every conversational mutation with explicit deterministic policy.
 - [x] C-10 Phase 9 proposes schedule changes with dependency impact and confirmation policy.
-- [ ] C-11 Phase 10 routes chat/text site facts into the existing Golden intake workflow.
+- [x] C-11 Phase 10 routes chat/text site facts into the existing Golden intake workflow.
+- [ ] C-12 Phase 11 provides grounded non-mutating project advice.
 
 ## Audit findings requiring implementation
 
