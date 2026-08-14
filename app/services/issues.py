@@ -15,9 +15,16 @@ from app.domain.authorization import (
     ensure_permission,
     ensure_project_scope,
 )
-from app.domain.enums import ActorType, IssueDetectedBy, IssueStatus, IssueType, Severity
-from app.domain.models import ActivityEvent, Issue
-from app.repositories.interfaces import RepositoryStore
+from app.domain.enums import (
+    ActorType,
+    IssueDetectedBy,
+    IssueStatus,
+    IssueType,
+    MemberStatus,
+    Severity,
+)
+from app.domain.models import ActivityEvent, Issue, ProjectMember
+from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.services.activity import ActivityService
 from app.services.workflow_audit import workflow_audit_activity
 
@@ -37,6 +44,21 @@ class CreateIssueCommand(BaseModel):
     audit_blocked_task_id: str | None = Field(default=None, max_length=145)
     audit_material_id: str | None = Field(default=None, max_length=145)
     occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class UpdateIssueCommand(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+    project_id: str
+    issue_id: str
+    expected_version: int = Field(ge=0)
+    owner_id: str | None = None
+    target_status: IssueStatus | None = None
+    note: str | None = Field(default=None, min_length=1, max_length=5_000)
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @property
+    def change_count(self) -> int:
+        return sum(value is not None for value in (self.owner_id, self.target_status, self.note))
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +130,29 @@ class IssueService:
             duplicate=result.duplicate,
         )
 
+    def update_issue(
+        self, access: ProjectAccessContext, command: UpdateIssueCommand, context: MutationContext
+    ) -> IssueChange:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.OPERATE)
+        if command.change_count != 1:
+            raise ValueError("issue update requires exactly one change")
+        if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
+            raise PermissionError("issue update requires the authorized user actor")
+        spec = _update_activity(command)
+        result = self._activities.mutate(
+            context,
+            spec,
+            lambda session: _apply_update(session, access, command),
+            replay=lambda session, activity: session.repository(Issue).require(
+                activity.project_id, activity.entity_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("issue replay did not resolve persisted state")
+        return IssueChange(result.value, result.activity, result.duplicate)
+
 
 def resolve_issue(issue: Issue, resolution_notes: str, resolved_by: str) -> Issue:
     del resolution_notes
@@ -117,6 +162,60 @@ def resolve_issue(issue: Issue, resolution_notes: str, resolved_by: str) -> Issu
             "resolved_at": datetime.now(UTC),
             "owner_id": resolved_by,
         }
+    )
+
+
+def _apply_update(
+    session: RepositorySession, access: ProjectAccessContext, command: UpdateIssueCommand
+) -> Issue:
+    del access
+    repository = session.repository(Issue)
+    current = repository.require(command.project_id, command.issue_id)
+    updates: dict[str, object] = {"updated_at": command.occurred_at}
+    if command.owner_id is not None:
+        member = session.repository(ProjectMember).get(command.project_id, command.owner_id)
+        if member is None or member.status is not MemberStatus.ACTIVE:
+            raise PermissionError("issue owner must be an active project member")
+        updates["owner_id"] = command.owner_id
+    elif command.target_status is not None:
+        updates["status"] = command.target_status
+        updates["resolved_at"] = (
+            command.occurred_at if command.target_status is IssueStatus.RESOLVED else None
+        )
+    else:
+        if len(current.notes) >= 100:
+            raise ValueError("issue note limit reached")
+        updates["notes"] = [*current.notes, command.note]
+    return repository.save(
+        current.model_copy(update=updates), expected_version=command.expected_version
+    )
+
+
+def _update_activity(command: UpdateIssueCommand) -> ActivitySpec:
+    if command.owner_id is not None:
+        action, summary, metadata = (
+            "issue.assigned",
+            "Issue assignment updated",
+            {"owner_id": command.owner_id},
+        )
+    elif command.target_status is not None:
+        action, summary, metadata = (
+            "issue.status_changed",
+            "Issue status updated",
+            {"status": command.target_status.value},
+        )
+    else:
+        action, summary, metadata = (
+            "issue.note_added",
+            "Issue note added",
+            {"note_digest": sha256((command.note or "").encode()).hexdigest()[:16]},
+        )
+    return ActivitySpec(
+        action=action,
+        entity_type="issue",
+        entity_id=command.issue_id,
+        summary=summary,
+        metadata=metadata,
     )
 
 
@@ -162,4 +261,10 @@ def _issue_audit_activity(
     )
 
 
-__all__ = ["CreateIssueCommand", "IssueChange", "IssueService", "resolve_issue"]
+__all__ = [
+    "CreateIssueCommand",
+    "IssueChange",
+    "IssueService",
+    "UpdateIssueCommand",
+    "resolve_issue",
+]

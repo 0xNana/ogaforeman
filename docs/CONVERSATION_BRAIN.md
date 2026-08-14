@@ -4,7 +4,7 @@
 
 **Golden Scenario:** PASS AND LOCKED
 
-**Active phase:** Phase 7 — Safe Issue Operations
+**Active phase:** Phase 8 — Mutation Policy Engine
 
 The existing Golden Scenario is the foundation of OG Foreman and must not regress:
 

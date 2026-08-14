@@ -1,5 +1,12 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 7: Safe Issue Operations
+
+Acceptance: create, assign, change status, resolve, and annotate project issues through typed
+services, canonical entities, positive resolution evidence, and atomic idempotent activity.
+
+Status: complete locally on 2026-08-14. Phase 8 (mutation policy engine) is active.
+
 ## Conversational Operations — Phase 6: Safe Material Operations
 
 Acceptance: create materials and safely record absolute stock, requirements, notes, and partial or
@@ -9,8 +16,7 @@ existing material-risk workflow ownership.
 Verify: focused unit and Firestore restart tests, Ruff, mypy, full non-backing backend tests, and
 the canonical mobile Golden Scenario remain green.
 
-Status: complete locally on 2026-08-14. Phase 7 (safe issue operations) is active and not
-implemented.
+Status: complete locally on 2026-08-14.
 
 ## Conversational Operations — Phase 5: Safe Task Operations
 

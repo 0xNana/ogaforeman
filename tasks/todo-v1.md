@@ -25,7 +25,9 @@ real cloud environment, live model credential/billing, or human release gate.
   project/member revalidation, atomic activity, replay safety, and completion-language guards.
 - [x] C-07 Phase 6 executes safe material operations through existing typed material services,
   append-only stock ledger entries, cumulative delivery receipts, and risk-workflow routing.
-- [ ] C-08 Phase 7 executes safe issue operations through existing typed issue services.
+- [x] C-08 Phase 7 executes safe issue operations through typed issue services with evidence,
+  membership, authorization, atomic activity, and replay guards.
+- [ ] C-09 Phase 8 classifies every conversational mutation with explicit deterministic policy.
 
 ## Audit findings requiring implementation
 

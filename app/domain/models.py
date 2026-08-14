@@ -268,6 +268,7 @@ class Issue(DomainModel):
     owner_id: CanonicalId | None = None
     location: str | None = Field(default=None, max_length=500)
     due_at: AwareDatetime | None = None
+    notes: list[NonEmptyText] = Field(default_factory=list, max_length=100)
     resolved_at: AwareDatetime | None = None
     created_at: AwareDatetime = Field(default_factory=utc_now)
     updated_at: AwareDatetime = Field(default_factory=utc_now)

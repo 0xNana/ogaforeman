@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
-from app.domain.enums import TaskPriority, TaskStatus
+from app.domain.enums import IssueStatus, IssueType, Severity, TaskPriority, TaskStatus
 
 
 class IntentType(StrEnum):
@@ -91,6 +91,14 @@ class MaterialOperation(StrEnum):
     SET_ON_SITE = "set_on_site"
     SET_REQUIRED = "set_required"
     RECORD_DELIVERY = "record_delivery"
+    ADD_NOTE = "add_note"
+
+
+class IssueOperation(StrEnum):
+    CREATE = "create"
+    ASSIGN = "assign"
+    CHANGE_STATUS = "change_status"
+    RESOLVE = "resolve"
     ADD_NOTE = "add_note"
 
 
@@ -333,8 +341,25 @@ class ConversationMaterialCommand(BaseModel):
     requires_material_risk_workflow: bool = False
 
 
+class ConversationIssueCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    operation: IssueOperation
+    issue: EntityResolution | None = None
+    owner: EntityResolution | None = None
+    issue_type: IssueType | None = None
+    severity: Severity | None = None
+    description: str | None = Field(default=None, min_length=1, max_length=10_000)
+    target_status: IssueStatus | None = None
+    note: str | None = Field(default=None, min_length=1, max_length=5_000)
+    evidence: str | None = Field(default=None, min_length=1, max_length=5_000)
+    negated: bool = False
+    ambiguous: bool = False
+
+
 __all__ = [
     "ConversationContext",
+    "ConversationIssueCommand",
     "ConversationMaterialCommand",
     "ConversationReply",
     "ConversationTaskCommand",
@@ -350,6 +375,7 @@ __all__ = [
     "IntentDestination",
     "IntentRoute",
     "IntentType",
+    "IssueOperation",
     "MaterialOperation",
     "ReplyKind",
     "TaskOperation",

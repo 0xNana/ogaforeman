@@ -32,15 +32,19 @@ Status: COMPLETE
 
 Phase 7 — Safe Issue Operations
 
+Status: COMPLETE
+
+Phase 8 — Mutation Policy Engine
+
 Status: ACTIVE
 
-Phases 8–17
+Phases 9–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 7 implementation.
+- None for local Phase 8 implementation.
 
 ## Known regressions
 
@@ -120,3 +124,11 @@ Status: NOT STARTED
   existing shortage/schedule reasoning workflow.
 - Verification: 12 focused unit tests, 3 Firestore emulator tests, Ruff, mypy, 377 non-backing
   backend tests, and all 7 mobile Golden Scenario tests passed on 2026-08-14.
+
+## Phase 7 evidence
+
+- Typed conversational issue commands create, assign, change status, resolve, and add notes by
+  composing the authorized Issue service and canonical entity resolution.
+- Clear positive evidence is required for resolution; negated or ambiguous language cannot mutate.
+- Assignment revalidates active project membership inside the atomic mutation transaction.
+- Every successful operation persists one issue change with one idempotent activity event.

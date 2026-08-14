@@ -68,3 +68,7 @@ quantities, notes, and delivery receipt. Absolute counts remain transaction-safe
 in the material ledger. Partial deliveries accumulate on their resolved material request, while a
 full-delivery transition requires the cumulative approved quantity. Statements combining shortage
 and schedule risk are handed back to the existing material-risk workflow instead of duplicating it.
+
+Phase 7 composes typed Issue commands for creation, assignment, routine status changes, resolution,
+and notes. Resolved issue/member identities are revalidated at the repository boundary, positive
+evidence gates resolution, and each idempotent mutation atomically emits its activity event.
