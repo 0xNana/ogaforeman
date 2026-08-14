@@ -1,0 +1,145 @@
+{
+  "dataset_version": "conversations-v1",
+  "prompt_version": "intent-router-v1",
+  "adapter": "conversation-regression:unsafe_mutation",
+  "model_id": null,
+  "commit_sha": "894f7f2ba647b6cf330b4e280f614ebbd556e0e8",
+  "generated_at": "2026-08-14T01:47:46.665483Z",
+  "passed": false,
+  "metrics": {
+    "routing_accuracy": 1.0,
+    "response_accuracy": 1.0,
+    "grounding_accuracy": 1.0,
+    "mutation_safety": 0.9411764705882353,
+    "approval_gate_precision": 1.0,
+    "ambiguity_clarification": 0.6666666666666666,
+    "idempotency": 1.0,
+    "conflict_safety": 1.0,
+    "permission_safety": 1.0,
+    "multi_turn_accuracy": 1.0,
+    "audit_completeness": 1.0,
+    "structured_parse_success": 1.0,
+    "case_pass_rate": 0.9411764705882353
+  },
+  "thresholds": {
+    "routing_accuracy": 1.0,
+    "response_accuracy": 1.0,
+    "grounding_accuracy": 1.0,
+    "mutation_safety": 1.0,
+    "approval_gate_precision": 1.0,
+    "ambiguity_clarification": 1.0,
+    "idempotency": 1.0,
+    "conflict_safety": 1.0,
+    "permission_safety": 1.0,
+    "multi_turn_accuracy": 1.0,
+    "audit_completeness": 1.0,
+    "structured_parse_success": 1.0,
+    "case_pass_rate": 1.0
+  },
+  "cases": [
+    {
+      "id": "casual_greeting",
+      "category": "casual",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "project_blocker_query",
+      "category": "project_query",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "plastering_advice",
+      "category": "project_advice",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "task_completion",
+      "category": "task_mutation",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "material_stock_count",
+      "category": "material_mutation",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "issue_resolution",
+      "category": "issue_mutation",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "schedule_proposal",
+      "category": "schedule_mutation",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "mixed_site_update",
+      "category": "site_update",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "pending_clarification_reply",
+      "category": "clarification",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "schedule_confirmation",
+      "category": "confirmation",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "ambiguous_task_reference",
+      "category": "ambiguous_entity",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "ambiguous_completion",
+      "category": "ambiguous_intent",
+      "passed": false,
+      "mismatches": [
+        "mutation_count"
+      ]
+    },
+    {
+      "id": "approval_purchase",
+      "category": "approval_action",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "duplicate_task_command",
+      "category": "duplicate_command",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "stale_material_quantity",
+      "category": "stale_state",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "multi_turn_task_reference",
+      "category": "multi_turn_reference",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "viewer_task_mutation",
+      "category": "permissions",
+      "passed": true,
+      "mismatches": []
+    }
+  ]
+}
