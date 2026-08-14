@@ -6,7 +6,9 @@ from enum import StrEnum
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+
+from app.domain.enums import TaskPriority, TaskStatus
 
 
 class IntentType(StrEnum):
@@ -72,6 +74,16 @@ class EntityResolutionStatus(StrEnum):
     RESOLVED = "resolved"
     AMBIGUOUS = "ambiguous"
     NOT_FOUND = "not_found"
+
+
+class TaskOperation(StrEnum):
+    CREATE = "create"
+    COMPLETE = "complete"
+    CHANGE_STATUS = "change_status"
+    ASSIGN = "assign"
+    REASSIGN = "reassign"
+    CHANGE_PRIORITY = "change_priority"
+    ADD_NOTE = "add_note"
 
 
 class ReferencedEntity(BaseModel):
@@ -277,9 +289,30 @@ class EntityResolution(BaseModel):
     can_mutate: bool = False
 
 
+class ConversationTaskCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    operation: TaskOperation
+    task: EntityResolution | None = None
+    assignee: EntityResolution | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    description: str | None = Field(default=None, max_length=10_000)
+    trade: str | None = Field(default=None, max_length=200)
+    location: str | None = Field(default=None, max_length=500)
+    planned_start: AwareDatetime | None = None
+    planned_end: AwareDatetime | None = None
+    target_status: TaskStatus | None = None
+    priority: TaskPriority | None = None
+    note: str | None = Field(default=None, min_length=1, max_length=5_000)
+    evidence: str | None = Field(default=None, min_length=1, max_length=5_000)
+    negated: bool = False
+    ambiguous: bool = False
+
+
 __all__ = [
     "ConversationContext",
     "ConversationReply",
+    "ConversationTaskCommand",
     "ContextDomain",
     "ContextFocus",
     "ContextQuery",
@@ -293,5 +326,6 @@ __all__ = [
     "IntentRoute",
     "IntentType",
     "ReplyKind",
+    "TaskOperation",
     "ReferencedEntity",
 ]

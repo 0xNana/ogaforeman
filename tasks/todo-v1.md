@@ -21,7 +21,9 @@ real cloud environment, live model credential/billing, or human release gate.
   states, and rejects operational destinations that belong to existing workflows.
 - [x] C-05 Phase 4 resolves all documented project entities, rejects cross-project/context-kind
   mismatches, and clarifies ambiguous references before mutation.
-- [ ] C-06 Phase 5 executes safe task operations through existing typed task services.
+- [x] C-06 Phase 5 executes safe task operations through existing typed task services, with
+  project/member revalidation, atomic activity, replay safety, and completion-language guards.
+- [ ] C-07 Phase 6 executes safe material operations through existing typed material services.
 
 ## Audit findings requiring implementation
 

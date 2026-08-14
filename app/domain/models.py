@@ -130,6 +130,7 @@ class Task(DomainModel):
     dependency_ids: list[CanonicalId] = Field(default_factory=list)
     is_milestone: bool = False
     source_refs: list[CanonicalId] = Field(default_factory=list, max_length=10)
+    notes: list[NonEmptyText] = Field(default_factory=list, max_length=100)
     completion_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     source: TaskSource = TaskSource.MANUAL
     version: int = Field(default=0, ge=0)

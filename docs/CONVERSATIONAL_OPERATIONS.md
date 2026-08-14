@@ -56,3 +56,9 @@ entity. Canonical IDs and contextual references are reloaded from the requested 
 material aliases resolve to the existing canonical material; fuzzy matches require a high score
 and a clear margin. Ambiguous and unknown results are non-actionable and carry only bounded
 clarification candidates. Resolution itself is read-only.
+
+Phase 5 adds a thin conversational task-operation service over the existing typed Task service.
+It accepts only resolved project-scoped task/member identities, then delegates creation, status,
+completion, assignment, priority, and note changes to domain commands. Those commands enforce
+permissions and state policy and atomically persist one task version with one activity event.
+Idempotency keys replay the persisted result; conversational code never writes directly.

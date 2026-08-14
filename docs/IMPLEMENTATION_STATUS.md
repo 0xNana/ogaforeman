@@ -24,15 +24,19 @@ Status: COMPLETE
 
 Phase 5 — Safe Task Operations
 
+Status: COMPLETE
+
+Phase 6 — Safe Material Operations
+
 Status: ACTIVE
 
-Phases 6–17
+Phases 7–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 5 implementation.
+- None for local Phase 6 implementation.
 
 ## Known regressions
 
@@ -86,3 +90,16 @@ Status: NOT STARTED
 - Unknown references and canonical IDs from another project return no entity information.
 - Resolution performs no repository writes or activity emission; later mutation phases must
   recheck operation-specific permission before invoking typed tools.
+
+## Phase 5 evidence
+
+- Typed conversational commands cover task creation, completion, status, assignment,
+  reassignment, priority, and notes, including timezone-aware planned dates.
+- The conversational service composes the existing authorized Task service; it performs no
+  direct repository mutation and revalidates resolved canonical task/member IDs.
+- Task mutations and their `ActivityEvent` are atomic and idempotent. Replayed commands return
+  persisted state without another task version or activity.
+- Negated or ambiguous completion is rejected, viewer mutations fail authorization, cancellation
+  retains its approval gate, and inactive assignees are rejected inside the transaction.
+- Verification: 13 focused task-operation tests passed; Ruff and mypy passed; 370 non-backing
+  backend tests and all 7 mobile Golden Scenario tests passed on 2026-08-14.

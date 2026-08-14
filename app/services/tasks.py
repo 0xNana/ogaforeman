@@ -152,6 +152,27 @@ class UpdateTaskCommand(BaseModel):
 TaskUpdateCommand = UpdateTaskCommand
 
 
+class UpdateTaskDetailsCommand(BaseModel):
+    """Routine non-status task fields supported by typed user operations."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    task_id: CanonicalId
+    expected_version: int = Field(ge=0)
+    assigned_to: CanonicalId | None = None
+    priority: TaskPriority | None = None
+    note: str | None = Field(default=None, min_length=1, max_length=5_000)
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="after")
+    def require_one_change(self) -> Self:
+        supplied = sum(value is not None for value in (self.assigned_to, self.priority, self.note))
+        if supplied != 1:
+            raise ValueError("task detail update requires exactly one field")
+        return self
+
+
 @dataclass(frozen=True, slots=True)
 class TaskChange:
     task: Task
@@ -306,6 +327,57 @@ class TaskService:
                 {**command.model_dump(), "target_status": TaskStatus.COMPLETED}
             )
         return self.update_task(access, command, context)
+
+    def update_task_details(
+        self,
+        access: ProjectAccessContext,
+        command: UpdateTaskDetailsCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.OPERATE)
+        if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
+            raise PermissionError("task detail update requires the authorized user actor")
+        spec = _details_activity_spec(command)
+        result = self._activities.mutate(
+            context,
+            spec,
+            lambda session: self._apply_details(session, access, command),
+            replay=lambda session, activity: TaskRepository.for_session(session, access).require(
+                activity.project_id, activity.entity_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("task detail replay did not resolve its persisted entity")
+        return TaskChange(result.value, result.activity, result.duplicate)
+
+    @staticmethod
+    def _apply_details(
+        session: RepositorySession,
+        access: ProjectAccessContext,
+        command: UpdateTaskDetailsCommand,
+    ) -> Task:
+        repository = TaskRepository.for_session(session, access)
+        current = repository.require(command.project_id, command.task_id)
+        updates: dict[str, object] = {"updated_at": command.occurred_at}
+        if command.assigned_to is not None:
+            membership = session.repository(ProjectMember).get(
+                command.project_id, command.assigned_to
+            )
+            if membership is None or membership.status is not MemberStatus.ACTIVE:
+                raise PermissionError("task assignee must be an active project member")
+            updates["assigned_to"] = command.assigned_to
+        elif command.priority is not None:
+            updates["priority"] = command.priority
+        elif command.note is not None:
+            if len(current.notes) >= 100:
+                raise TaskMutationError("task note limit reached")
+            updates["notes"] = [*current.notes, command.note]
+        return repository.save(
+            current.model_copy(update=updates),
+            expected_version=command.expected_version,
+        )
 
     @staticmethod
     def _authorize_follow_up(
@@ -489,6 +561,28 @@ def _activity_spec(command: UpdateTaskCommand) -> ActivitySpec:
     )
 
 
+def _details_activity_spec(command: UpdateTaskDetailsCommand) -> ActivitySpec:
+    if command.assigned_to is not None:
+        action = "task.assigned"
+        summary = "Task assignment updated"
+        metadata = {"assignee_id": command.assigned_to}
+    elif command.priority is not None:
+        action = "task.priority_changed"
+        summary = "Task priority updated"
+        metadata = {"priority": command.priority.value}
+    else:
+        action = "task.note_added"
+        summary = "Task note added"
+        metadata = {"note_digest": sha256((command.note or "").encode("utf-8")).hexdigest()[:16]}
+    return ActivitySpec(
+        action=action,
+        entity_type="task",
+        entity_id=command.task_id,
+        summary=summary,
+        metadata=metadata,
+    )
+
+
 def _created_task_id(context: MutationContext) -> str:
     raw = f"{context.project_id}\x00{context.actor_id}\x00{context.idempotency_key}"
     return f"tsk_{sha256(raw.encode('utf-8')).hexdigest()[:32]}"
@@ -513,4 +607,5 @@ __all__ = [
     "TaskStateError",
     "TaskUpdateCommand",
     "UpdateTaskCommand",
+    "UpdateTaskDetailsCommand",
 ]

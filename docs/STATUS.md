@@ -344,7 +344,7 @@ project label, with a production-readiness regression guard.
 
 ## Conversational operations
 
-- Phases 0–4 are complete locally as of 2026-08-13.
+- Phases 0–5 are complete locally as of 2026-08-14.
 - The router is typed and non-mutating; low-confidence actions and context-free confirmations
   stop at clarification, while site updates retain the existing Golden workflow destination.
 - Phase 2 adds permission-aware, query-shaped typed projections for all documented context
@@ -353,7 +353,10 @@ project label, with a production-readiness regression guard.
   empty states, and a guard that preserves operational workflow ownership.
 - Phase 4 adds typed project-scoped resolution for seven entity kinds, canonical aliases,
   revalidated context, strict fuzzy matching, and non-actionable ambiguity/unknown results.
-- Phase 5 safe task operations is active and remains unimplemented.
+- Phase 5 routes safe task creation and updates through typed Task services with project/member
+  revalidation, atomic activity, idempotent replay, and negation/ambiguity completion guards.
+- Phase 5 verification: 13 focused tests, Ruff, mypy, 370 non-backing backend tests, and all 7
+  canonical mobile Golden Scenario journeys pass. Phase 6 safe material operations is active.
 
 ## Phase 8 state
 

@@ -1,5 +1,17 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 5: Safe Task Operations
+
+Acceptance: create and safely update tasks through existing typed services; require resolved,
+project-scoped identities; preserve approval and completion safeguards; and atomically emit one
+activity event per idempotent mutation.
+
+Verify: focused operation tests, Ruff, mypy, the full non-backing backend suite, and the canonical
+mobile Golden Scenario remain green.
+
+Status: complete locally on 2026-08-14. Phase 6 (safe material operations) is active and not
+implemented.
+
 ## Conversational Operations — Phase 4: Entity Resolution
 
 Acceptance: resolve every documented conversational entity from the authorized project partition
@@ -10,8 +22,7 @@ Verify: all seven entity kinds, material alias reuse, bounded ambiguity, context
 cross-project ID isolation, fuzzy thresholds, existing Golden resolution, full backend checks, and
 the canonical mobile Golden Scenario remain green.
 
-Status: complete locally on 2026-08-13. Phase 5 (safe task operations) is active and not
-implemented.
+Status: complete locally on 2026-08-13.
 
 ## Conversational Operations — Phase 3: Response Layer
 

@@ -6,9 +6,11 @@ from app.domain.activity import MutationContext
 from app.domain.authorization import ProjectAccessContext
 from app.services.tasks import (
     CreateBlockerFollowUpCommand,
+    CreateTaskCommand,
     TaskChange,
     TaskService,
     UpdateTaskCommand,
+    UpdateTaskDetailsCommand,
 )
 
 
@@ -26,6 +28,13 @@ class TaskTools:
     ) -> TaskChange:
         return self._service.update_task(self._access, command, context)
 
+    def create_task(
+        self,
+        command: CreateTaskCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        return self._service.create_task(self._access, command, context)
+
     def create_blocker_follow_up(
         self,
         command: CreateBlockerFollowUpCommand,
@@ -40,6 +49,13 @@ class TaskTools:
     ) -> TaskChange:
         return self._service.complete_task(self._access, command, context)
 
+    def update_task_details(
+        self,
+        command: UpdateTaskDetailsCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        return self._service.update_task_details(self._access, command, context)
+
 
 def update_task_progress(
     command: UpdateTaskCommand,
@@ -49,6 +65,26 @@ def update_task_progress(
     context: MutationContext,
 ) -> TaskChange:
     return service.update_task(access, command, context)
+
+
+def create_task(
+    command: CreateTaskCommand,
+    *,
+    service: TaskService,
+    access: ProjectAccessContext,
+    context: MutationContext,
+) -> TaskChange:
+    return service.create_task(access, command, context)
+
+
+def update_task_details(
+    command: UpdateTaskDetailsCommand,
+    *,
+    service: TaskService,
+    access: ProjectAccessContext,
+    context: MutationContext,
+) -> TaskChange:
+    return service.update_task_details(access, command, context)
 
 
 def complete_task(
@@ -64,5 +100,7 @@ def complete_task(
 __all__ = [
     "TaskTools",
     "complete_task",
+    "create_task",
+    "update_task_details",
     "update_task_progress",
 ]
