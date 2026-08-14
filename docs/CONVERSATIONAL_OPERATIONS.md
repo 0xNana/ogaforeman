@@ -72,3 +72,7 @@ and schedule risk are handed back to the existing material-risk workflow instead
 Phase 7 composes typed Issue commands for creation, assignment, routine status changes, resolution,
 and notes. Resolved issue/member identities are revalidated at the repository boundary, positive
 evidence gates resolution, and each idempotent mutation atomically emits its activity event.
+
+Phase 8 adds a deterministic mutation-policy boundary. Typed mutation kinds map to routine,
+confirmation, existing-approval, or deny/escalate classes; authorization and project scope are
+inputs, while arbitrary model safety judgments are not.

@@ -102,6 +102,35 @@ class IssueOperation(StrEnum):
     ADD_NOTE = "add_note"
 
 
+class MutationPolicyClass(StrEnum):
+    AUTO_EXECUTE = "auto_execute"
+    CONFIRM_FIRST = "confirm_first"
+    APPROVAL_REQUIRED = "approval_required"
+    DENY_OR_ESCALATE = "deny_or_escalate"
+
+
+class MutationKind(StrEnum):
+    TASK_CREATE = "task_create"
+    TASK_COMPLETE = "task_complete"
+    TASK_ASSIGN = "task_assign"
+    MATERIAL_QUANTITY = "material_quantity"
+    ISSUE_RESOLVE = "issue_resolve"
+    ADD_NOTE = "add_note"
+    SCHEDULE_DATES = "schedule_dates"
+    TASK_DEPENDENCIES = "task_dependencies"
+    BULK_TASK_UPDATE = "bulk_task_update"
+    TASK_REOPEN = "task_reopen"
+    TASK_CANCEL = "task_cancel"
+    RECORD_DELETE = "record_delete"
+    MATERIAL_PURCHASE = "material_purchase"
+    FINANCIAL_COMMITMENT = "financial_commitment"
+    EXTERNAL_COMMITMENT = "external_commitment"
+    MAJOR_SCHEDULE_CHANGE = "major_schedule_change"
+    STRUCTURAL_CERTIFICATION = "structural_certification"
+    UNSAFE_ENGINEERING_JUDGMENT = "unsafe_engineering_judgment"
+    CONCEAL_SAFETY_RISK = "conceal_safety_risk"
+
+
 class ReferencedEntity(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -357,6 +386,21 @@ class ConversationIssueCommand(BaseModel):
     ambiguous: bool = False
 
 
+class MutationPolicyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    project_id: str
+    kind: MutationKind
+    affected_entity_count: int = Field(default=1, ge=1, le=100)
+    dependent_entity_count: int = Field(default=0, ge=0, le=100)
+
+
+class MutationPolicyDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    policy: MutationPolicyClass
+    reason_code: str = Field(pattern=r"^[a-z0-9_]+$")
+    use_existing_approval: bool = False
+
+
 __all__ = [
     "ConversationContext",
     "ConversationIssueCommand",
@@ -377,6 +421,10 @@ __all__ = [
     "IntentType",
     "IssueOperation",
     "MaterialOperation",
+    "MutationKind",
+    "MutationPolicyClass",
+    "MutationPolicyDecision",
+    "MutationPolicyRequest",
     "ReplyKind",
     "TaskOperation",
     "ReferencedEntity",

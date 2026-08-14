@@ -1,11 +1,18 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 8: Mutation Policy Engine
+
+Acceptance: deterministically classify supported mutations as auto-execute, confirm-first,
+approval-required, or deny/escalate using typed policy inputs and existing authorization.
+
+Status: complete locally on 2026-08-14. Phase 9 schedule operations is active.
+
 ## Conversational Operations — Phase 7: Safe Issue Operations
 
 Acceptance: create, assign, change status, resolve, and annotate project issues through typed
 services, canonical entities, positive resolution evidence, and atomic idempotent activity.
 
-Status: complete locally on 2026-08-14. Phase 8 (mutation policy engine) is active.
+Status: complete locally on 2026-08-14.
 
 ## Conversational Operations — Phase 6: Safe Material Operations
 

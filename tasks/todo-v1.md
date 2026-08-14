@@ -27,7 +27,8 @@ real cloud environment, live model credential/billing, or human release gate.
   append-only stock ledger entries, cumulative delivery receipts, and risk-workflow routing.
 - [x] C-08 Phase 7 executes safe issue operations through typed issue services with evidence,
   membership, authorization, atomic activity, and replay guards.
-- [ ] C-09 Phase 8 classifies every conversational mutation with explicit deterministic policy.
+- [x] C-09 Phase 8 classifies every conversational mutation with explicit deterministic policy.
+- [ ] C-10 Phase 9 proposes schedule changes with dependency impact and confirmation policy.
 
 ## Audit findings requiring implementation
 

@@ -36,15 +36,19 @@ Status: COMPLETE
 
 Phase 8 — Mutation Policy Engine
 
+Status: COMPLETE
+
+Phase 9 — Schedule Operations
+
 Status: ACTIVE
 
-Phases 9–17
+Phases 10–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 8 implementation.
+- None for local Phase 9 implementation.
 
 ## Known regressions
 
@@ -132,3 +136,10 @@ Status: NOT STARTED
 - Clear positive evidence is required for resolution; negated or ambiguous language cannot mutate.
 - Assignment revalidates active project membership inside the atomic mutation transaction.
 - Every successful operation persists one issue change with one idempotent activity event.
+
+## Phase 8 evidence
+
+- A typed deterministic policy classifies supported mutations as auto-execute, confirm-first,
+  approval-required, or deny/escalate without relying on model judgment.
+- Purchases, commitments, and major schedule actions explicitly retain the existing approval path.
+- Unsafe certification/judgment/concealment and insufficient permissions fail closed.
