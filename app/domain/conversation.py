@@ -59,6 +59,7 @@ class ReplyKind(StrEnum):
     CASUAL = "casual"
     PROJECT = "project"
     CLARIFICATION = "clarification"
+    ADVICE = "advice"
 
 
 class EntityKind(StrEnum):
@@ -312,6 +313,17 @@ class ConversationReply(BaseModel):
     cited_record_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
 
 
+class AdviceReply(BaseModel):
+    """A grounded recommendation that cannot itself authorize a mutation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    text: str = Field(min_length=1, max_length=1_000)
+    recommendation: str = Field(pattern=r"^(proceed|hold|review)$")
+    cited_record_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
+    mutation_performed: bool = False
+
+
 class EntityCandidate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -426,6 +438,7 @@ class SiteUpdateRouteCommand(BaseModel):
 
 
 __all__ = [
+    "AdviceReply",
     "ConversationContext",
     "ConversationIssueCommand",
     "ConversationMaterialCommand",
