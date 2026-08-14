@@ -16,6 +16,9 @@ The versioned conversational benchmark covers all 17 required categories, locks 
 threshold at 100%, and includes independent negative controls for mutation, approval, permission,
 replay, conflict, memory, and audit failures. Its fixture result is evaluator evidence rather than
 runtime-conformance evidence; the Phase 17 end-to-end conversation flow remains active scope.
+The final Phase 1–16 audit also aligned mutation-policy permissions, bound schedule confirmation
+to signed actor/project/versioned proposals, and disabled raw or client-asserted confirmation
+state until Phase 17 persists an exact typed command.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed

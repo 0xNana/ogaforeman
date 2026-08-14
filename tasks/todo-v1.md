@@ -27,12 +27,14 @@ real cloud environment, live model credential/billing, or human release gate.
   append-only stock ledger entries, cumulative delivery receipts, and risk-workflow routing.
 - [x] C-08 Phase 7 executes safe issue operations through typed issue services with evidence,
   membership, authorization, atomic activity, and replay guards.
-- [x] C-09 Phase 8 classifies every conversational mutation with explicit deterministic policy.
-- [x] C-10 Phase 9 proposes schedule changes with dependency impact and confirmation policy.
+- [x] C-09 Phase 8 classifies every conversational mutation with explicit deterministic policy and
+  operation-specific authorization aligned with the typed mutation services.
+- [x] C-10 Phase 9 proposes schedule changes with dependency impact and uses signed, version-bound
+  confirmation tokens that reject altered or stale proposals.
 - [x] C-11 Phase 10 routes chat/text site facts into the existing Golden intake workflow.
 - [x] C-12 Phase 11 provides cited, grounded, non-mutating project advice.
-- [x] C-13 Phase 12 persists bounded per-user/project conversational references and revalidates
-  every remembered entity against current authorized project state.
+- [x] C-13 Phase 12 persists bounded per-user/project conversational references, revalidates every
+  remembered entity, and refuses client-asserted or raw-text confirmation state.
 - [x] C-14 Phase 13 exposes typed conversation replies, advice, proposed changes, and Golden
   workflow handoffs through the responsive global Ask OG drawer.
 - [x] C-15 Phase 14 records significant conversational requests and confirmation transitions as

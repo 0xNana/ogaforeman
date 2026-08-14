@@ -79,6 +79,20 @@ Status: ACTIVE
 - None for local Phase 16 implementation. A configured live-Gemini evaluation is required before
   changing the production conversation prompt or model.
 
+## Final audit remediation
+
+- Mutation policy now applies operation-specific permissions, so admin-only task creation cannot
+  be advertised as executable to managers or foremen.
+- Schedule confirmation uses an HMAC-authenticated proposal bound to project, actor, target,
+  requested dates, dependency impact, and task versions. Stale, altered, forged, and replay-key
+  conflicts fail before mutation; exact successful replay remains stable across later graph changes.
+- Client-declared pending state and legacy raw confirmation text are not trusted. Confirmation is
+  typed as accept/cancel, confidence-gated, and remains unavailable until Phase 17 persists an exact
+  typed command rather than display text.
+- The deterministic Phase 16 fixture comparator remains intentionally separate from runtime
+  conformance. A runtime conversation gate cannot be marked green until Phase 17 dispatches typed
+  mutations, resumes confirmations, and hands approval-required work to the existing workflows.
+
 ## Known regressions
 
 - None.
