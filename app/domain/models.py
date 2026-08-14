@@ -80,6 +80,27 @@ class DomainModel(BaseModel):
     )
 
 
+class ConversationEntityReference(DomainModel):
+    kind: str = Field(min_length=1, max_length=64)
+    entity_id: CanonicalId
+
+
+class ConversationMemory(DomainModel):
+    """Bounded per-user/project conversational pointers; never project truth."""
+
+    id: CanonicalId
+    project_id: CanonicalId
+    actor_id: CanonicalId
+    recent_entities: list[ConversationEntityReference] = Field(default_factory=list, max_length=8)
+    recent_topic: str | None = Field(default=None, max_length=160)
+    pending_clarification: str | None = Field(default=None, max_length=500)
+    pending_confirmation: str | None = Field(default=None, max_length=500)
+    pending_approval_id: CanonicalId | None = None
+    recent_proposed_action: str | None = Field(default=None, max_length=500)
+    version: int = Field(default=0, ge=0)
+    updated_at: AwareDatetime = Field(default_factory=utc_now)
+
+
 class Project(DomainModel):
     id: CanonicalId
     name: str = Field(min_length=1, max_length=200)

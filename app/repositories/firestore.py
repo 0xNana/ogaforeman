@@ -13,6 +13,7 @@ from app.domain.models import (
     AgentRun,
     Approval,
     Attachment,
+    ConversationMemory,
     DailyReport,
     Issue,
     Material,
@@ -57,6 +58,7 @@ _COLLECTIONS: dict[type[BaseModel], str] = {
     ActivityEvent: "activity",
     ProcessedEvent: "processed_events",
     OutboxMessage: "outbox",
+    ConversationMemory: "conversation_memory",
 }
 _REPOSITORY_VERSION_FIELD = "_repository_version"
 

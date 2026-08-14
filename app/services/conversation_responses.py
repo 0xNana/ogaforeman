@@ -122,7 +122,7 @@ def _blockers(context: ConversationalProjectContext) -> ConversationReply:
     issues = context.issues[:3]
     return _project_reply(
         " ".join(_sentence(issue.description) for issue in issues),
-        (issue.id for issue in issues),
+        (record_id for issue in issues for record_id in (issue.id, *issue.task_ids)),
     )
 
 
