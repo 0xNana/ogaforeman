@@ -6,12 +6,16 @@
 
 ## Summary
 
-Conversational Operations phases 11–15 are implemented locally. OG now returns cited read-only
+Conversational Operations phases 11–16 are implemented locally. OG now returns cited read-only
 project advice, retains bounded per-user/project references that are revalidated against persisted
 truth, and exposes typed conversation/advice/proposal/workflow responses in the global responsive
 Ask OG drawer while reusing the existing multimodal Golden intake. Significant conversational
 change requests and confirmation pauses are replay-safe ActivityEvents, and conversational task,
 material, and issue commands surface optimistic conflicts instead of overwriting newer state.
+The versioned conversational benchmark covers all 17 required categories, locks every release
+threshold at 100%, and includes independent negative controls for mutation, approval, permission,
+replay, conflict, memory, and audit failures. Its fixture result is evaluator evidence rather than
+runtime-conformance evidence; the Phase 17 end-to-end conversation flow remains active scope.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed
@@ -79,6 +83,14 @@ configured model, or human release review. The canonical evidence checklist is
 [tasks/todo-v1.md](../tasks/todo-v1.md).
 
 ## Local verification history
+
+Conversational Phase 16 verification on 2026-08-14:
+
+- category-complete conversational fixture eval: 17/17 passed at every locked threshold
+- deliberate unsafe-mutation artifact: gate failed on `ambiguous_completion` as expected
+- 13 isolated guard regressions: all detected by the release gate
+- focused eval tests: 20 passed
+- conversational eval Ruff check/format and mypy: passed
 
 Conversational phases 11–15 verification on 2026-08-14:
 

@@ -39,6 +39,8 @@ real cloud environment, live model credential/billing, or human release gate.
   allowlisted, replay-safe activities while excluding private reasoning and casual chatter.
 - [x] C-16 Phase 15 applies duplicate suppression and explicit stale-version conflicts to
   conversational task, material, and issue commands.
+- [x] C-17 Phase 16 provides a versioned, category-complete conversational evaluation gate with
+  deterministic release artifacts and negative controls for every safety-critical outcome.
 
 ## Audit findings requiring implementation
 

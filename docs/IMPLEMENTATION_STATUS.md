@@ -68,19 +68,44 @@ Status: COMPLETE
 
 Phase 16 — Conversational Evals
 
-Status: ACTIVE
+Status: COMPLETE
 
 Phase 17 — Final Conversational Golden Flow
 
-Status: NOT STARTED
+Status: ACTIVE
 
 ## Current blockers
 
-- None for local Phase 16 implementation.
+- None for local Phase 16 implementation. A configured live-Gemini evaluation is required before
+  changing the production conversation prompt or model.
 
 ## Known regressions
 
 - None.
+
+## Known Phase 17 integration gaps
+
+- The conversation API currently proposes `PROJECT_ACTION` requests but does not yet dispatch
+  routine task, material, or issue mutations through their typed operation services.
+- Confirmation replies are classified and remembered, but the API does not yet resume the exact
+  persisted proposed command after revalidation.
+- Approval-required purchase requests are not yet handed from conversation into the existing
+  approval workflow.
+- The responsive drawer does not yet render executable confirm/cancel controls for a persisted
+  proposed change.
+
+These are explicitly outside the deterministic Phase 16 evaluator's runtime claim and are the
+active Phase 17 end-to-end scope.
+
+## Phase 16 evidence
+
+- `evals/conversations_v1.json` covers all 17 required categories with strict schema validation.
+- Every release metric is locked at 1.0; incomplete categories, duplicate IDs, invalid thresholds,
+  mismatched typed outcomes, missing grounding/audit evidence, and parse failures fail the gate.
+- Thirteen isolated guard regressions prove unsafe mutation, approval/external action, permission,
+  replay, conflict, memory, audit, and cross-project grounding failures cannot remain green.
+- CI runs both the original site-update eval and the conversational eval; the original mobile
+  Golden Scenario remains a separate mandatory boundary gate.
 
 ## Last verified Golden Scenario
 

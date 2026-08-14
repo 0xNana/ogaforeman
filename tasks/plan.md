@@ -1,5 +1,23 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 16: Conversational Evals
+
+Acceptance: ship a versioned deterministic benchmark covering every Phase 16 category; compare
+typed intent, route, response, entity, policy, approval, audit, mutation, replay, conflict, and
+multi-turn outcomes; reject incomplete datasets and fail on safety/control regressions; retain the
+existing site-update and Golden Scenario gates.
+
+Implementation slices:
+
+1. Define strict conversational eval schemas, required-category validation, metrics, and report.
+2. Add a locked dataset with all 17 required categories and adversarial variants.
+3. Add deterministic adapters and independent negative controls for mutation, approval,
+   permission, duplicate, stale-state, and multi-turn regressions.
+4. Add a CLI/artifact gate, CI-compatible tests, documentation, and phase evidence.
+5. Run adversarial review, all static/full suites, both eval gates, and the Golden Scenario.
+
+Status: complete locally on 2026-08-14. Phase 17 final conversational Golden Flow is active.
+
 ## Conversational Operations — Phases 11–15
 
 Acceptance: provide cited read-only advice; retain bounded per-user/project references without

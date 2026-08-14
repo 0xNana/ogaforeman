@@ -44,6 +44,14 @@ locked fixture cases: normal, mixed, ambiguous, negation, approval, duplicate,
 safety, and delivery delay. The runner reports per-case mutation diffs plus the
 aggregate thresholds below.
 
+The checked-in Phase 16 dataset is `evals/conversations_v1.json`. It contains one
+locked case for each required conversational category: casual, project query,
+project advice, task/material/issue/schedule mutations, site update, clarification,
+confirmation, ambiguous entity and intent, approval action, duplicate command,
+stale state, multi-turn reference, and permissions. Expectations compare typed
+routing, response, grounding, policy, mutation, external-action, audit, replay,
+conflict, permission, and multi-turn outcomes rather than prose similarity.
+
 ## Metrics and Release Thresholds
 
 - Exact event deduplication: 100% in deterministic replay tests.
@@ -91,6 +99,32 @@ present:
 `--backend auto` preserves local Developer API selection. Release evidence must
 name the backend so an exhausted local key cannot mask the configured Vertex
 billing route.
+
+Run the deterministic Phase 16 conversational gate:
+
+```bash
+.venv/bin/python scripts/run_conversation_evals.py --adapter fixture
+```
+
+The passing artifact is `artifacts/evals/conversation-latest.json`. The suite also
+executes 13 independent negative controls for unsafe mutation, approval/external-action bypass,
+permission/unauthorized mutation, duplicate suppression/side effects, stale conflict/overwrite,
+memory-as-truth, missing/fabricated audit evidence, and unauthorized grounding. The checked-in
+example deliberately breaks ambiguous
+completion safety and must exit with status 1:
+
+```bash
+.venv/bin/python scripts/run_conversation_evals.py \
+  --adapter guard-regression \
+  --guard unsafe_mutation \
+  --output artifacts/evals/conversation-deliberate-regression.json
+```
+
+The fixture adapter proves the locked evaluator and release thresholds, not the
+production conversation endpoint or live Gemini behavior. A green fixture artifact
+must not be used as runtime-conformance evidence. Before changing the production
+conversation model or prompt, run `--adapter gemini` with the configured backend;
+Phase 17 remains responsible for the end-to-end conversational Golden Flow.
 
 ## Regression Process
 
