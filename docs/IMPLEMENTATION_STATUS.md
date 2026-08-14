@@ -86,9 +86,9 @@ Status: ACTIVE
 - Schedule confirmation uses an HMAC-authenticated proposal bound to project, actor, target,
   requested dates, dependency impact, and task versions. Stale, altered, forged, and replay-key
   conflicts fail before mutation; exact successful replay remains stable across later graph changes.
-- Client-declared pending state and legacy raw confirmation text are not trusted. Confirmation is
-  typed as accept/cancel, confidence-gated, and remains unavailable until Phase 17 persists an exact
-  typed command rather than display text.
+- Client-declared pending state and legacy raw confirmation text are not trusted. The server now
+  persists an exact signed typed command and confirmation accepts only its proposal ID plus the
+  caller-observed memory version.
 - The deterministic Phase 16 fixture comparator remains intentionally separate from runtime
   conformance. A runtime conversation gate cannot be marked green until Phase 17 dispatches typed
   mutations, resumes confirmations, and hands approval-required work to the existing workflows.
@@ -99,14 +99,12 @@ Status: ACTIVE
 
 ## Known Phase 17 integration gaps
 
-- The conversation API currently proposes `PROJECT_ACTION` requests but does not yet dispatch
-  routine task, material, or issue mutations through their typed operation services.
-- Confirmation replies are classified and remembered, but the API does not yet resume the exact
-  persisted proposed command after revalidation.
 - Approval-required purchase requests are not yet handed from conversation into the existing
   approval workflow.
 - The responsive drawer does not yet render executable confirm/cancel controls for a persisted
   proposed change.
+- The final runtime-backed restart, authorization, approval, and browser Golden Flow gates remain
+  to be completed after the approval handoff and drawer controls land.
 
 These are explicitly outside the deterministic Phase 16 evaluator's runtime claim and are the
 active Phase 17 end-to-end scope.

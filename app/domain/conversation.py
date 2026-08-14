@@ -482,6 +482,7 @@ class PendingCommandBase(BaseModel):
     observed_entity_versions: dict[str, int] = Field(default_factory=dict, max_length=100)
     created_at: AwareDatetime
     expires_at: AwareDatetime | None = None
+    signature: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
     @model_validator(mode="after")
     def validate_lifetime(self) -> Self:

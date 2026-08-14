@@ -20,15 +20,28 @@ from app.domain.conversation import (
 from app.services.conversation_action_execution import ConversationActionExecutionService
 from app.services.conversation_advice import ConversationAdviceService, plan_advice_query
 from app.services.conversation_context import ProjectContextService, plan_context_query
+from app.services.conversation_confirmation import ConversationConfirmationService
 from app.services.conversation_responses import ConversationResponseService
 from app.services.conversation_site_update_routing import ConversationSiteUpdateRouter
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService
+from app.repositories.interfaces import VersionConflictError
 
 from .projects import auth_runtime
 
 
 router = APIRouter()
+
+
+def _proposal_signing_key(request: Request) -> bytes:
+    key = getattr(request.app.state, "conversation_proposal_signing_key", None)
+    if not isinstance(key, bytes):
+        raise ApiError(
+            "DEPENDENCY_UNAVAILABLE",
+            "Conversation proposals are temporarily unavailable.",
+            status_code=503,
+        )
+    return key
 
 
 class ConversationMessageRequest(BaseModel):
@@ -57,6 +70,11 @@ class ConversationProposalResponse(BaseModel):
     memory_version: int = Field(ge=0)
 
 
+class ConversationConfirmationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    observed_memory_version: int = Field(ge=0)
+
+
 @router.get(
     "/proposals/{proposal_id}",
     response_model=ConversationProposalResponse,
@@ -69,7 +87,11 @@ def get_proposal(
 ) -> ConversationProposalResponse:
     access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
     runtime = auth_runtime(request)
-    memory = ConversationMemoryService(runtime.store, ConversationEntityResolver(runtime.store))
+    memory = ConversationMemoryService(
+        runtime.store,
+        ConversationEntityResolver(runtime.store),
+        proposal_signing_key=_proposal_signing_key(request),
+    )
     try:
         proposal = memory.require_command(access, proposal_id, memory_version)
     except (ValueError, PermissionError) as exc:
@@ -93,10 +115,20 @@ def cancel_proposal(
 ) -> ConversationMessageResponse:
     access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
     runtime = auth_runtime(request)
+    memory_service = ConversationMemoryService(
+        runtime.store,
+        ConversationEntityResolver(runtime.store),
+        proposal_signing_key=_proposal_signing_key(request),
+    )
+    consumed = memory_service.claim(access, proposal_id)
+    if consumed is not None and consumed.outcome != "cancelled":
+        raise ApiError(
+            "PROPOSAL_CONFLICT",
+            "The proposal was already consumed and cannot be cancelled.",
+            status_code=409,
+        )
     try:
-        memory = ConversationMemoryService(
-            runtime.store, ConversationEntityResolver(runtime.store)
-        ).clear_command(access, proposal_id, memory_version)
+        memory = memory_service.clear_command(access, proposal_id, memory_version)
     except (ValueError, PermissionError) as exc:
         raise ApiError(
             "PROPOSAL_CONFLICT",
@@ -107,6 +139,49 @@ def cancel_proposal(
         kind="proposal_cancelled",
         text="The proposal was cancelled. No project change was applied.",
         memory_version=memory.version,
+    )
+
+
+@router.post(
+    "/proposals/{proposal_id}/confirm",
+    response_model=ConversationMessageResponse,
+)
+def confirm_proposal(
+    project_id: str,
+    proposal_id: str,
+    payload: ConversationConfirmationRequest,
+    request: Request,
+) -> ConversationMessageResponse:
+    access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
+    runtime = auth_runtime(request)
+    try:
+        result = ConversationConfirmationService(
+            runtime.store,
+            schedules=getattr(request.app.state, "conversation_schedule_service", None),
+            proposal_signing_key=_proposal_signing_key(request),
+        ).confirm(access, proposal_id, payload.observed_memory_version)
+    except (ValueError, VersionConflictError, PermissionError) as exc:
+        raise ApiError(
+            "STALE_PROPOSAL",
+            "The project changed since I proposed that. I've refreshed the plan.",
+            status_code=409,
+        ) from exc
+    except RuntimeError as exc:
+        raise ApiError(
+            "DEPENDENCY_UNAVAILABLE",
+            "Proposal confirmation is temporarily unavailable.",
+            status_code=503,
+        ) from exc
+    return ConversationMessageResponse(
+        kind="done",
+        text=(
+            "That proposal was already confirmed; no new mutation was applied."
+            if result.duplicate
+            else result.reply
+        ),
+        mutation_performed=not result.duplicate,
+        proposal_id=proposal_id,
+        activity_id=result.activity_id,
     )
 
 
@@ -204,6 +279,7 @@ async def send_message(
             interpreter,
             member_names=getattr(runtime, "project_member_names", None),
             schedules=getattr(request.app.state, "conversation_schedule_service", None),
+            proposal_signing_key=_proposal_signing_key(request),
         ).execute(access, payload.message, idempotency_key=key)
         return ConversationMessageResponse(
             kind=outcome.kind,

@@ -10,7 +10,7 @@ from app.agents.conversation import FakeIntentClassifier
 from app.api.errors import install_error_handlers
 from app.api.v1.router import api_router
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
-from app.domain.conversation import IntentDecision, IntentType
+from app.domain.conversation import IntentDecision, IntentType, PendingConversationCommand
 from app.domain.conversation import IssueOperation, MaterialOperation, TaskOperation
 from app.domain.enums import (
     IssueDetectedBy,
@@ -25,6 +25,7 @@ from app.domain.enums import (
 from app.domain.models import (
     ActivityEvent,
     ConversationMemory,
+    ConversationProposalClaim,
     Issue,
     Material,
     Project,
@@ -40,9 +41,12 @@ from app.services.conversation_action_composer import (
 )
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_operations import ConversationScheduleService
+from app.services.conversation_entity_resolution import ConversationEntityResolver
+from app.services.conversation_memory import ConversationMemoryService
 
 
 PROJECT_ID = "prj_conversation123"
+PROPOSAL_SIGNING_KEY = b"conversation-api-envelope-signing-key-32-bytes"
 
 
 class FakeActionInterpreter:
@@ -250,6 +254,7 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
     )
     app.state.intent_classifier = classifier
     app.state.action_interpreter = FakeActionInterpreter()
+    app.state.conversation_proposal_signing_key = PROPOSAL_SIGNING_KEY
     app.state.conversation_schedule_service = ConversationScheduleService(
         store,
         MutationPolicyService(),
@@ -368,6 +373,353 @@ async def test_pending_proposal_can_be_reloaded_and_cancelled_without_domain_mut
         "conversation.proposal_created",
         "conversation.proposal_cleared",
     ]
+
+
+@pytest.mark.asyncio
+async def test_server_proposal_confirmation_executes_once_and_consumes_command() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:confirm"},
+        )
+        path = (
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/"
+            f"{proposed.json()['proposal_id']}/confirm"
+        )
+        confirmed = await client.post(
+            path,
+            json={"observed_memory_version": proposed.json()["memory_version"]},
+        )
+        retry = await client.post(
+            path,
+            json={"observed_memory_version": proposed.json()["memory_version"]},
+        )
+
+    assert confirmed.status_code == 200
+    assert confirmed.json()["mutation_performed"] is True
+    assert retry.status_code == 200
+    assert retry.json()["mutation_performed"] is False
+    assert retry.json()["activity_id"] == confirmed.json()["activity_id"]
+    task = store.repository(Task).require(PROJECT_ID, "tsk_plaster123")
+    assert task.planned_start == datetime(2026, 8, 21, 8, tzinfo=UTC)
+    assert store.repository(ConversationMemory).list(PROJECT_ID)[0].pending_command is None
+    assert sorted(
+        item.action for item in store.repository(ActivityEvent).list(PROJECT_ID)
+    ) == sorted(
+        [
+            "conversation.proposal_created",
+            "conversation.proposal_confirmation_started",
+            "schedule.updated",
+            "conversation.proposal_confirmed",
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_confirmation_rejects_stale_state_and_browser_command_payload() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:stale"},
+        )
+        task = store.repository(Task).require(PROJECT_ID, "tsk_plaster123")
+        store.repository(Task).save(
+            task.model_copy(update={"description": "Changed after proposal."}),
+            expected_version=task.version,
+        )
+        path = (
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/"
+            f"{proposed.json()['proposal_id']}/confirm"
+        )
+        stale = await client.post(
+            path,
+            json={"observed_memory_version": proposed.json()["memory_version"]},
+        )
+        forged = await client.post(
+            path,
+            json={
+                "observed_memory_version": proposed.json()["memory_version"],
+                "command": {"planned_start": "2099-01-01T00:00:00Z"},
+            },
+        )
+
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "STALE_PROPOSAL"
+    assert stale.json()["error"]["message"] == (
+        "The project changed since I proposed that. I've refreshed the plan."
+    )
+    assert forged.status_code == 400
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start is None
+    assert [item.action for item in store.repository(ActivityEvent).list(PROJECT_ID)] == [
+        "conversation.proposal_created"
+    ]
+
+
+def _access() -> ProjectAccessContext:
+    return ProjectAccessContext(
+        actor=AuthenticatedUser(user_id="usr_ace123", subject="ace"),
+        project_id=PROJECT_ID,
+        role=MemberRole.MANAGER,
+    )
+
+
+def _memory_service(store: InMemoryRepositoryStore) -> ConversationMemoryService:
+    return ConversationMemoryService(
+        store,
+        ConversationEntityResolver(store),
+        proposal_signing_key=PROPOSAL_SIGNING_KEY,
+    )
+
+
+@pytest.mark.asyncio
+async def test_reserved_confirmation_cannot_be_cancelled() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:reserved"},
+        )
+        proposal_id = proposed.json()["proposal_id"]
+        memory_version = proposed.json()["memory_version"]
+        memory = _memory_service(store)
+        pending = memory.require_command(_access(), proposal_id, memory_version)
+        memory.begin_confirmation(_access(), pending, memory_version)
+
+        cancelled = await client.delete(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}",
+            params={"memory_version": memory_version},
+        )
+        confirmed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}/confirm",
+            json={"observed_memory_version": memory_version},
+        )
+
+    assert cancelled.status_code == 409
+    assert confirmed.status_code == 200
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start == datetime(
+        2026, 8, 21, 8, tzinfo=UTC
+    )
+
+
+@pytest.mark.asyncio
+async def test_stale_state_after_reservation_aborts_and_releases_pending_slot() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:reservation-stale"},
+        )
+        proposal_id = proposed.json()["proposal_id"]
+        memory_version = proposed.json()["memory_version"]
+        memory = _memory_service(store)
+        pending = memory.require_command(_access(), proposal_id, memory_version)
+        memory.begin_confirmation(_access(), pending, memory_version)
+        task = store.repository(Task).require(PROJECT_ID, "tsk_plaster123")
+        store.repository(Task).save(
+            task.model_copy(update={"description": "Changed during confirmation."}),
+            expected_version=task.version,
+        )
+
+        stale = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}/confirm",
+            json={"observed_memory_version": memory_version},
+        )
+        replacement = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:replacement"},
+        )
+
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "STALE_PROPOSAL"
+    assert replacement.status_code == 200
+    assert replacement.json()["proposal_id"] != proposal_id
+    claim = store.repository(ConversationProposalClaim).require(PROJECT_ID, proposal_id)
+    assert claim.outcome == "stale"
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start is None
+    assert "conversation.proposal_confirmation_aborted" in {
+        item.action for item in store.repository(ActivityEvent).list(PROJECT_ID)
+    }
+
+
+@pytest.mark.asyncio
+async def test_confirmation_recovers_after_domain_commit_before_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, store = make_app()
+    original_complete = ConversationMemoryService.complete_confirmation
+    attempts = 0
+
+    def fail_first_receipt(
+        service: ConversationMemoryService,
+        access: ProjectAccessContext,
+        command: PendingConversationCommand,
+        *,
+        activity_id: str,
+        reply: str,
+        confirmation_attempt_id: str,
+    ) -> ConversationProposalClaim:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("simulated crash before confirmation receipt")
+        return original_complete(
+            service,
+            access,
+            command,
+            activity_id=activity_id,
+            reply=reply,
+            confirmation_attempt_id=confirmation_attempt_id,
+        )
+
+    monkeypatch.setattr(
+        ConversationMemoryService,
+        "complete_confirmation",
+        fail_first_receipt,
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:crash-recovery"},
+        )
+        proposal_id = proposed.json()["proposal_id"]
+        path = f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}/confirm"
+        failed_receipt = await client.post(
+            path,
+            json={"observed_memory_version": proposed.json()["memory_version"]},
+        )
+        recovered = await client.post(
+            path,
+            json={"observed_memory_version": proposed.json()["memory_version"]},
+        )
+
+    assert failed_receipt.status_code == 503
+    assert recovered.status_code == 200
+    assert recovered.json()["mutation_performed"] is False
+    assert attempts == 2
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start == datetime(
+        2026, 8, 21, 8, tzinfo=UTC
+    )
+    claim = store.repository(ConversationProposalClaim).require(PROJECT_ID, proposal_id)
+    assert claim.outcome == "confirmed"
+    assert store.repository(ConversationMemory).list(PROJECT_ID)[0].pending_command is None
+    assert (
+        len(
+            [
+                item
+                for item in store.repository(ActivityEvent).list(PROJECT_ID)
+                if item.action == "schedule.updated"
+            ]
+        )
+        == 1
+    )
+
+
+@pytest.mark.asyncio
+async def test_reserved_confirmation_remains_version_bound_and_recovers_after_expiry() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:expired-recovery"},
+        )
+        proposal_id = proposed.json()["proposal_id"]
+        memory_version = proposed.json()["memory_version"]
+        memory_service = _memory_service(store)
+        pending = memory_service.require_command(_access(), proposal_id, memory_version)
+        memory_service.begin_confirmation(_access(), pending, memory_version)
+        expired = memory_service.seal_command(
+            pending.model_copy(
+                update={
+                    "created_at": datetime(2026, 8, 13, 8, tzinfo=UTC),
+                    "expires_at": datetime(2026, 8, 13, 8, 15, tzinfo=UTC),
+                }
+            )
+        )
+        durable_memory = store.repository(ConversationMemory).list(PROJECT_ID)[0]
+        store.repository(ConversationMemory).save(
+            durable_memory.model_copy(update={"pending_command": expired}),
+            expected_version=durable_memory.version,
+        )
+        path = f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}/confirm"
+        wrong_version = await client.post(
+            path,
+            json={"observed_memory_version": memory_version + 99},
+        )
+        recovered = await client.post(
+            path,
+            json={"observed_memory_version": memory_version},
+        )
+
+    assert wrong_version.status_code == 409
+    assert recovered.status_code == 200
+    assert (
+        store.repository(ConversationProposalClaim).require(PROJECT_ID, proposal_id).outcome
+        == "confirmed"
+    )
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start == datetime(
+        2026, 8, 21, 8, tzinfo=UTC
+    )
+
+
+@pytest.mark.asyncio
+async def test_prior_domain_activity_collision_aborts_confirmation_without_wedging() -> None:
+    app, store = make_app()
+    collision_key = "conversation:collision:shared"
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        routine = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "we've got 100 bags of cement now"},
+            headers={"Idempotency-Key": collision_key},
+        )
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": collision_key},
+        )
+        proposal_id = proposed.json()["proposal_id"]
+        conflict = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}/confirm",
+            json={"observed_memory_version": proposed.json()["memory_version"]},
+        )
+        replacement = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:collision:replacement"},
+        )
+
+    assert routine.status_code == 200
+    assert proposed.status_code == 200
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "STALE_PROPOSAL"
+    assert replacement.status_code == 200
+    assert (
+        store.repository(ConversationProposalClaim).require(PROJECT_ID, proposal_id).outcome
+        == "stale"
+    )
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start is None
 
 
 @pytest.mark.asyncio

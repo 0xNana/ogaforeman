@@ -21,7 +21,12 @@ from app.domain.conversation import (
     TaskOperation,
 )
 from app.domain.enums import MemberRole, TaskStatus
-from app.domain.models import ConversationMemory, Task
+from app.domain.models import (
+    ActivityEvent,
+    ConversationMemory,
+    ConversationProposalClaim,
+    Task,
+)
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService, conversation_proposal_id
@@ -258,6 +263,17 @@ def test_expired_pending_command_cannot_be_required_for_execution() -> None:
     )
     with pytest.raises(ValueError, match="expired"):
         expired_service.require_command(access(), pending.proposal_id, saved.version)
+    assert expired_service.expire_command_if_due(access(), pending.proposal_id, saved.version)
+    assert expired_service.load(access()).pending_command is None
+    assert (
+        store.repository(ConversationProposalClaim)
+        .require("prj_memory123", pending.proposal_id)
+        .outcome
+        == "expired"
+    )
+    assert [
+        activity.action for activity in store.repository(ActivityEvent).list("prj_memory123")
+    ] == ["conversation.proposal_created", "conversation.proposal_expired"]
 
 
 def test_pending_command_cannot_be_saved_against_stale_memory() -> None:
@@ -388,6 +404,25 @@ def test_timestamp_different_exact_retry_returns_persisted_winner() -> None:
 
     assert replayed == saved
     assert replayed.pending_command == first
+
+
+def test_signed_pending_payload_rejects_durable_tampering() -> None:
+    store = InMemoryRepositoryStore()
+    key = b"unit-conversation-proposal-signing-key-32-bytes"
+    service = ConversationMemoryService(
+        store,
+        ConversationEntityResolver(store),
+        proposal_signing_key=key,
+    )
+    signed = service.seal_command(pending_reopen())
+    tampered = signed.model_copy(update={"requested_action": "Cancel every task"})
+    empty = service.load(access())
+    store.repository(ConversationMemory).create(
+        empty.model_copy(update={"pending_command": tampered})
+    )
+
+    with pytest.raises(ValueError, match="signature"):
+        service.require_command(access(), tampered.proposal_id, 0)
 
 
 def test_pending_schedule_rejects_nested_cross_project_scope() -> None:

@@ -48,6 +48,9 @@ class ActivityRepository:
         metadata["_idempotency_key_digest"] = sha256(
             context.idempotency_key.encode("utf-8")
         ).hexdigest()[:16]
+        if context.confirmation_claim_id is not None:
+            metadata["_confirmation_claim_id"] = context.confirmation_claim_id
+            metadata["_confirmation_command_fingerprint"] = context.confirmation_command_fingerprint
         return ActivityEvent(
             id=activity_id(context),
             project_id=context.project_id,

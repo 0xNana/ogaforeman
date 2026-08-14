@@ -47,10 +47,13 @@ if settings.auth_audience:
         app.state.intent_classifier = GeminiIntentClassifier(settings)
         app.state.action_interpreter = GeminiActionInterpreter(settings)
         if settings.conversation_proposal_signing_key is not None:
+            app.state.conversation_proposal_signing_key = (
+                settings.conversation_proposal_signing_key.get_secret_value().encode()
+            )
             app.state.conversation_schedule_service = ConversationScheduleService(
                 app.state.auth_runtime.store,
                 MutationPolicyService(),
-                proposal_signing_key=settings.conversation_proposal_signing_key.get_secret_value().encode(),
+                proposal_signing_key=app.state.conversation_proposal_signing_key,
             )
     if settings.media_bucket:
         app.state.attachment_service = AttachmentService(

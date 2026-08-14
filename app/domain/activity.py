@@ -67,6 +67,9 @@ class MutationContext(DomainModel):
     agent_run_id: CanonicalId | None = None
     idempotency_key: IdempotencyKey
     request_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    confirmation_claim_id: CanonicalId | None = None
+    confirmation_attempt_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
+    confirmation_command_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
@@ -78,6 +81,15 @@ class MutationContext(DomainModel):
         if self.source_event_id is None and self.actor_type is not ActorType.USER:
             raise MutationContextRequiredError(
                 "agent and system mutations require a source_event_id"
+            )
+        confirmation_fields = (
+            self.confirmation_claim_id,
+            self.confirmation_attempt_id,
+            self.confirmation_command_fingerprint,
+        )
+        if any(confirmation_fields) and not all(confirmation_fields):
+            raise MutationContextRequiredError(
+                "confirmation mutation fencing fields must be supplied together"
             )
         return self
 
@@ -135,6 +147,10 @@ def mutation_fingerprint(context: MutationContext, spec: ActivitySpec) -> str:
     # compatible across this rollout. Conversation request binding is opt-in.
     if context.request_fingerprint is not None:
         payload["request_fingerprint"] = context.request_fingerprint
+    if context.confirmation_claim_id is not None:
+        payload["confirmation_claim_id"] = context.confirmation_claim_id
+        payload["confirmation_attempt_id"] = context.confirmation_attempt_id
+        payload["confirmation_command_fingerprint"] = context.confirmation_command_fingerprint
     canonical = json.dumps(
         payload,
         sort_keys=True,

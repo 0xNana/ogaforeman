@@ -13,7 +13,7 @@ from app.domain.activity import (
     MutationContext,
     MutationContextRequiredError,
 )
-from app.domain.models import ActivityEvent
+from app.domain.models import ActivityEvent, ConversationProposalClaim
 from app.repositories.activity import ActivityIdempotencyConflict, ActivityRepository
 from app.repositories.interfaces import ProjectRepository, RepositorySession, RepositoryStore
 
@@ -62,6 +62,7 @@ class ActivityService:
             raise ValueError("additional activities must share the mutation project")
 
         def operation(session: RepositorySession) -> MutationResult[EntityT]:
+            _validate_confirmation_fence(session, context)
             repository = session.repository(ActivityEvent)
             existing = repository.get(context.project_id, expected_activity.id)
             missing_additional = _missing_or_validate(repository, expected_additional)
@@ -78,6 +79,21 @@ class ActivityService:
             return MutationResult(value=value, activity=saved_activity, duplicate=False)
 
         return self._activities.run_transaction(operation)
+
+
+def _validate_confirmation_fence(session: RepositorySession, context: MutationContext) -> None:
+    if context.confirmation_claim_id is None:
+        return
+    claim = session.repository(ConversationProposalClaim).require(
+        context.project_id, context.confirmation_claim_id
+    )
+    if (
+        claim.outcome != "confirming"
+        or claim.actor_id != context.actor_id
+        or claim.confirmation_attempt_id != context.confirmation_attempt_id
+        or claim.command_fingerprint != context.confirmation_command_fingerprint
+    ):
+        raise PermissionError("conversation confirmation attempt is no longer authorized")
 
 
 def _missing_or_validate(

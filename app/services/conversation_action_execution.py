@@ -108,6 +108,7 @@ class ConversationActionExecutionService:
         *,
         member_names: Callable[[str], dict[str, str]] | None = None,
         schedules: ConversationScheduleService | None = None,
+        proposal_signing_key: bytes | None = None,
     ) -> None:
         self._store = store
         self._interpreter = interpreter
@@ -118,7 +119,12 @@ class ConversationActionExecutionService:
         self._tasks = ConversationTaskService(TaskService(store), store)
         self._materials = ConversationMaterialService(MaterialService(store))
         self._issues = ConversationIssueService(IssueService(store), store)
-        self._memory = ConversationMemoryService(store, self._resolver, self._policies)
+        self._memory = ConversationMemoryService(
+            store,
+            self._resolver,
+            self._policies,
+            proposal_signing_key=proposal_signing_key,
+        )
         self._schedules = schedules
 
     async def execute(
@@ -292,7 +298,7 @@ class ConversationActionExecutionService:
         created_at = datetime.now(UTC)
         expires_at = created_at + timedelta(minutes=15)
         if isinstance(command, ConversationTaskCommand):
-            return PendingTaskCommand(
+            task_pending = PendingTaskCommand(
                 proposal_id=proposal_id,
                 project_id=access.project_id,
                 actor_id=access.actor.user_id,
@@ -305,8 +311,9 @@ class ConversationActionExecutionService:
                 observed_entity_versions=_observed_entity_versions(command),
                 command=command,
             )
+            return self._memory.seal_command(task_pending)
         if isinstance(command, ConversationMaterialCommand):
-            return PendingMaterialCommand(
+            material_pending = PendingMaterialCommand(
                 proposal_id=proposal_id,
                 project_id=access.project_id,
                 actor_id=access.actor.user_id,
@@ -319,8 +326,9 @@ class ConversationActionExecutionService:
                 observed_entity_versions=_observed_entity_versions(command),
                 command=command,
             )
+            return self._memory.seal_command(material_pending)
         if isinstance(command, ConversationIssueCommand):
-            return PendingIssueCommand(
+            issue_pending = PendingIssueCommand(
                 proposal_id=proposal_id,
                 project_id=access.project_id,
                 actor_id=access.actor.user_id,
@@ -333,6 +341,7 @@ class ConversationActionExecutionService:
                 observed_entity_versions=_observed_entity_versions(command),
                 command=command,
             )
+            return self._memory.seal_command(issue_pending)
         if isinstance(command, ScheduleChangeCommand):
             if self._schedules is None:
                 raise RuntimeError("schedule proposal service is unavailable")
@@ -350,7 +359,7 @@ class ConversationActionExecutionService:
                     dependent_entity_count=max(0, len(schedule_proposal.affected_task_ids) - 1),
                 ),
             )
-            return PendingScheduleCommand(
+            schedule_pending = PendingScheduleCommand(
                 proposal_id=proposal_id,
                 project_id=access.project_id,
                 actor_id=access.actor.user_id,
@@ -365,6 +374,7 @@ class ConversationActionExecutionService:
                 },
                 command=command.model_copy(update={"proposal": schedule_proposal.token}),
             )
+            return self._memory.seal_command(schedule_pending)
         raise ValueError("purchase approval handoff is not part of routine mutation dispatch")
 
     def _resolve(

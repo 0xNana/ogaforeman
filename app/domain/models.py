@@ -111,6 +111,11 @@ class ConversationProposalClaim(DomainModel):
     project_id: CanonicalId
     actor_id: CanonicalId
     command_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    outcome: str = Field(default="consumed", pattern=r"^[a-z_]+$")
+    activity_id: CanonicalId | None = None
+    reply: str | None = Field(default=None, max_length=5_000)
+    observed_memory_version: int | None = Field(default=None, ge=0)
+    confirmation_attempt_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
     consumed_at: AwareDatetime = Field(default_factory=utc_now)
 
 
