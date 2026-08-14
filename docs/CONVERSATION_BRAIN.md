@@ -4,7 +4,7 @@
 
 **Golden Scenario:** PASS AND LOCKED
 
-**Active phase:** Phase 9 — Schedule Operations
+**Active phase:** Phase 10 — Unified Site Update Routing
 
 The existing Golden Scenario is the foundation of OG Foreman and must not regress:
 

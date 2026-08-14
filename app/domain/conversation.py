@@ -5,8 +5,9 @@ from __future__ import annotations
 from enum import StrEnum
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Self
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.enums import IssueStatus, IssueType, Severity, TaskPriority, TaskStatus
 
@@ -401,6 +402,21 @@ class MutationPolicyDecision(BaseModel):
     use_existing_approval: bool = False
 
 
+class ScheduleChangeCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    project_id: str
+    task: EntityResolution
+    planned_start: AwareDatetime
+    planned_end: AwareDatetime
+    confirmed: bool = False
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> Self:
+        if self.planned_end < self.planned_start:
+            raise ValueError("planned_end cannot be before planned_start")
+        return self
+
+
 __all__ = [
     "ConversationContext",
     "ConversationIssueCommand",
@@ -426,6 +442,7 @@ __all__ = [
     "MutationPolicyDecision",
     "MutationPolicyRequest",
     "ReplyKind",
+    "ScheduleChangeCommand",
     "TaskOperation",
     "ReferencedEntity",
 ]

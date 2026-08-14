@@ -1,11 +1,18 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 9: Schedule Operations
+
+Acceptance: resolve scheduled tasks, calculate downstream dependency impact, propose before write,
+require deterministic confirmation/approval policy, and atomically shift supported dates.
+
+Status: complete locally on 2026-08-14. Phase 10 unified site-update routing is active.
+
 ## Conversational Operations — Phase 8: Mutation Policy Engine
 
 Acceptance: deterministically classify supported mutations as auto-execute, confirm-first,
 approval-required, or deny/escalate using typed policy inputs and existing authorization.
 
-Status: complete locally on 2026-08-14. Phase 9 schedule operations is active.
+Status: complete locally on 2026-08-14.
 
 ## Conversational Operations — Phase 7: Safe Issue Operations
 

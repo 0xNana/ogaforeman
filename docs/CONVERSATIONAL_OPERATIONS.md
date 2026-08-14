@@ -76,3 +76,8 @@ evidence gates resolution, and each idempotent mutation atomically emits its act
 Phase 8 adds a deterministic mutation-policy boundary. Typed mutation kinds map to routine,
 confirmation, existing-approval, or deny/escalate classes; authorization and project scope are
 inputs, while arbitrary model safety judgments are not.
+
+Phase 9 adds dependency-aware schedule proposals. The service resolves the selected task, computes
+downstream impact, applies mutation policy, and returns a confirmation prompt without writing.
+Only a confirmed routine proposal executes; selected and downstream dates persist atomically with
+one replay-safe schedule activity. Major changes remain on the approval-required path.

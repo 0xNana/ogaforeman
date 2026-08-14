@@ -40,15 +40,19 @@ Status: COMPLETE
 
 Phase 9 — Schedule Operations
 
+Status: COMPLETE
+
+Phase 10 — Unified Site Update Routing
+
 Status: ACTIVE
 
-Phases 10–17
+Phases 11–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 9 implementation.
+- None for local Phase 10 implementation.
 
 ## Known regressions
 
@@ -143,3 +147,11 @@ Status: NOT STARTED
   approval-required, or deny/escalate without relying on model judgment.
 - Purchases, commitments, and major schedule actions explicitly retain the existing approval path.
 - Unsafe certification/judgment/concealment and insufficient permissions fail closed.
+
+## Phase 9 evidence
+
+- Schedule proposals resolve canonical tasks, traverse downstream dependencies, calculate the
+  date delta, and return impact before any mutation.
+- Routine schedule changes require explicit confirmation; major changes retain approval policy.
+- Confirmed changes shift the selected task and supported downstream dates atomically and replay
+  through one persisted activity claim.

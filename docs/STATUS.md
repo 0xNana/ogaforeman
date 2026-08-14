@@ -344,7 +344,7 @@ project label, with a production-readiness regression guard.
 
 ## Conversational operations
 
-- Phases 0–8 are complete locally as of 2026-08-14.
+- Phases 0–9 are complete locally as of 2026-08-14.
 - The router is typed and non-mutating; low-confidence actions and context-free confirmations
   stop at clarification, while site updates retain the existing Golden workflow destination.
 - Phase 2 adds permission-aware, query-shaped typed projections for all documented context
@@ -365,7 +365,9 @@ project label, with a production-readiness regression guard.
 - Phase 7 adds evidence-gated, project-scoped creation, assignment, status, resolution, and notes
   through the typed Issue service.
 - Phase 8 adds explicit testable policy for routine, confirmation, approval, and deny/escalate
-  mutations. Phase 9 schedule operations is active.
+  mutations.
+- Phase 9 adds dependency-aware, confirm-first schedule proposals and atomic downstream date
+  shifts. Phase 10 unified site-update routing is active.
 
 ## Phase 8 state
 
