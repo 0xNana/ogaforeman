@@ -35,6 +35,9 @@ _APPROVAL = {
     MutationKind.EXTERNAL_COMMITMENT,
     MutationKind.MAJOR_SCHEDULE_CHANGE,
 }
+_REQUIRED_PERMISSIONS = {
+    MutationKind.TASK_CREATE: ProjectPermission.MANAGE,
+}
 
 
 class MutationPolicyService:
@@ -43,7 +46,10 @@ class MutationPolicyService:
     ) -> MutationPolicyDecision:
         ensure_project_scope(access, request.project_id)
         try:
-            ensure_permission(access, ProjectPermission.OPERATE)
+            ensure_permission(
+                access,
+                _REQUIRED_PERMISSIONS.get(request.kind, ProjectPermission.OPERATE),
+            )
         except PermissionError:
             return MutationPolicyDecision(
                 policy=MutationPolicyClass.DENY_OR_ESCALATE, reason_code="insufficient_permission"

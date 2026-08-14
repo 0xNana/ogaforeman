@@ -17,7 +17,6 @@ def access(role: MemberRole = MemberRole.MANAGER) -> ProjectAccessContext:
 @pytest.mark.parametrize(
     "kind",
     [
-        MutationKind.TASK_CREATE,
         MutationKind.TASK_COMPLETE,
         MutationKind.TASK_ASSIGN,
         MutationKind.ADD_NOTE,
@@ -30,6 +29,22 @@ def test_routine_mutations_auto_execute(kind: MutationKind) -> None:
         access(), MutationPolicyRequest(project_id="prj_policy123", kind=kind)
     )
     assert decision.policy is MutationPolicyClass.AUTO_EXECUTE
+
+
+def test_task_creation_requires_manage_permission() -> None:
+    for role in (MemberRole.MANAGER, MemberRole.FOREMAN):
+        decision = MutationPolicyService().classify(
+            access(role),
+            MutationPolicyRequest(project_id="prj_policy123", kind=MutationKind.TASK_CREATE),
+        )
+        assert decision.policy is MutationPolicyClass.DENY_OR_ESCALATE
+        assert decision.reason_code == "insufficient_permission"
+
+    admin_decision = MutationPolicyService().classify(
+        access(MemberRole.ADMIN),
+        MutationPolicyRequest(project_id="prj_policy123", kind=MutationKind.TASK_CREATE),
+    )
+    assert admin_decision.policy is MutationPolicyClass.AUTO_EXECUTE
 
 
 @pytest.mark.parametrize(
