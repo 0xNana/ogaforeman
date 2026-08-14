@@ -28,15 +28,19 @@ Status: COMPLETE
 
 Phase 6 — Safe Material Operations
 
+Status: COMPLETE
+
+Phase 7 — Safe Issue Operations
+
 Status: ACTIVE
 
-Phases 7–17
+Phases 8–17
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 6 implementation.
+- None for local Phase 7 implementation.
 
 ## Known regressions
 
@@ -103,3 +107,16 @@ Status: NOT STARTED
   retains its approval gate, and inactive assignees are rejected inside the transaction.
 - Verification: 13 focused task-operation tests passed; Ruff and mypy passed; 370 non-backing
   backend tests and all 7 mobile Golden Scenario tests passed on 2026-08-14.
+
+## Phase 6 evidence
+
+- Typed conversational operations cover material creation, absolute on-site stock, required
+  quantity, partial/full deliveries, and notes through existing material services and tools.
+- Absolute inventory is calculated inside the transaction, writes an append-only ledger entry,
+  and replays without recalculating or duplicating stock.
+- Deliveries validate the resolved request/material/unit relationship, persist cumulative received
+  quantity, and mark the request delivered only when the approved amount is fully received.
+- Material-risk statements are rejected from the direct mutation path for routing into the
+  existing shortage/schedule reasoning workflow.
+- Verification: 12 focused unit tests, 3 Firestore emulator tests, Ruff, mypy, 377 non-backing
+  backend tests, and all 7 mobile Golden Scenario tests passed on 2026-08-14.

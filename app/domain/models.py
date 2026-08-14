@@ -301,6 +301,7 @@ class Material(DomainModel):
     upcoming_requirement_quantity: Decimal | None = Field(default=None, ge=0)
     estimated_unit_cost: Decimal | None = Field(default=None, ge=0)
     default_supplier: str | None = Field(default=None, max_length=500)
+    notes: list[NonEmptyText] = Field(default_factory=list, max_length=100)
     version: int = Field(default=0, ge=0)
     updated_at: AwareDatetime = Field(default_factory=utc_now)
 
@@ -318,6 +319,7 @@ class MaterialRequest(DomainModel):
     project_id: CanonicalId
     material_id: CanonicalId
     quantity: Decimal = Field(gt=0)
+    delivered_quantity: Decimal = Field(default=Decimal("0"), ge=0)
     unit: str = Field(min_length=1, max_length=100)
     needed_by: AwareDatetime | None = None
     reason: str = Field(min_length=1, max_length=5_000)
@@ -331,6 +333,8 @@ class MaterialRequest(DomainModel):
 
     @model_validator(mode="after")
     def validate_approval_link(self) -> Self:
+        if self.delivered_quantity > self.quantity:
+            raise ValueError("delivered_quantity cannot exceed requested quantity")
         if (
             self.status
             not in {

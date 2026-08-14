@@ -4,7 +4,7 @@
 
 **Golden Scenario:** PASS AND LOCKED
 
-**Active phase:** Phase 6 — Safe Material Operations
+**Active phase:** Phase 7 — Safe Issue Operations
 
 The existing Golden Scenario is the foundation of OG Foreman and must not regress:
 

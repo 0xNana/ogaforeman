@@ -62,3 +62,9 @@ It accepts only resolved project-scoped task/member identities, then delegates c
 completion, assignment, priority, and note changes to domain commands. Those commands enforce
 permissions and state policy and atomically persist one task version with one activity event.
 Idempotency keys replay the persisted result; conversational code never writes directly.
+
+Phase 6 composes the typed Material service for creation, absolute stock counts, required
+quantities, notes, and delivery receipt. Absolute counts remain transaction-safe and append-only
+in the material ledger. Partial deliveries accumulate on their resolved material request, while a
+full-delivery transition requires the cumulative approved quantity. Statements combining shortage
+and schedule risk are handed back to the existing material-risk workflow instead of duplicating it.

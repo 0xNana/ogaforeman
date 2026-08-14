@@ -23,7 +23,9 @@ real cloud environment, live model credential/billing, or human release gate.
   mismatches, and clarifies ambiguous references before mutation.
 - [x] C-06 Phase 5 executes safe task operations through existing typed task services, with
   project/member revalidation, atomic activity, replay safety, and completion-language guards.
-- [ ] C-07 Phase 6 executes safe material operations through existing typed material services.
+- [x] C-07 Phase 6 executes safe material operations through existing typed material services,
+  append-only stock ledger entries, cumulative delivery receipts, and risk-workflow routing.
+- [ ] C-08 Phase 7 executes safe issue operations through existing typed issue services.
 
 ## Audit findings requiring implementation
 

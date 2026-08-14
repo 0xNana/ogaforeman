@@ -86,6 +86,14 @@ class TaskOperation(StrEnum):
     ADD_NOTE = "add_note"
 
 
+class MaterialOperation(StrEnum):
+    CREATE = "create"
+    SET_ON_SITE = "set_on_site"
+    SET_REQUIRED = "set_required"
+    RECORD_DELIVERY = "record_delivery"
+    ADD_NOTE = "add_note"
+
+
 class ReferencedEntity(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -309,8 +317,25 @@ class ConversationTaskCommand(BaseModel):
     ambiguous: bool = False
 
 
+class ConversationMaterialCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    operation: MaterialOperation
+    material: EntityResolution | None = None
+    material_request: EntityResolution | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    aliases: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
+    quantity: Decimal | None = Field(default=None, ge=0)
+    unit: str | None = Field(default=None, min_length=1, max_length=100)
+    note: str | None = Field(default=None, min_length=1, max_length=5_000)
+    reason: str | None = Field(default=None, min_length=1, max_length=5_000)
+    delivery_complete: bool = False
+    requires_material_risk_workflow: bool = False
+
+
 __all__ = [
     "ConversationContext",
+    "ConversationMaterialCommand",
     "ConversationReply",
     "ConversationTaskCommand",
     "ContextDomain",
@@ -325,6 +350,7 @@ __all__ = [
     "IntentDestination",
     "IntentRoute",
     "IntentType",
+    "MaterialOperation",
     "ReplyKind",
     "TaskOperation",
     "ReferencedEntity",

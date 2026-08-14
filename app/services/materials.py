@@ -17,17 +17,19 @@ from app.domain.authorization import (
     ensure_permission,
     ensure_project_scope,
 )
-from app.domain.enums import ActorType
+from app.domain.enums import ActorType, MaterialRequestStatus
 from app.domain.materials import (
     MaterialLedgerEntry,
     canonicalize_unit,
     ensure_same_unit,
     normalize_material_name,
 )
-from app.domain.models import ActivityEvent, CanonicalId, Material
+from app.domain.models import ActivityEvent, CanonicalId, Material, MaterialRequest
+from app.domain.policies import ensure_material_request_transition
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.interfaces import VersionConflictError
 from app.repositories.materials import MaterialLedgerRepository, MaterialRepository
+from app.repositories.material_requests import MaterialRequestRepository
 from app.services.activity import ActivityService
 
 
@@ -93,6 +95,59 @@ class CreateMaterialCommand(BaseModel):
         return self
 
 
+class SetMaterialQuantityCommand(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    material_id_or_alias: str = Field(min_length=1, max_length=300)
+    quantity: Decimal = Field(ge=0)
+    unit: str = Field(min_length=1, max_length=100)
+    expected_version: int = Field(ge=0)
+    reason: str = Field(min_length=1, max_length=5_000)
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="after")
+    def validate_unit(self) -> Self:
+        canonicalize_unit(self.unit)
+        return self
+
+
+class UpdateMaterialDetailsCommand(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    material_id: CanonicalId
+    expected_version: int = Field(ge=0)
+    required_quantity: Decimal | None = Field(default=None, ge=0)
+    note: str | None = Field(default=None, min_length=1, max_length=5_000)
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="after")
+    def require_one_change(self) -> Self:
+        if sum(value is not None for value in (self.required_quantity, self.note)) != 1:
+            raise ValueError("material detail update requires exactly one field")
+        return self
+
+
+class RecordMaterialDeliveryCommand(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    material_id: CanonicalId
+    request_id: CanonicalId
+    quantity: Decimal = Field(gt=0)
+    unit: str = Field(min_length=1, max_length=100)
+    expected_material_version: int = Field(ge=0)
+    complete_delivery: bool
+    reason: str = Field(min_length=1, max_length=5_000)
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="after")
+    def validate_unit(self) -> Self:
+        canonicalize_unit(self.unit)
+        return self
+
+
 @dataclass(frozen=True, slots=True)
 class MaterialChange:
     material: Material
@@ -109,12 +164,22 @@ class MaterialChange:
 class _MaterialMutationValue:
     material: Material
     ledger_entry: MaterialLedgerEntry | None
+    request: MaterialRequest | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class MaterialCreation:
     material: Material
     activity: ActivityEvent
+    duplicate: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class MaterialOperationChange:
+    material: Material
+    activity: ActivityEvent
+    ledger_entry: MaterialLedgerEntry | None = None
+    request: MaterialRequest | None = None
     duplicate: bool = False
 
 
@@ -215,6 +280,108 @@ class MaterialService:
 
     adjust_quantity = update_quantity
 
+    def set_quantity(
+        self,
+        access: ProjectAccessContext,
+        command: SetMaterialQuantityCommand,
+        context: MutationContext,
+    ) -> MaterialOperationChange:
+        _authorize_user_operation(access, command.project_id, context)
+        resolved = self.resolve_material(access, command.material_id_or_alias)
+        canonical_unit = ensure_same_unit(resolved.unit, command.unit)
+        canonical = command.model_copy(
+            update={"material_id_or_alias": resolved.id, "unit": canonical_unit}
+        )
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="material.quantity_set",
+                entity_type="material",
+                entity_id=resolved.id,
+                summary="Material stock quantity set",
+                metadata={"quantity": str(canonical.quantity), "unit": canonical_unit},
+            ),
+            lambda session: _set_quantity(session, access, canonical, context, resolved.id),
+            replay=lambda session, activity: _replay_operation(
+                session, access, context, activity.entity_id
+            ),
+        )
+        if result.value is None or result.value.ledger_entry is None:
+            raise RuntimeError("material quantity set replay did not resolve persisted state")
+        return MaterialOperationChange(
+            material=result.value.material,
+            ledger_entry=result.value.ledger_entry,
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
+
+    def update_details(
+        self,
+        access: ProjectAccessContext,
+        command: UpdateMaterialDetailsCommand,
+        context: MutationContext,
+    ) -> MaterialOperationChange:
+        _authorize_user_operation(access, command.project_id, context)
+        spec = _details_activity_spec(command)
+        result = self._activities.mutate(
+            context,
+            spec,
+            lambda session: _update_details(session, access, command),
+            replay=lambda session, activity: _MaterialMutationValue(
+                material=MaterialRepository.for_session(session, access).require(
+                    activity.project_id, activity.entity_id
+                ),
+                ledger_entry=None,
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("material detail replay did not resolve persisted state")
+        return MaterialOperationChange(
+            material=result.value.material,
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
+
+    def record_delivery(
+        self,
+        access: ProjectAccessContext,
+        command: RecordMaterialDeliveryCommand,
+        context: MutationContext,
+    ) -> MaterialOperationChange:
+        _authorize_user_operation(access, command.project_id, context)
+        canonical_unit = ensure_same_unit(
+            self.resolve_material(access, command.material_id).unit, command.unit
+        )
+        canonical = command.model_copy(update={"unit": canonical_unit})
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="material.delivery_recorded",
+                entity_type="material",
+                entity_id=command.material_id,
+                summary="Material delivery recorded",
+                metadata={
+                    "quantity": str(command.quantity),
+                    "unit": canonical_unit,
+                    "request_id": command.request_id,
+                    "complete": command.complete_delivery,
+                },
+            ),
+            lambda session: _record_delivery(session, access, canonical, context),
+            replay=lambda session, activity: _replay_delivery(
+                session, access, canonical, context, activity.entity_id
+            ),
+        )
+        if result.value is None or result.value.ledger_entry is None:
+            raise RuntimeError("material delivery replay did not resolve persisted state")
+        return MaterialOperationChange(
+            material=result.value.material,
+            ledger_entry=result.value.ledger_entry,
+            request=result.value.request,
+            activity=result.activity,
+            duplicate=result.duplicate,
+        )
+
     @staticmethod
     def _authorize(
         access: ProjectAccessContext,
@@ -293,6 +460,191 @@ class MaterialService:
             access.project_id, _ledger_id(context)
         )
         return _MaterialMutationValue(material=material, ledger_entry=ledger)
+
+
+def _authorize_user_operation(
+    access: ProjectAccessContext,
+    project_id: str,
+    context: MutationContext,
+) -> None:
+    ensure_project_scope(access, project_id)
+    ensure_project_scope(access, context.project_id)
+    ensure_permission(access, ProjectPermission.OPERATE)
+    if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
+        raise PermissionError("material operation requires the authorized user actor")
+
+
+def _set_quantity(
+    session: RepositorySession,
+    access: ProjectAccessContext,
+    command: SetMaterialQuantityCommand,
+    context: MutationContext,
+    material_id: str,
+) -> _MaterialMutationValue:
+    materials = MaterialRepository.for_session(session, access)
+    current = materials.require(command.project_id, material_id)
+    if current.version != command.expected_version:
+        raise VersionConflictError(
+            f"expected_version {command.expected_version} does not match current version {current.version}"
+        )
+    unit = ensure_same_unit(current.unit, command.unit)
+    if command.quantity < current.reserved_quantity:
+        raise NegativeMaterialStockError("material quantity cannot fall below reserved quantity")
+    delta = command.quantity - current.available_quantity
+    if delta == 0:
+        raise MaterialMutationError("material quantity is already recorded at that value")
+    updated = materials.save(
+        current.model_copy(
+            update={
+                "available_quantity": command.quantity,
+                "updated_at": command.occurred_at,
+            }
+        ),
+        expected_version=command.expected_version,
+    )
+    ledger = session.repository(MaterialLedgerEntry).create(
+        _ledger_entry(context, material_id, delta, unit, command.quantity, command.reason)
+    )
+    return _MaterialMutationValue(updated, ledger)
+
+
+def _update_details(
+    session: RepositorySession,
+    access: ProjectAccessContext,
+    command: UpdateMaterialDetailsCommand,
+) -> _MaterialMutationValue:
+    materials = MaterialRepository.for_session(session, access)
+    current = materials.require(command.project_id, command.material_id)
+    updates: dict[str, object] = {"updated_at": command.occurred_at}
+    if command.required_quantity is not None:
+        updates["minimum_required_quantity"] = command.required_quantity
+    else:
+        if len(current.notes) >= 100:
+            raise MaterialMutationError("material note limit reached")
+        updates["notes"] = [*current.notes, command.note]
+    updated = materials.save(
+        current.model_copy(update=updates), expected_version=command.expected_version
+    )
+    return _MaterialMutationValue(updated, None)
+
+
+def _record_delivery(
+    session: RepositorySession,
+    access: ProjectAccessContext,
+    command: RecordMaterialDeliveryCommand,
+    context: MutationContext,
+) -> _MaterialMutationValue:
+    materials = MaterialRepository.for_session(session, access)
+    current = materials.require(command.project_id, command.material_id)
+    request_repository = MaterialRequestRepository.for_session(session, access)
+    request = request_repository.require(command.project_id, command.request_id)
+    if request.material_id != current.id:
+        raise MaterialMutationError("delivery request does not match the material")
+    if request.status not in {
+        MaterialRequestStatus.CONFIRMED,
+        MaterialRequestStatus.DELAYED,
+    }:
+        raise MaterialMutationError("delivery can only be recorded for a confirmed request")
+    unit = ensure_same_unit(current.unit, command.unit)
+    ensure_same_unit(request.unit, unit)
+    delivered_quantity = request.delivered_quantity + command.quantity
+    if delivered_quantity > request.quantity:
+        raise MaterialMutationError("delivery exceeds the requested quantity")
+    if command.complete_delivery and delivered_quantity != request.quantity:
+        raise MaterialMutationError("a complete delivery must fulfill the remaining quantity")
+    balance = current.available_quantity + command.quantity
+    updated = materials.save(
+        current.model_copy(
+            update={"available_quantity": balance, "updated_at": command.occurred_at}
+        ),
+        expected_version=command.expected_material_version,
+    )
+    request_updates: dict[str, object] = {
+        "delivered_quantity": delivered_quantity,
+        "updated_at": command.occurred_at,
+    }
+    if command.complete_delivery:
+        ensure_material_request_transition(request.status, MaterialRequestStatus.DELIVERED)
+        request_updates["status"] = MaterialRequestStatus.DELIVERED
+    request = request_repository.save(
+        request.model_copy(update=request_updates),
+        expected_version=request_repository.version_of(command.project_id, request.id),
+    )
+    ledger = session.repository(MaterialLedgerEntry).create(
+        _ledger_entry(context, current.id, command.quantity, unit, balance, command.reason)
+    )
+    return _MaterialMutationValue(updated, ledger, request)
+
+
+def _replay_operation(
+    session: RepositorySession,
+    access: ProjectAccessContext,
+    context: MutationContext,
+    material_id: str,
+) -> _MaterialMutationValue:
+    return _MaterialMutationValue(
+        MaterialRepository.for_session(session, access).require(access.project_id, material_id),
+        session.repository(MaterialLedgerEntry).require(access.project_id, _ledger_id(context)),
+    )
+
+
+def _replay_delivery(
+    session: RepositorySession,
+    access: ProjectAccessContext,
+    command: RecordMaterialDeliveryCommand,
+    context: MutationContext,
+    material_id: str,
+) -> _MaterialMutationValue:
+    value = _replay_operation(session, access, context, material_id)
+    return _MaterialMutationValue(
+        value.material,
+        value.ledger_entry,
+        MaterialRequestRepository.for_session(session, access).require(
+            access.project_id, command.request_id
+        ),
+    )
+
+
+def _ledger_entry(
+    context: MutationContext,
+    material_id: str,
+    delta: Decimal,
+    unit: str,
+    balance: Decimal,
+    reason: str,
+) -> MaterialLedgerEntry:
+    return MaterialLedgerEntry(
+        id=_ledger_id(context),
+        project_id=context.project_id,
+        material_id=material_id,
+        quantity_delta=delta,
+        unit=unit,
+        balance_after=balance,
+        reason=reason,
+        source_event_id=context.source_event_id,
+        agent_run_id=context.agent_run_id,
+        actor_id=context.actor_id or "system",
+        idempotency_key=context.idempotency_key,
+        created_at=context.occurred_at,
+    )
+
+
+def _details_activity_spec(command: UpdateMaterialDetailsCommand) -> ActivitySpec:
+    if command.required_quantity is not None:
+        return ActivitySpec(
+            action="material.required_quantity_updated",
+            entity_type="material",
+            entity_id=command.material_id,
+            summary="Material required quantity updated",
+            metadata={"required_quantity": str(command.required_quantity)},
+        )
+    return ActivitySpec(
+        action="material.note_added",
+        entity_type="material",
+        entity_id=command.material_id,
+        summary="Material note added",
+        metadata={"note_digest": sha256((command.note or "").encode("utf-8")).hexdigest()[:16]},
+    )
 
 
 def _validate_material_identity(material: Material) -> None:
@@ -400,8 +752,12 @@ __all__ = [
     "MaterialCreation",
     "MaterialChange",
     "MaterialMutationError",
+    "MaterialOperationChange",
     "MaterialQuantityCommand",
     "MaterialService",
     "NegativeMaterialStockError",
+    "RecordMaterialDeliveryCommand",
+    "SetMaterialQuantityCommand",
+    "UpdateMaterialDetailsCommand",
     "UpdateMaterialQuantityCommand",
 ]

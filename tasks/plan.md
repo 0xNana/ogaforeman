@@ -1,5 +1,17 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 6: Safe Material Operations
+
+Acceptance: create materials and safely record absolute stock, requirements, notes, and partial or
+full deliveries through typed services; retain append-only ledger, authorization, idempotency, and
+existing material-risk workflow ownership.
+
+Verify: focused unit and Firestore restart tests, Ruff, mypy, full non-backing backend tests, and
+the canonical mobile Golden Scenario remain green.
+
+Status: complete locally on 2026-08-14. Phase 7 (safe issue operations) is active and not
+implemented.
+
 ## Conversational Operations — Phase 5: Safe Task Operations
 
 Acceptance: create and safely update tasks through existing typed services; require resolved,
@@ -9,8 +21,7 @@ activity event per idempotent mutation.
 Verify: focused operation tests, Ruff, mypy, the full non-backing backend suite, and the canonical
 mobile Golden Scenario remain green.
 
-Status: complete locally on 2026-08-14. Phase 6 (safe material operations) is active and not
-implemented.
+Status: complete locally on 2026-08-14.
 
 ## Conversational Operations — Phase 4: Entity Resolution
 
