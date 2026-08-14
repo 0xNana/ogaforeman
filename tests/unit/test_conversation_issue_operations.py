@@ -68,6 +68,8 @@ def store() -> InMemoryRepositoryStore:
             severity=Severity.HIGH,
             description="Electrical rough-in blocked",
             detected_by=IssueDetectedBy.USER,
+            created_at=NOW,
+            updated_at=NOW,
         )
     )
     result.repository(ProjectMember).create(
