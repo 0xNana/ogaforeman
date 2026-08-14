@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from app.domain.conversation import (
+    ConfirmationDisposition,
     ConversationContext,
     IntentDecision,
     IntentDestination,
@@ -76,9 +77,15 @@ class IntentRoutingService:
         mutation_intent = decision.intent in {
             IntentType.PROJECT_MUTATION,
             IntentType.SITE_UPDATE,
-        }
+        } or (
+            decision.intent is IntentType.CONFIRMATION_RESPONSE
+            and decision.confirmation_disposition is ConfirmationDisposition.ACCEPT
+        )
+        consequential_response = decision.intent is IntentType.CONFIRMATION_RESPONSE
 
-        if mutation_intent and decision.confidence < self._mutation_confidence_threshold:
+        if (
+            mutation_intent or consequential_response
+        ) and decision.confidence < self._mutation_confidence_threshold:
             return IntentRoute(
                 decision=decision,
                 destination=IntentDestination.CLARIFICATION,

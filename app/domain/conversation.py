@@ -33,6 +33,11 @@ class IntentDestination(StrEnum):
     CONFIRMATION = "confirmation"
 
 
+class ConfirmationDisposition(StrEnum):
+    ACCEPT = "accept"
+    CANCEL = "cancel"
+
+
 class ContextDomain(StrEnum):
     PROJECT = "project"
     TASKS = "tasks"
@@ -153,6 +158,21 @@ class IntentDecision(BaseModel):
     requires_mutation: bool = False
     ambiguity: str | None = Field(default=None, max_length=240)
     reason_code: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_]+$")
+    confirmation_disposition: ConfirmationDisposition | None = None
+
+    @model_validator(mode="after")
+    def validate_confirmation_disposition(self) -> Self:
+        if (
+            self.intent is IntentType.CONFIRMATION_RESPONSE
+            and self.confirmation_disposition is None
+        ):
+            raise ValueError("confirmation responses require an accept or cancel disposition")
+        if (
+            self.intent is not IntentType.CONFIRMATION_RESPONSE
+            and self.confirmation_disposition is not None
+        ):
+            raise ValueError("only confirmation responses may include a disposition")
+        return self
 
 
 class ConversationContext(BaseModel):

@@ -37,8 +37,6 @@ router = APIRouter()
 class ConversationMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=1, max_length=20_000)
-    has_pending_clarification: bool = False
-    has_pending_confirmation: bool = False
 
 
 class ConversationMessageResponse(BaseModel):
@@ -73,10 +71,9 @@ async def send_message(
         payload.message,
         context=ConversationContext(
             has_active_project=True,
-            has_pending_clarification=payload.has_pending_clarification
-            or memory.pending_clarification is not None,
-            has_pending_confirmation=payload.has_pending_confirmation
-            or memory.pending_confirmation is not None,
+            has_pending_clarification=memory.pending_clarification is not None,
+            # Legacy raw confirmation text is never executable server state.
+            has_pending_confirmation=False,
         ),
     )
     if (
@@ -158,7 +155,8 @@ async def send_message(
             reason_code="confirmation_required",
         )
         proposed = route.decision.requested_action or payload.message
-        memory_service.remember_pending(access, confirmation=proposed, proposed_action=proposed)
+        # Raw model text is display-only. It is not an executable confirmation token.
+        memory_service.remember_pending(access, proposed_action=proposed)
         return ConversationMessageResponse(
             kind="proposed_change",
             text="I understood the requested project change. Review and confirm the exact record change before I apply it.",

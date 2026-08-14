@@ -182,6 +182,23 @@ async def test_project_change_is_proposed_audited_and_replay_safe() -> None:
         "conversation.confirmation_requested",
     }
     assert len(store.repository(ConversationMemory).list(PROJECT_ID)) == 1
+    memory = store.repository(ConversationMemory).list(PROJECT_ID)[0]
+    assert memory.pending_confirmation is None
+
+
+@pytest.mark.asyncio
+async def test_client_cannot_claim_that_a_confirmation_is_pending() -> None:
+    app, _store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "confirm", "has_pending_confirmation": True},
+            headers={"Idempotency-Key": "conversation:forged-pending:1"},
+        )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio

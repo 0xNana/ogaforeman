@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.agents.conversation import FakeIntentClassifier, IntentRoutingService
 from app.domain.conversation import (
+    ConfirmationDisposition,
     ConversationContext,
     IntentDecision,
     IntentDestination,
@@ -61,7 +62,17 @@ async def test_router_covers_phase_one_eval_taxonomy(
     expected: IntentType,
 ) -> None:
     classifier = FakeIntentClassifier(
-        {message: decision(expected, requires_project_context=expected is not IntentType.CASUAL)}
+        {
+            message: decision(
+                expected,
+                requires_project_context=expected is not IntentType.CASUAL,
+                confirmation_disposition=(
+                    ConfirmationDisposition.ACCEPT
+                    if expected is IntentType.CONFIRMATION_RESPONSE
+                    else None
+                ),
+            )
+        }
     )
 
     result = await IntentRoutingService(classifier).route(message, context=context)
@@ -151,10 +162,47 @@ def test_intent_decision_rejects_private_reasoning_and_invalid_confidence() -> N
 
 @pytest.mark.asyncio
 async def test_confirmation_words_need_pending_confirmation_context() -> None:
-    classifier = FakeIntentClassifier({"confirm": decision(IntentType.CONFIRMATION_RESPONSE)})
+    classifier = FakeIntentClassifier(
+        {
+            "confirm": decision(
+                IntentType.CONFIRMATION_RESPONSE,
+                confirmation_disposition=ConfirmationDisposition.ACCEPT,
+            )
+        }
+    )
 
     result = await IntentRoutingService(classifier).route("confirm", context=ConversationContext())
 
     assert result.decision.intent is IntentType.UNKNOWN
     assert result.destination is IntentDestination.CLARIFICATION
     assert result.decision.reason_code == "confirmation_without_pending_action"
+
+
+@pytest.mark.asyncio
+async def test_low_confidence_confirmation_cannot_authorize_a_pending_change() -> None:
+    classifier = FakeIntentClassifier(
+        {
+            "maybe do it": decision(
+                IntentType.CONFIRMATION_RESPONSE,
+                confidence=0.49,
+                confirmation_disposition=ConfirmationDisposition.ACCEPT,
+            )
+        }
+    )
+
+    result = await IntentRoutingService(classifier).route(
+        "maybe do it", context=ConversationContext(has_pending_confirmation=True)
+    )
+
+    assert result.destination is IntentDestination.CLARIFICATION
+    assert result.mutation_allowed is False
+
+
+def test_confirmation_requires_an_explicit_accept_or_cancel_disposition() -> None:
+    with pytest.raises(ValidationError):
+        decision(IntentType.CONFIRMATION_RESPONSE)
+    with pytest.raises(ValidationError):
+        decision(
+            IntentType.PROJECT_QUERY,
+            confirmation_disposition=ConfirmationDisposition.CANCEL,
+        )
