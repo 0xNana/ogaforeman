@@ -17,6 +17,7 @@ from app.api.v1.router import api_router
 from app.config import get_settings
 from app.infrastructure.pubsub import PubSubClient
 from app.infrastructure.storage import create_storage_adapter
+from app.infrastructure.gemini import GeminiIntentClassifier
 from app.services.attachments import AttachmentService
 from app.observability.logging import configure_logging
 from app.observability.tracing import cloud_trace_exporter
@@ -40,6 +41,8 @@ if settings.auth_audience:
         app.state.auth_runtime.store,
         PubSubClient(settings),
     )
+    if not settings.use_fake_model:
+        app.state.intent_classifier = GeminiIntentClassifier(settings)
     if settings.media_bucket:
         app.state.attachment_service = AttachmentService(
             app.state.auth_runtime.store,

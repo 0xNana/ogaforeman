@@ -108,7 +108,15 @@ GET /projects/{project_id}/reports/{report_date}
 POST /projects/{project_id}/daily-logs/{report_id}/edit
 GET /projects/{project_id}/activity
 GET /projects/{project_id}/agent-runs/{run_id}
+POST /projects/{project_id}/conversations/messages
 ```
+
+The conversation message endpoint accepts one bounded message plus optional pending-context
+booleans and returns one stable discriminated shape. `kind` is `casual`, `project`, `advice`,
+`clarification`, `proposed_change`, or `workflow`; all responses include user-facing `text`,
+`cited_record_ids`, and `mutation_performed`. Advice may add `recommendation`; proposals may add
+`proposed_action`; Golden workflow handoffs may add `workflow_run_id`. Project actions and site
+updates require an `Idempotency-Key`. A proposed change is not a completed mutation.
 
 The additive agent-run response exposes `id` and its explicit alias `run_id`,
 `project_id`, `trigger_event_id`, `workflow`, `status`, `step`, `attempt`,

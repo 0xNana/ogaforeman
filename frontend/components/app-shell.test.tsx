@@ -21,8 +21,8 @@ vi.mock('@/src/lib/auth', () => ({
   useAuth: () => ({ signOutUser }),
 }));
 
-vi.mock('@/components/site-composer', () => ({
-  SiteComposer: () => <div>Site composer</div>,
+vi.mock('@/components/og-conversation', () => ({
+  OgConversation: () => <div>OG conversation</div>,
 }));
 
 describe('AppShell', () => {
@@ -74,7 +74,7 @@ describe('AppShell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ask OG' }));
     expect(screen.getByRole('dialog', { name: 'Ask OG' })).toBeVisible();
     expect(screen.getByRole('dialog', { name: 'Ask OG' })).toHaveAttribute('aria-describedby', 'ask-og-description');
-    expect(screen.getByText('Site composer')).toBeVisible();
+    expect(screen.getByText('OG conversation')).toBeVisible();
     expect(document.body).toHaveClass('overlay-open');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Ask OG' })).not.toBeInTheDocument();

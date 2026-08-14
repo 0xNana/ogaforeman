@@ -1,5 +1,13 @@
 from fastapi import APIRouter
-from app.api.v1 import agent_runs, approvals, authentication, projects, resources, site_updates
+from app.api.v1 import (
+    agent_runs,
+    approvals,
+    authentication,
+    conversations,
+    projects,
+    resources,
+    site_updates,
+)
 
 api_router = APIRouter()
 api_router.include_router(authentication.router, prefix="/auth", tags=["authentication"])
@@ -13,4 +21,7 @@ api_router.include_router(
 )
 api_router.include_router(
     agent_runs.router, prefix="/projects/{project_id}/agent-runs", tags=["agent-runs"]
+)
+api_router.include_router(
+    conversations.router, prefix="/projects/{project_id}/conversations", tags=["conversations"]
 )

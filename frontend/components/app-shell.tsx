@@ -24,7 +24,7 @@ import {
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { SiteComposer } from '@/components/site-composer';
+import { OgConversation } from '@/components/og-conversation';
 import type { Project } from '@/lib/api';
 import { useAuth } from '@/src/lib/auth';
 
@@ -203,7 +203,7 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
         <div className="og-drawer-backdrop" role="presentation" onMouseDown={closeAskOg}>
           <section ref={askOgDrawer} className="og-drawer" role="dialog" aria-modal="true" aria-labelledby="ask-og-title" aria-describedby="ask-og-description" onMouseDown={(event) => event.stopPropagation()} onKeyDown={containAskOgFocus}>
             <div className="og-drawer-heading"><div><span className="eyebrow">Project assistant</span><h2 id="ask-og-title">Ask OG</h2><p id="ask-og-description">What&apos;s happening on site?</p></div><button ref={askOgClose} className="icon-action" type="button" aria-label="Close Ask OG" onClick={closeAskOg}><X size={20} /></button></div>
-            <SiteComposer projectId={projectId} embedded />
+            <OgConversation projectId={projectId} />
           </section>
         </div>
       )}

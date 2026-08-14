@@ -249,6 +249,16 @@ export type SiteUpdateInput = {
   inputType?: 'text' | 'voice' | 'photo' | 'mixed' | 'file';
 };
 
+export type ConversationMessageResult = {
+  kind: 'casual' | 'project' | 'advice' | 'clarification' | 'proposed_change' | 'workflow';
+  text: string;
+  cited_record_ids: string[];
+  recommendation?: 'proceed' | 'hold' | 'review' | null;
+  mutation_performed: boolean;
+  workflow_run_id?: string | null;
+  proposed_action?: string | null;
+};
+
 type UploadGrant = {
   attachment_id: string;
   upload_url: string;
@@ -361,6 +371,18 @@ function authenticatedFetch(path: string, token: string, init?: RequestInit): Pr
 }
 
 export const api = {
+  sendConversationMessage: async (
+    projectId: string,
+    message: string,
+    idempotencyKey = `conversation:${crypto.randomUUID()}`,
+  ): Promise<ConversationMessageResult> => remote<ConversationMessageResult>(
+    `/api/v1/projects/${projectId}/conversations/messages`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    },
+  ),
   bootstrapUser: async (displayName?: string): Promise<BootstrapUser> => remote<BootstrapUser>(
     '/api/v1/auth/bootstrap',
     {
