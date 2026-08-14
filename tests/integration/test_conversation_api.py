@@ -294,6 +294,10 @@ async def test_project_change_is_proposed_audited_and_replay_safe() -> None:
             task.model_copy(update={"description": "Changed after proposal."}),
             expected_version=task.version,
         )
+        stale = await client.get(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{first.json()['proposal_id']}",
+            params={"memory_version": first.json()["memory_version"]},
+        )
         response = await client.post(
             f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
             json={"message": "move plastering to Friday"},
@@ -301,6 +305,8 @@ async def test_project_change_is_proposed_audited_and_replay_safe() -> None:
         )
 
     assert response.status_code == 200
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "PROPOSAL_CONFLICT"
     assert response.json() == first.json()
     assert response.json()["kind"] == "proposed_change"
     assert response.json()["mutation_performed"] is False
@@ -311,9 +317,57 @@ async def test_project_change_is_proposed_audited_and_replay_safe() -> None:
     memory = store.repository(ConversationMemory).list(PROJECT_ID)[0]
     assert memory.pending_command is not None
     assert memory.pending_command.kind == "schedule"
+    assert memory.pending_command.observed_memory_version == 0
+    assert memory.pending_command.expires_at > memory.pending_command.created_at
+    assert (
+        memory.pending_command.expires_at - memory.pending_command.created_at
+    ).total_seconds() == 900
+    assert memory.pending_command.observed_entity_versions == {
+        "tsk_plaster123": 0,
+    }
     assert memory.pending_command.command.proposal is not None
     assert response.json()["proposal_id"] == memory.pending_command.proposal_id
     assert response.json()["memory_version"] == memory.version
+    assert response.json()["proposal"] == memory.pending_command.model_dump(mode="json")
+
+
+@pytest.mark.asyncio
+async def test_pending_proposal_can_be_reloaded_and_cancelled_without_domain_mutation() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:move:cancel"},
+        )
+        proposal_id = proposed.json()["proposal_id"]
+        memory_version = proposed.json()["memory_version"]
+        loaded = await client.get(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}",
+            params={"memory_version": memory_version},
+        )
+        cancelled = await client.delete(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}",
+            params={"memory_version": memory_version},
+        )
+        retry = await client.delete(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/{proposal_id}",
+            params={"memory_version": memory_version},
+        )
+
+    assert loaded.status_code == 200
+    assert loaded.json()["proposal"] == proposed.json()["proposal"]
+    assert cancelled.status_code == 200
+    assert retry.json() == cancelled.json()
+    assert cancelled.json()["kind"] == "proposal_cancelled"
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start is None
+    assert store.repository(ConversationMemory).list(PROJECT_ID)[0].pending_command is None
+    assert [item.action for item in store.repository(ActivityEvent).list(PROJECT_ID)] == [
+        "conversation.proposal_created",
+        "conversation.proposal_cleared",
+    ]
 
 
 @pytest.mark.asyncio

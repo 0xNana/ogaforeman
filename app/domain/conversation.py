@@ -478,7 +478,16 @@ class PendingCommandBase(BaseModel):
     policy_decision: MutationPolicyDecision
     idempotency_key: str = Field(min_length=1, max_length=240)
     requested_action: str = Field(min_length=1, max_length=500)
+    observed_memory_version: int | None = Field(default=None, ge=0)
+    observed_entity_versions: dict[str, int] = Field(default_factory=dict, max_length=100)
     created_at: AwareDatetime
+    expires_at: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_lifetime(self) -> Self:
+        if self.expires_at is not None and self.expires_at <= self.created_at:
+            raise ValueError("pending command expiry must be after creation")
+        return self
 
 
 class PendingTaskCommand(PendingCommandBase):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from decimal import Decimal
+from datetime import UTC, datetime, timedelta
 import os
 from uuid import uuid4
 
@@ -10,16 +9,16 @@ from google.cloud import firestore
 
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
 from app.domain.conversation import (
-    ConversationMaterialCommand,
-    MaterialOperation,
+    ConversationTaskCommand,
     MutationPolicyClass,
     MutationPolicyDecision,
-    PendingMaterialCommand,
+    PendingTaskCommand,
+    TaskOperation,
 )
-from app.domain.enums import MemberRole
+from app.domain.enums import MemberRole, TaskStatus
 from app.repositories.firestore import FirestoreRepositoryStore
 from app.services.conversation_entity_resolution import ConversationEntityResolver
-from app.services.conversation_memory import ConversationMemoryService
+from app.services.conversation_memory import ConversationMemoryService, conversation_proposal_id
 
 
 pytestmark = [
@@ -41,21 +40,26 @@ def test_pending_command_survives_firestore_restart_and_clear_replays() -> None:
     )
     store = FirestoreRepositoryStore(firestore.Client(project=cloud_project))
     service = ConversationMemoryService(store, ConversationEntityResolver(store))
-    pending = PendingMaterialCommand(
-        proposal_id="cpr_cement123",
+    created_at = datetime.now(UTC)
+    pending = PendingTaskCommand(
+        proposal_id=conversation_proposal_id(
+            project_id, access.actor.user_id, "conversation:reopen:1"
+        ),
         project_id=project_id,
         actor_id=access.actor.user_id,
         policy_decision=MutationPolicyDecision(
             policy=MutationPolicyClass.AUTO_EXECUTE,
             reason_code="routine_reversible_operation",
         ),
-        idempotency_key="conversation:cement:100",
-        requested_action="Record Cement at 100 bags",
-        created_at=datetime(2026, 8, 14, 12, tzinfo=UTC),
-        command=ConversationMaterialCommand(
-            operation=MaterialOperation.SET_ON_SITE,
-            quantity=Decimal("100"),
-            unit="bags",
+        idempotency_key="conversation:reopen:1",
+        requested_action="Reopen plastering",
+        observed_memory_version=0,
+        created_at=created_at,
+        expires_at=created_at + timedelta(minutes=15),
+        command=ConversationTaskCommand(
+            operation=TaskOperation.CHANGE_STATUS,
+            target_status=TaskStatus.IN_PROGRESS,
+            reopening=True,
         ),
     )
     saved = service.remember_command(access, pending)

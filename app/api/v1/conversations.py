@@ -14,6 +14,7 @@ from app.domain.conversation import (
     EntityKind,
     EntityResolutionStatus,
     IntentDestination,
+    PendingConversationCommand,
     SiteUpdateRouteCommand,
 )
 from app.services.conversation_action_execution import ConversationActionExecutionService
@@ -47,6 +48,66 @@ class ConversationMessageResponse(BaseModel):
     proposal_id: str | None = None
     memory_version: int | None = None
     activity_id: str | None = None
+    proposal: PendingConversationCommand | None = None
+
+
+class ConversationProposalResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    proposal: PendingConversationCommand
+    memory_version: int = Field(ge=0)
+
+
+@router.get(
+    "/proposals/{proposal_id}",
+    response_model=ConversationProposalResponse,
+)
+def get_proposal(
+    project_id: str,
+    proposal_id: str,
+    memory_version: int,
+    request: Request,
+) -> ConversationProposalResponse:
+    access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
+    runtime = auth_runtime(request)
+    memory = ConversationMemoryService(runtime.store, ConversationEntityResolver(runtime.store))
+    try:
+        proposal = memory.require_command(access, proposal_id, memory_version)
+    except (ValueError, PermissionError) as exc:
+        raise ApiError(
+            "PROPOSAL_CONFLICT",
+            "The proposal is stale, expired, or no longer available. Reload the conversation.",
+            status_code=409,
+        ) from exc
+    return ConversationProposalResponse(proposal=proposal, memory_version=memory_version)
+
+
+@router.delete(
+    "/proposals/{proposal_id}",
+    response_model=ConversationMessageResponse,
+)
+def cancel_proposal(
+    project_id: str,
+    proposal_id: str,
+    memory_version: int,
+    request: Request,
+) -> ConversationMessageResponse:
+    access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
+    runtime = auth_runtime(request)
+    try:
+        memory = ConversationMemoryService(
+            runtime.store, ConversationEntityResolver(runtime.store)
+        ).clear_command(access, proposal_id, memory_version)
+    except (ValueError, PermissionError) as exc:
+        raise ApiError(
+            "PROPOSAL_CONFLICT",
+            "The proposal changed or is no longer available. Reload the conversation.",
+            status_code=409,
+        ) from exc
+    return ConversationMessageResponse(
+        kind="proposal_cancelled",
+        text="The proposal was cancelled. No project change was applied.",
+        memory_version=memory.version,
+    )
 
 
 @router.post("/messages", response_model=ConversationMessageResponse)
@@ -152,6 +213,7 @@ async def send_message(
             proposal_id=outcome.proposal_id,
             memory_version=outcome.memory_version,
             activity_id=outcome.activity_id,
+            proposal=outcome.proposal,
         )
     return ConversationMessageResponse(
         kind="clarification", text="Please clarify the project change you want OG to make."

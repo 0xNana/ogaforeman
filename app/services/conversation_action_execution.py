@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from collections.abc import Callable
 from typing import Protocol
@@ -49,6 +49,7 @@ from app.services.conversation_context import ProjectContextService, ProjectRead
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_issue_operations import ConversationIssueService
 from app.services.conversation_memory import ConversationMemoryService
+from app.services.conversation_memory import conversation_proposal_id
 from app.services.conversation_material_operations import ConversationMaterialService
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_task_operations import ConversationTaskService
@@ -76,6 +77,13 @@ class ConversationActionOutcome:
     proposed_action: str | None = None
     proposal_id: str | None = None
     memory_version: int | None = None
+    proposal: (
+        PendingTaskCommand
+        | PendingMaterialCommand
+        | PendingIssueCommand
+        | PendingScheduleCommand
+        | None
+    ) = None
 
 
 _ACTION_DOMAINS = (
@@ -122,10 +130,29 @@ class ConversationActionExecutionService:
     ) -> ConversationActionOutcome:
         existing_memory = self._memory.load(access)
         existing = existing_memory.pending_command
-        expected_proposal_id = _proposal_id(access, idempotency_key)
+        expected_proposal_id = conversation_proposal_id(
+            access.project_id, access.actor.user_id, idempotency_key
+        )
+        if (
+            existing is not None
+            and (existing.expires_at is None or existing.expires_at <= datetime.now(UTC))
+            and existing.proposal_id != expected_proposal_id
+        ):
+            existing_memory = self._memory.clear_command(
+                access, existing.proposal_id, existing_memory.version
+            )
+            existing = None
         if existing is not None and existing.proposal_id == expected_proposal_id:
             if existing.idempotency_key != idempotency_key or existing.requested_action != message:
                 raise ValueError("idempotency key is already bound to another conversation action")
+            if existing.expires_at is None or existing.expires_at <= datetime.now(UTC):
+                return ConversationActionOutcome(
+                    kind="proposal_expired",
+                    text="That proposal has expired. Ask OG to prepare the change again.",
+                    mutation_performed=False,
+                    proposal_id=existing.proposal_id,
+                    memory_version=existing_memory.version,
+                )
             return ConversationActionOutcome(
                 kind="proposed_change",
                 text="Review and confirm this project change before OG applies it.",
@@ -133,6 +160,7 @@ class ConversationActionExecutionService:
                 proposed_action=existing.requested_action,
                 proposal_id=existing.proposal_id,
                 memory_version=existing_memory.version,
+                proposal=existing,
             )
         snapshot = self._context.retrieve(
             access, ContextQuery(domains=_ACTION_DOMAINS, focus=ContextFocus.ALL)
@@ -176,12 +204,14 @@ class ConversationActionExecutionService:
                 proposed_action=message,
             )
         if proposal.policy_decision.policy is not MutationPolicyClass.AUTO_EXECUTE:
+            memory = self._memory.load(access)
             pending = self._pending(
                 access,
                 proposal.command,
                 proposal.policy_decision,
                 message,
                 idempotency_key,
+                observed_memory_version=memory.version,
             )
             if pending.policy_decision.policy is MutationPolicyClass.APPROVAL_REQUIRED:
                 return ConversationActionOutcome(
@@ -190,13 +220,15 @@ class ConversationActionExecutionService:
                     mutation_performed=False,
                     proposed_action=message,
                 )
-            memory = self._memory.load(access)
             if memory.pending_command is not None and _same_pending(
                 memory.pending_command, pending
             ):
                 pending = memory.pending_command
             else:
                 memory = self._memory.remember_command(access, pending)
+            if memory.pending_command is None:
+                raise RuntimeError("pending proposal persistence returned no command")
+            pending = memory.pending_command
             return ConversationActionOutcome(
                 kind="proposed_change",
                 text="Review and confirm this project change before OG applies it.",
@@ -204,6 +236,7 @@ class ConversationActionExecutionService:
                 proposed_action=message,
                 proposal_id=pending.proposal_id,
                 memory_version=memory.version,
+                proposal=pending,
             )
         mutation = MutationContext(
             project_id=access.project_id,
@@ -250,9 +283,14 @@ class ConversationActionExecutionService:
         policy: MutationPolicyDecision,
         requested_action: str,
         idempotency_key: str,
+        *,
+        observed_memory_version: int,
     ) -> PendingTaskCommand | PendingMaterialCommand | PendingIssueCommand | PendingScheduleCommand:
-        proposal_id = _proposal_id(access, idempotency_key)
+        proposal_id = conversation_proposal_id(
+            access.project_id, access.actor.user_id, idempotency_key
+        )
         created_at = datetime.now(UTC)
+        expires_at = created_at + timedelta(minutes=15)
         if isinstance(command, ConversationTaskCommand):
             return PendingTaskCommand(
                 proposal_id=proposal_id,
@@ -262,6 +300,9 @@ class ConversationActionExecutionService:
                 idempotency_key=idempotency_key,
                 requested_action=requested_action,
                 created_at=created_at,
+                expires_at=expires_at,
+                observed_memory_version=observed_memory_version,
+                observed_entity_versions=_observed_entity_versions(command),
                 command=command,
             )
         if isinstance(command, ConversationMaterialCommand):
@@ -273,6 +314,9 @@ class ConversationActionExecutionService:
                 idempotency_key=idempotency_key,
                 requested_action=requested_action,
                 created_at=created_at,
+                expires_at=expires_at,
+                observed_memory_version=observed_memory_version,
+                observed_entity_versions=_observed_entity_versions(command),
                 command=command,
             )
         if isinstance(command, ConversationIssueCommand):
@@ -284,6 +328,9 @@ class ConversationActionExecutionService:
                 idempotency_key=idempotency_key,
                 requested_action=requested_action,
                 created_at=created_at,
+                expires_at=expires_at,
+                observed_memory_version=observed_memory_version,
+                observed_entity_versions=_observed_entity_versions(command),
                 command=command,
             )
         if isinstance(command, ScheduleChangeCommand):
@@ -311,6 +358,11 @@ class ConversationActionExecutionService:
                 idempotency_key=idempotency_key,
                 requested_action=requested_action,
                 created_at=created_at,
+                expires_at=expires_at,
+                observed_memory_version=observed_memory_version,
+                observed_entity_versions={
+                    item.task_id: item.version for item in schedule_proposal.token.affected_versions
+                },
                 command=command.model_copy(update={"proposal": schedule_proposal.token}),
             )
         raise ValueError("purchase approval handoff is not part of routine mutation dispatch")
@@ -406,11 +458,6 @@ def _mutation_kind(
     return MutationKind.MATERIAL_PURCHASE
 
 
-def _proposal_id(access: ProjectAccessContext, idempotency_key: str) -> str:
-    raw = f"{access.project_id}\x00{access.actor.user_id}\x00{idempotency_key}".encode()
-    return f"cpr_{sha256(raw).hexdigest()[:32]}"
-
-
 def _same_pending(left: object, right: object) -> bool:
     if not isinstance(
         left,
@@ -422,7 +469,30 @@ def _same_pending(left: object, right: object) -> bool:
         (PendingTaskCommand, PendingMaterialCommand, PendingIssueCommand, PendingScheduleCommand),
     ):
         return False
-    return left.model_dump(exclude={"created_at"}) == right.model_dump(exclude={"created_at"})
+    return left.model_dump(exclude={"created_at", "expires_at"}) == right.model_dump(
+        exclude={"created_at", "expires_at"}
+    )
+
+
+def _observed_entity_versions(
+    command: ConversationTaskCommand | ConversationMaterialCommand | ConversationIssueCommand,
+) -> dict[str, int]:
+    versions: dict[str, int] = {}
+    if isinstance(command, ConversationTaskCommand):
+        if command.task and command.task.entity_id and command.expected_version is not None:
+            versions[command.task.entity_id] = command.expected_version
+    elif isinstance(command, ConversationMaterialCommand):
+        if command.material and command.material.entity_id and command.expected_version is not None:
+            versions[command.material.entity_id] = command.expected_version
+        if (
+            command.material_request
+            and command.material_request.entity_id
+            and command.expected_material_request_version is not None
+        ):
+            versions[command.material_request.entity_id] = command.expected_material_request_version
+    elif command.issue and command.issue.entity_id and command.expected_version is not None:
+        versions[command.issue.entity_id] = command.expected_version
+    return versions
 
 
 __all__ = ["ActionInterpreter", "ConversationActionExecutionService", "ConversationActionOutcome"]

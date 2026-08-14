@@ -5,24 +5,30 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from hashlib import sha256
 import json
+from collections.abc import Callable
 
 from pydantic import TypeAdapter
 
 from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.authorization import ProjectAccessContext, ProjectPermission, ensure_permission
 from app.domain.conversation import (
+    ConversationIssueCommand,
+    ConversationMaterialCommand,
+    ConversationTaskCommand,
     EntityKind,
     EntityResolution,
     EntityResolutionStatus,
     IssueOperation,
     MaterialOperation,
     MutationKind,
+    MutationPolicyClass,
     MutationPolicyRequest,
     PendingConversationCommand,
     PendingIssueCommand,
     PendingMaterialCommand,
     PendingScheduleCommand,
     PendingTaskCommand,
+    ScheduleChangeCommand,
     TaskOperation,
 )
 from app.domain.enums import ActorType, TaskStatus
@@ -30,6 +36,10 @@ from app.domain.models import (
     ConversationEntityReference,
     ConversationMemory,
     ConversationProposalClaim,
+    Issue,
+    Material,
+    MaterialRequest,
+    Task,
 )
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.services.conversation_entity_resolution import ConversationEntityResolver
@@ -48,11 +58,14 @@ class ConversationMemoryService:
         store: RepositoryStore,
         resolver: ConversationEntityResolver,
         policies: MutationPolicyService | None = None,
+        *,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._store = store
         self._resolver = resolver
         self._policies = policies or MutationPolicyService()
         self._activities = ActivityService(store)
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     def load(self, access: ProjectAccessContext) -> ConversationMemory:
         ensure_permission(access, ProjectPermission.READ)
@@ -143,6 +156,22 @@ class ConversationMemoryService:
         expected_policy = self._policies.classify(access, _policy_request(command))
         if command.policy_decision != expected_policy:
             raise ValueError("pending command policy does not match deterministic policy")
+        if command.policy_decision.policy is not MutationPolicyClass.CONFIRM_FIRST:
+            raise ValueError("only confirm-first commands may be persisted as pending")
+        if command.proposal_id != conversation_proposal_id(
+            command.project_id, command.actor_id, command.idempotency_key
+        ):
+            raise ValueError("pending command proposal identity is not server-derived")
+        if command.observed_memory_version is None or command.expires_at is None:
+            raise ValueError("pending command is missing server lifecycle fields")
+        if (command.expires_at - command.created_at).total_seconds() != 900:
+            raise ValueError("pending command lifetime must be exactly 15 minutes")
+        if command.created_at > self._clock():
+            raise ValueError("pending command creation time cannot be in the future")
+        if command.observed_entity_versions != _entity_versions(command):
+            raise ValueError("pending command observed entity versions do not match its payload")
+        if command.expires_at is not None and command.expires_at <= self._clock():
+            raise ValueError("pending command has expired")
         if (
             self._store.repository(ConversationProposalClaim).get(
                 access.project_id, command.proposal_id
@@ -154,7 +183,7 @@ class ConversationMemoryService:
             access.project_id, _memory_id(access)
         )
         if observed is not None and observed.pending_command is not None:
-            if observed.pending_command == command:
+            if _same_proposal(observed.pending_command, command):
                 pass
             elif observed.pending_command.proposal_id == command.proposal_id:
                 raise ValueError("a proposal identity cannot be reused for different content")
@@ -175,8 +204,13 @@ class ConversationMemoryService:
                 project_id=access.project_id,
                 actor_id=access.actor.user_id,
             )
-            if current.pending_command == command:
+            if current.pending_command == command or (
+                current.pending_command is not None
+                and _same_proposal(current.pending_command, command)
+            ):
                 return current
+            if current.version != command.observed_memory_version:
+                raise ValueError("conversation memory changed; rebuild the pending proposal")
             if current.pending_command is not None:
                 if current.pending_command.proposal_id == command.proposal_id:
                     raise ValueError("a proposal identity cannot be reused for different content")
@@ -193,8 +227,7 @@ class ConversationMemoryService:
                 return repository.create(saved)
             return repository.save(saved, expected_version=current.version)
 
-        command_json = command.model_dump_json(exclude={"created_at"})
-        command_fingerprint = sha256(command_json.encode("utf-8")).hexdigest()
+        command_fingerprint = _command_fingerprint(command)
         audit_key = f"conversation-proposal:{sha256(command.idempotency_key.encode()).hexdigest()}"
         result = self._activities.mutate(
             MutationContext(
@@ -239,6 +272,32 @@ class ConversationMemoryService:
             raise ValueError("pending conversational proposal does not match")
         if command.project_id != access.project_id or command.actor_id != access.actor.user_id:
             raise PermissionError("pending command does not match the authorized project actor")
+        expected_policy = self._policies.classify(access, _policy_request(command))
+        if (
+            command.policy_decision != expected_policy
+            or command.policy_decision.policy is not MutationPolicyClass.CONFIRM_FIRST
+        ):
+            raise ValueError("pending command is not an authorized confirm-first proposal")
+        if command.proposal_id != conversation_proposal_id(
+            command.project_id, command.actor_id, command.idempotency_key
+        ):
+            raise ValueError("pending command proposal identity is not server-derived")
+        if command.expires_at is None:
+            raise ValueError("legacy pending command must be rebuilt before execution")
+        if (command.expires_at - command.created_at).total_seconds() != 900:
+            raise ValueError("pending command lifetime is invalid")
+        if command.created_at > self._clock():
+            raise ValueError("pending command creation time is invalid")
+        if command.expires_at <= self._clock():
+            raise ValueError("pending command has expired")
+        if command.observed_memory_version is None:
+            raise ValueError("pending command is missing its observed memory version")
+        if command.observed_entity_versions != _entity_versions(command):
+            raise ValueError("pending command observed entity versions are invalid")
+        for entity_id, observed_version in command.observed_entity_versions.items():
+            current_version = _current_entity_version(self._store, access.project_id, entity_id)
+            if current_version != observed_version:
+                raise ValueError("pending command target state is stale; rebuild the proposal")
         return command
 
     def clear_command(
@@ -287,7 +346,28 @@ class ConversationMemoryService:
             )
             return saved
 
-        return self._store.run_transaction(operation)
+        result = self._activities.mutate(
+            MutationContext(
+                project_id=access.project_id,
+                actor_type=ActorType.USER,
+                actor_id=access.actor.user_id,
+                idempotency_key=f"conversation-clear:{proposal_id}",
+            ),
+            ActivitySpec(
+                action="conversation.proposal_cleared",
+                entity_type="conversation_memory",
+                entity_id=_memory_id(access),
+                summary="Conversation proposal cleared.",
+                metadata={"proposal_id": proposal_id},
+            ),
+            operation,
+            replay=lambda session, _event: session.repository(ConversationMemory).require(
+                access.project_id, _memory_id(access)
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("proposal clear replay did not recover conversation memory")
+        return result.value
 
 
 def _policy_request(command: PendingConversationCommand) -> MutationPolicyRequest:
@@ -360,9 +440,65 @@ def _memory_id(access: ProjectAccessContext) -> str:
 
 def _command_fingerprint(command: PendingConversationCommand) -> str:
     payload = json.dumps(
-        command.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+        command.model_dump(mode="json", exclude={"created_at", "expires_at"}),
+        sort_keys=True,
+        separators=(",", ":"),
     ).encode()
     return sha256(payload).hexdigest()
 
 
-__all__ = ["ConversationMemoryService"]
+def conversation_proposal_id(project_id: str, actor_id: str, idempotency_key: str) -> str:
+    raw = f"{project_id}\x00{actor_id}\x00{idempotency_key}".encode()
+    return f"cpr_{sha256(raw).hexdigest()[:32]}"
+
+
+def _same_proposal(left: PendingConversationCommand, right: PendingConversationCommand) -> bool:
+    return left.model_dump(exclude={"created_at", "expires_at"}) == right.model_dump(
+        exclude={"created_at", "expires_at"}
+    )
+
+
+def _current_entity_version(store: RepositoryStore, project_id: str, entity_id: str) -> int | None:
+    if entity_id.startswith("tsk_"):
+        return store.repository(Task).version_of(project_id, entity_id)
+    if entity_id.startswith("mat_"):
+        return store.repository(Material).version_of(project_id, entity_id)
+    if entity_id.startswith("mreq_"):
+        return store.repository(MaterialRequest).version_of(project_id, entity_id)
+    if entity_id.startswith("iss_"):
+        return store.repository(Issue).version_of(project_id, entity_id)
+    raise ValueError("pending command contains an unsupported versioned entity")
+
+
+def _entity_versions(command: PendingConversationCommand) -> dict[str, int]:
+    payload = command.command
+    if isinstance(command, PendingTaskCommand):
+        assert isinstance(payload, ConversationTaskCommand)
+        if payload.task and payload.task.entity_id and payload.expected_version is not None:
+            return {payload.task.entity_id: payload.expected_version}
+        return {}
+    if isinstance(command, PendingMaterialCommand):
+        assert isinstance(payload, ConversationMaterialCommand)
+        versions: dict[str, int] = {}
+        if payload.material and payload.material.entity_id and payload.expected_version is not None:
+            versions[payload.material.entity_id] = payload.expected_version
+        if (
+            payload.material_request
+            and payload.material_request.entity_id
+            and payload.expected_material_request_version is not None
+        ):
+            versions[payload.material_request.entity_id] = payload.expected_material_request_version
+        return versions
+    if isinstance(command, PendingIssueCommand):
+        assert isinstance(payload, ConversationIssueCommand)
+        if payload.issue and payload.issue.entity_id and payload.expected_version is not None:
+            return {payload.issue.entity_id: payload.expected_version}
+        return {}
+    assert isinstance(payload, ScheduleChangeCommand)
+    proposal = payload.proposal
+    if proposal is None:
+        return {}
+    return {item.task_id: item.version for item in proposal.affected_versions}
+
+
+__all__ = ["ConversationMemoryService", "conversation_proposal_id"]
