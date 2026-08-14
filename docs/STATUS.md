@@ -2,9 +2,16 @@
 
 ## Status date
 
-2026-08-13
+2026-08-14
 
 ## Summary
+
+Conversational Operations phases 11–15 are implemented locally. OG now returns cited read-only
+project advice, retains bounded per-user/project references that are revalidated against persisted
+truth, and exposes typed conversation/advice/proposal/workflow responses in the global responsive
+Ask OG drawer while reusing the existing multimodal Golden intake. Significant conversational
+change requests and confirmation pauses are replay-safe ActivityEvents, and conversational task,
+material, and issue commands surface optimistic conflicts instead of overwriting newer state.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed
@@ -71,7 +78,16 @@ resolved; remaining gates require deployed auth/operations evidence, a
 configured model, or human release review. The canonical evidence checklist is
 [tasks/todo-v1.md](../tasks/todo-v1.md).
 
-## Locally verified on 2026-08-13
+## Local verification history
+
+Conversational phases 11–15 verification on 2026-08-14:
+
+- focused advice, memory, API, audit, conflict, and drawer tests: passed
+- Ruff check/format and mypy: passed
+- backend without backing services: 413 passed, 24 deselected
+- frontend Vitest: 48 passed
+- frontend typecheck, lint, and production build: passed
+- canonical mobile Golden Scenario: 7 passed
 
 - uv locked sync: passed
 - Ruff check and format: passed

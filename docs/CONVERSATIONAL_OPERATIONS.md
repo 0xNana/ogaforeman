@@ -85,3 +85,24 @@ one replay-safe schedule activity. Major changes remain on the approval-required
 Phase 10 routes text/chat site facts through a typed `ConversationSiteUpdateRouter` into the
 existing `SiteUpdateIntakeService`, preserving durable event, outbox, AgentRun, coordinator, and
 Golden workflow behavior without duplicating fact interpretation or mutations.
+
+Phase 11 adds a read-only advice service over authorized context. Recommendations cite persisted
+task, issue, and material records, distinguish proceed/hold/review, and cannot authorize a write.
+
+Phase 12 stores only bounded entity pointers and pending conversation context in a project- and
+user-scoped Firestore record. A pointer is resolved again through the authorized entity resolver
+before use; missing or changed records cannot be revived from chat history.
+
+Phase 13 adds `POST /api/v1/projects/{project_id}/conversations/messages` and connects it to the
+global Ask OG drawer. The response contract discriminates normal replies, advice, proposed
+changes, clarifications, and Golden workflow handoffs. Voice, photo, and attachment intake remains
+the existing `SiteComposer` inside the drawer rather than a second media path.
+
+Phase 14 records observable `conversation.mutation_requested` and
+`conversation.confirmation_requested` transitions with bounded reason codes. Existing typed
+domain services continue to own mutation and approval activities; prompts, raw chat content,
+chain-of-thought, and secrets are excluded.
+
+Phase 15 carries optional expected versions into conversational task, material, and issue
+commands. Replayed idempotency scopes return the prior result, while stale commands raise a
+conflict and preserve the latest persisted value.

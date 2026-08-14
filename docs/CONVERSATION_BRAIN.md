@@ -4,7 +4,7 @@
 
 **Golden Scenario:** PASS AND LOCKED
 
-**Active phase:** Phase 11 — Advice Mode
+**Active phase:** Phase 16 — Conversational Evals
 
 The existing Golden Scenario is the foundation of OG Foreman and must not regress:
 

@@ -48,15 +48,35 @@ Status: COMPLETE
 
 Phase 11 — Advice Mode
 
+Status: COMPLETE
+
+Phase 12 — Conversational Memory
+
+Status: COMPLETE
+
+Phase 13 — OG Drawer Integration
+
+Status: COMPLETE
+
+Phase 14 — Conversational Activity & Audit
+
+Status: COMPLETE
+
+Phase 15 — Conflict, Concurrency & Idempotency
+
+Status: COMPLETE
+
+Phase 16 — Conversational Evals
+
 Status: ACTIVE
 
-Phases 12–17
+Phase 17 — Final Conversational Golden Flow
 
 Status: NOT STARTED
 
 ## Current blockers
 
-- None for local Phase 11 implementation.
+- None for local Phase 16 implementation.
 
 ## Known regressions
 
@@ -64,9 +84,9 @@ Status: NOT STARTED
 
 ## Last verified Golden Scenario
 
-- Date: 2026-08-13
+- Date: 2026-08-14
 - Command: `cd frontend && npm run test:e2e -- site-intake.spec.ts --project=mobile-chromium --reporter=line`
-- Result: 7 passed
+- Result: 7 passed after preserving the visible multimodal composer in the integrated drawer
 
 ## Phase 1 evidence
 
@@ -76,6 +96,19 @@ Status: NOT STARTED
 - Low-confidence mutations route to clarification and cannot enter an action destination.
 - Context-free confirmation and clarification responses are rejected safely.
 - `SITE_UPDATE` maps to the existing Golden workflow destination.
+
+## Phase 11–15 evidence
+
+- Advice uses fresh authorized schedule, dependency, material, request, approval, and issue
+  context, returns cited proceed/hold/review guidance, and performs no domain mutation.
+- Firestore-backed conversational memory is bounded by project and canonical actor and retains
+  references rather than entity snapshots; every reference is re-resolved before use.
+- The responsive Ask OG drawer renders concise reply, advice, proposed-change, and workflow states
+  and retains the existing voice/photo/attachment intake path.
+- Significant change-request and confirmation transitions emit allowlisted, idempotent activities;
+  routine chatter and private model reasoning are not logged.
+- Conversational task, material, and issue commands reject stale expected versions and preserve
+  fresh state; duplicate request audit and existing typed domain mutations replay once.
 
 ## Phase 2 evidence
 

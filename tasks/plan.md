@@ -1,5 +1,18 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phases 11–15
+
+Acceptance: provide cited read-only advice; retain bounded per-user/project references without
+using memory as project truth; expose the versioned conversation contract in the responsive Ask
+OG drawer; audit significant observable conversation transitions without private reasoning; and
+apply the same idempotency and optimistic-concurrency controls as direct operations.
+
+Verification: focused advice, memory, API, audit, mutation, and drawer tests; Ruff, formatting,
+mypy, frontend lint/typecheck/tests/build, full non-backing backend tests, and the canonical mobile
+Golden Scenario.
+
+Status: complete locally on 2026-08-14. Phase 16 conversational evals is active.
+
 ## Conversational Operations — Phase 10: Unified Site Update Routing
 
 Acceptance: route text/chat site facts into existing durable intake and the Golden workflow with
