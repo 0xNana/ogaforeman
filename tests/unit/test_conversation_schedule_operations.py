@@ -114,9 +114,7 @@ def test_confirmed_schedule_change_shifts_dependencies_atomically_and_replays() 
         planned_end=NOW + timedelta(days=4),
     )
     proposal = service.propose(access(), proposed_command)
-    command = proposed_command.model_copy(
-        update={"confirmed": True, "proposal": proposal.token}
-    )
+    command = proposed_command.model_copy(update={"confirmed": True, "proposal": proposal.token})
     first = service.execute(access(), command, context("og:schedule:plastering"))
     replay = service.execute(access(), command, context("og:schedule:plastering"))
     assert first.tasks[0].planned_start == NOW + timedelta(days=3)
@@ -166,9 +164,7 @@ def test_confirmed_schedule_change_rejects_state_changed_after_proposal() -> Non
     with pytest.raises(VersionConflictError, match="schedule proposal is stale"):
         service.execute(
             access(),
-            proposed_command.model_copy(
-                update={"confirmed": True, "proposal": proposal.token}
-            ),
+            proposed_command.model_copy(update={"confirmed": True, "proposal": proposal.token}),
             context("og:schedule:stale"),
         )
 
@@ -253,9 +249,7 @@ def test_same_idempotency_key_rejects_a_different_schedule_payload() -> None:
     with pytest.raises(ActivityIdempotencyConflict):
         service.execute(
             access(),
-            different.model_copy(
-                update={"confirmed": True, "proposal": different_proposal.token}
-            ),
+            different.model_copy(update={"confirmed": True, "proposal": different_proposal.token}),
             context("og:schedule:reused-key"),
         )
 
