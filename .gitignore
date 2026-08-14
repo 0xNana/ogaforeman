@@ -16,6 +16,12 @@ coverage.xml
 .coverage
 htmlcov/
 
+# Frontend dependencies and generated Next.js output
+frontend/node_modules/
+frontend/.next/
+frontend/.next-playwright/
+frontend/next-env.d.ts
+
 # Environment and credentials
 .env
 .env.*
