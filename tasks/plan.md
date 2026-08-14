@@ -1,5 +1,32 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational Operations — Phase 17: Final Conversational Golden Flow
+
+Acceptance: execute the locked conversation through the authenticated API and responsive drawer;
+derive typed task/material/issue/schedule commands from authorized persisted context; apply the
+deterministic policy; auto-execute only routine reversible operations; persist exact signed,
+version-bound confirmation state; resume or cancel it after restart; hand approval-required work
+to existing approval workflows; atomically audit every mutation; and prove durable coherent state
+with a runtime-backed integration and browser gate.
+
+Implementation slices:
+
+1. Define a typed, persisted pending-command envelope and exact confirmation lifecycle.
+2. Compose deterministic conversational commands from intent plus authorized entity resolution.
+3. Dispatch routine task, material, and issue operations through existing typed services.
+4. Propose, persist, confirm/cancel, and replay signed schedule changes after revalidation.
+5. Hand approval-required material purchases to the existing approval workflow without external
+   execution.
+6. Add accessible drawer confirm/cancel controls and refresh-safe response state.
+7. Add runtime-backed API, restart, authorization, replay, conflict, approval, and browser Golden
+   Flow gates; run the original Golden Scenario and complete phase documentation.
+
+Verification: focused unit/API/Firestore tests after each slice; Ruff, formatting, mypy, frontend
+lint/typecheck/tests/build, full non-backing and backing-service suites, conversational runtime
+eval, and canonical mobile Golden Scenario.
+
+Status: active on 2026-08-14.
+
 ## Conversational Operations — Phase 16: Conversational Evals
 
 Acceptance: ship a versioned deterministic benchmark covering every Phase 16 category; compare

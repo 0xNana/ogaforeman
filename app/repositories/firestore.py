@@ -14,6 +14,7 @@ from app.domain.models import (
     Approval,
     Attachment,
     ConversationMemory,
+    ConversationProposalClaim,
     DailyReport,
     Issue,
     Material,
@@ -59,6 +60,7 @@ _COLLECTIONS: dict[type[BaseModel], str] = {
     ProcessedEvent: "processed_events",
     OutboxMessage: "outbox",
     ConversationMemory: "conversation_memory",
+    ConversationProposalClaim: "conversation_proposal_claims",
 }
 _REPOSITORY_VERSION_FIELD = "_repository_version"
 

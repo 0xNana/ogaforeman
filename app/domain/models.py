@@ -13,6 +13,8 @@ from pydantic import (
     model_validator,
 )
 
+from .conversation import PendingConversationCommand
+
 from .enums import (
     ActorType,
     AgentRunStatus,
@@ -96,9 +98,20 @@ class ConversationMemory(DomainModel):
     pending_clarification: str | None = Field(default=None, max_length=500)
     pending_confirmation: str | None = Field(default=None, max_length=500)
     pending_approval_id: CanonicalId | None = None
+    pending_command: PendingConversationCommand | None = None
     recent_proposed_action: str | None = Field(default=None, max_length=500)
     version: int = Field(default=0, ge=0)
     updated_at: AwareDatetime = Field(default_factory=utc_now)
+
+
+class ConversationProposalClaim(DomainModel):
+    """Durable idempotency tombstone for a consumed conversational proposal."""
+
+    id: CanonicalId
+    project_id: CanonicalId
+    actor_id: CanonicalId
+    command_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    consumed_at: AwareDatetime = Field(default_factory=utc_now)
 
 
 class Project(DomainModel):

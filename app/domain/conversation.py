@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Self
+from typing import Annotated, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
@@ -120,8 +120,14 @@ class MutationKind(StrEnum):
     TASK_CREATE = "task_create"
     TASK_COMPLETE = "task_complete"
     TASK_ASSIGN = "task_assign"
+    TASK_UPDATE = "task_update"
+    MATERIAL_CREATE = "material_create"
     MATERIAL_QUANTITY = "material_quantity"
+    MATERIAL_DELIVERY = "material_delivery"
+    MATERIAL_UPDATE = "material_update"
+    ISSUE_CREATE = "issue_create"
     ISSUE_RESOLVE = "issue_resolve"
+    ISSUE_UPDATE = "issue_update"
     ADD_NOTE = "add_note"
     SCHEDULE_DATES = "schedule_dates"
     TASK_DEPENDENCIES = "task_dependencies"
@@ -224,6 +230,7 @@ class TaskContextItem(BaseModel):
     planned_end: datetime | None = None
     actual_completion: datetime | None = None
     dependency_ids: tuple[str, ...] = ()
+    version: int = Field(default=0, ge=0)
 
 
 class IssueContextItem(BaseModel):
@@ -238,6 +245,7 @@ class IssueContextItem(BaseModel):
     owner_id: str | None = None
     owner_name: str | None = None
     due_at: datetime | None = None
+    version: int = Field(default=0, ge=0)
 
 
 class MaterialContextItem(BaseModel):
@@ -250,6 +258,7 @@ class MaterialContextItem(BaseModel):
     reserved_quantity: Decimal
     minimum_required_quantity: Decimal
     upcoming_requirement_quantity: Decimal | None = None
+    version: int = Field(default=0, ge=0)
 
 
 class MaterialRequestContextItem(BaseModel):
@@ -258,11 +267,13 @@ class MaterialRequestContextItem(BaseModel):
     id: str
     material_id: str
     quantity: Decimal
+    delivered_quantity: Decimal = Field(default=Decimal("0"), ge=0)
     unit: str
     status: str
     needed_by: datetime | None = None
     reason: str
     approval_id: str | None = None
+    version: int = Field(default=0, ge=0)
 
 
 class ApprovalContextItem(BaseModel):
@@ -385,6 +396,7 @@ class ConversationTaskCommand(BaseModel):
     evidence: str | None = Field(default=None, min_length=1, max_length=5_000)
     negated: bool = False
     ambiguous: bool = False
+    reopening: bool = False
     expected_version: int | None = Field(default=None, ge=0)
 
 
@@ -403,6 +415,7 @@ class ConversationMaterialCommand(BaseModel):
     delivery_complete: bool = False
     requires_material_risk_workflow: bool = False
     expected_version: int | None = Field(default=None, ge=0)
+    expected_material_request_version: int | None = Field(default=None, ge=0)
 
 
 class ConversationIssueCommand(BaseModel):
@@ -422,6 +435,21 @@ class ConversationIssueCommand(BaseModel):
     expected_version: int | None = Field(default=None, ge=0)
 
 
+class ConversationPurchaseCommand(BaseModel):
+    """A purchase proposal only; execution always belongs to the approval workflow."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    material: EntityResolution
+    quantity: Decimal = Field(gt=0)
+    unit: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=5_000)
+    needed_by: AwareDatetime | None = None
+    supplier: str | None = Field(default=None, max_length=500)
+    estimated_total_cost: Decimal | None = Field(default=None, ge=0)
+    expected_material_version: int = Field(ge=0)
+
+
 class MutationPolicyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     project_id: str
@@ -435,6 +463,36 @@ class MutationPolicyDecision(BaseModel):
     policy: MutationPolicyClass
     reason_code: str = Field(pattern=r"^[a-z0-9_]+$")
     use_existing_approval: bool = False
+
+
+class PendingCommandBase(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    proposal_id: str = Field(
+        pattern=r"^cpr_[a-z0-9][a-z0-9_-]{0,127}$",
+        max_length=132,
+    )
+    project_id: str
+    actor_id: str
+    policy_decision: MutationPolicyDecision
+    idempotency_key: str = Field(min_length=1, max_length=240)
+    requested_action: str = Field(min_length=1, max_length=500)
+    created_at: AwareDatetime
+
+
+class PendingTaskCommand(PendingCommandBase):
+    kind: Literal["task"] = "task"
+    command: ConversationTaskCommand
+
+
+class PendingMaterialCommand(PendingCommandBase):
+    kind: Literal["material"] = "material"
+    command: ConversationMaterialCommand
+
+
+class PendingIssueCommand(PendingCommandBase):
+    kind: Literal["issue"] = "issue"
+    command: ConversationIssueCommand
 
 
 class ScheduleTaskVersion(BaseModel):
@@ -471,6 +529,7 @@ class ScheduleChangeCommand(BaseModel):
     task: EntityResolution
     planned_start: AwareDatetime
     planned_end: AwareDatetime
+    expected_version: int | None = Field(default=None, ge=0)
     confirmed: bool = False
     proposal: ScheduleProposalToken | None = None
 
@@ -481,6 +540,28 @@ class ScheduleChangeCommand(BaseModel):
         if self.confirmed and self.proposal is None:
             raise ValueError("confirmed schedule changes require the reviewed proposal")
         return self
+
+
+class PendingScheduleCommand(PendingCommandBase):
+    kind: Literal["schedule"] = "schedule"
+    command: ScheduleChangeCommand
+
+    @model_validator(mode="after")
+    def validate_nested_scope(self) -> Self:
+        if self.command.project_id != self.project_id:
+            raise ValueError("schedule command project must match its pending envelope")
+        proposal = self.command.proposal
+        if proposal is not None and (
+            proposal.project_id != self.project_id or proposal.actor_id != self.actor_id
+        ):
+            raise ValueError("schedule proposal scope must match its pending envelope")
+        return self
+
+
+PendingConversationCommand = Annotated[
+    PendingTaskCommand | PendingMaterialCommand | PendingIssueCommand | PendingScheduleCommand,
+    Field(discriminator="kind"),
+]
 
 
 class SiteUpdateRouteCommand(BaseModel):
@@ -496,6 +577,7 @@ __all__ = [
     "ConversationContext",
     "ConversationIssueCommand",
     "ConversationMaterialCommand",
+    "ConversationPurchaseCommand",
     "ConversationReply",
     "ConversationTaskCommand",
     "ContextDomain",

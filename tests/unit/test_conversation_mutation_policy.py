@@ -54,7 +54,6 @@ def test_task_creation_requires_manage_permission() -> None:
         MutationKind.TASK_DEPENDENCIES,
         MutationKind.BULK_TASK_UPDATE,
         MutationKind.TASK_REOPEN,
-        MutationKind.TASK_CANCEL,
         MutationKind.RECORD_DELETE,
     ],
 )
@@ -74,6 +73,7 @@ def test_consequential_reversible_changes_confirm_first(kind: MutationKind) -> N
         MutationKind.FINANCIAL_COMMITMENT,
         MutationKind.EXTERNAL_COMMITMENT,
         MutationKind.MAJOR_SCHEDULE_CHANGE,
+        MutationKind.TASK_CANCEL,
     ],
 )
 def test_commitments_require_existing_approval_infrastructure(kind: MutationKind) -> None:

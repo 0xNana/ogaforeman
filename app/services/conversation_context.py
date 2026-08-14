@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Protocol
+from typing import Protocol, TypeVar
 from zoneinfo import ZoneInfo
 
 from app.domain.authorization import (
@@ -48,7 +48,10 @@ from app.domain.models import (
     ProjectMember,
     Task,
 )
-from app.repositories.interfaces import RepositoryStore
+from app.repositories.interfaces import RepositoryStore, RepositoryTransaction
+
+
+ContextEntityT = TypeVar("ContextEntityT", Issue, Material, MaterialRequest)
 
 
 class ProjectReader(Protocol):
@@ -266,19 +269,20 @@ class ProjectContextService:
         names: dict[str, str],
         matched_task_ids: set[str],
     ) -> tuple[IssueContextItem, ...]:
+        versioned_issues = self._versioned_items(Issue, project_id)
         issues = [
-            issue
-            for issue in self._store.repository(Issue).list(project_id)
+            (issue, version)
+            for issue, version in versioned_issues
             if issue.status in {IssueStatus.OPEN, IssueStatus.ACKNOWLEDGED, IssueStatus.MITIGATED}
         ]
         if query.search_terms:
             issues = [
-                issue
-                for issue in issues
+                (issue, version)
+                for issue, version in issues
                 if _matches(query.search_terms, issue.description)
                 or bool(matched_task_ids.intersection(issue.task_ids))
             ]
-        issues.sort(key=lambda issue: (issue.severity.value, issue.updated_at), reverse=True)
+        issues.sort(key=lambda item: (item[0].severity.value, item[0].updated_at), reverse=True)
         return tuple(
             IssueContextItem(
                 id=issue.id,
@@ -290,14 +294,15 @@ class ProjectContextService:
                 owner_id=issue.owner_id,
                 owner_name=names.get(issue.owner_id) if issue.owner_id else None,
                 due_at=issue.due_at,
+                version=version,
             )
-            for issue in issues[: self._limit]
+            for issue, version in issues[: self._limit]
         )
 
     def _materials(self, project_id: str, query: ContextQuery) -> tuple[MaterialContextItem, ...]:
-        materials = list(self._store.repository(Material).list(project_id))
+        materials = list(self._versioned_items(Material, project_id))
         if query.focus is ContextFocus.LOW_STOCK:
-            materials = [material for material in materials if _is_low(material)]
+            materials = [item for item in materials if _is_low(item[0])]
         return tuple(
             MaterialContextItem(
                 id=item.id,
@@ -307,34 +312,37 @@ class ProjectContextService:
                 reserved_quantity=item.reserved_quantity,
                 minimum_required_quantity=item.minimum_required_quantity,
                 upcoming_requirement_quantity=item.upcoming_requirement_quantity,
+                version=version,
             )
-            for item in materials[: self._limit]
+            for item, version in materials[: self._limit]
         )
 
     def _requests(
         self, project_id: str, query: ContextQuery
     ) -> tuple[MaterialRequestContextItem, ...]:
-        requests = list(self._store.repository(MaterialRequest).list(project_id))
+        requests = list(self._versioned_items(MaterialRequest, project_id))
         if query.focus in {ContextFocus.PENDING, ContextFocus.LOW_STOCK}:
             terminal = {
                 MaterialRequestStatus.DELIVERED,
                 MaterialRequestStatus.CANCELLED,
                 MaterialRequestStatus.REJECTED,
             }
-            requests = [request for request in requests if request.status not in terminal]
-        requests.sort(key=lambda request: request.updated_at, reverse=True)
+            requests = [item for item in requests if item[0].status not in terminal]
+        requests.sort(key=lambda pair: pair[0].updated_at, reverse=True)
         return tuple(
             MaterialRequestContextItem(
                 id=item.id,
                 material_id=item.material_id,
                 quantity=item.quantity,
+                delivered_quantity=item.delivered_quantity,
                 unit=item.unit,
                 status=item.status.value,
                 needed_by=item.needed_by,
                 reason=item.reason[:1000],
                 approval_id=item.approval_id,
+                version=version,
             )
-            for item in requests[: self._limit]
+            for item, version in requests[: self._limit]
         )
 
     def _approvals(self, project_id: str) -> tuple[ApprovalContextItem, ...]:
@@ -417,6 +425,24 @@ class ProjectContextService:
             for item in members[: self._limit]
         )
 
+    def _versioned_items(
+        self,
+        model: type[ContextEntityT],
+        project_id: str,
+    ) -> tuple[tuple[ContextEntityT, int], ...]:
+        def read(
+            transaction: RepositoryTransaction[ContextEntityT],
+        ) -> tuple[tuple[ContextEntityT, int], ...]:
+            rows: list[tuple[ContextEntityT, int]] = []
+            for item in transaction.list(project_id):
+                version = transaction.version_of(project_id, item.id)
+                if version is None:
+                    raise RuntimeError("authorized context entity has no persisted version")
+                rows.append((item, version))
+            return tuple(rows)
+
+        return self._store.repository(model).run_transaction(read)
+
 
 def _task_item(task: Task, names: dict[str, str]) -> TaskContextItem:
     return TaskContextItem(
@@ -432,6 +458,7 @@ def _task_item(task: Task, names: dict[str, str]) -> TaskContextItem:
         planned_end=task.planned_end,
         actual_completion=task.actual_completion,
         dependency_ids=tuple(task.dependency_ids),
+        version=task.version,
     )
 
 

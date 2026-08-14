@@ -17,8 +17,14 @@ _AUTO = {
     MutationKind.TASK_CREATE,
     MutationKind.TASK_COMPLETE,
     MutationKind.TASK_ASSIGN,
+    MutationKind.TASK_UPDATE,
+    MutationKind.MATERIAL_CREATE,
     MutationKind.MATERIAL_QUANTITY,
+    MutationKind.MATERIAL_DELIVERY,
+    MutationKind.MATERIAL_UPDATE,
+    MutationKind.ISSUE_CREATE,
     MutationKind.ISSUE_RESOLVE,
+    MutationKind.ISSUE_UPDATE,
     MutationKind.ADD_NOTE,
 }
 _CONFIRM = {
@@ -26,10 +32,10 @@ _CONFIRM = {
     MutationKind.TASK_DEPENDENCIES,
     MutationKind.BULK_TASK_UPDATE,
     MutationKind.TASK_REOPEN,
-    MutationKind.TASK_CANCEL,
     MutationKind.RECORD_DELETE,
 }
 _APPROVAL = {
+    MutationKind.TASK_CANCEL,
     MutationKind.MATERIAL_PURCHASE,
     MutationKind.FINANCIAL_COMMITMENT,
     MutationKind.EXTERNAL_COMMITMENT,
@@ -37,6 +43,7 @@ _APPROVAL = {
 }
 _REQUIRED_PERMISSIONS = {
     MutationKind.TASK_CREATE: ProjectPermission.MANAGE,
+    MutationKind.MATERIAL_CREATE: ProjectPermission.MANAGE,
 }
 
 
