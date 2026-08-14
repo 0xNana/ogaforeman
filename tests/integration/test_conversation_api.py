@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import httpx
@@ -10,7 +10,7 @@ from app.agents.conversation import FakeIntentClassifier
 from app.domain.activity import MutationContext
 from app.api.errors import install_error_handlers
 from app.api.v1.router import api_router
-from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
+from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, ProjectForbiddenError
 from app.domain.conversation import IntentDecision, IntentType, PendingConversationCommand
 from app.domain.conversation import IssueOperation, MaterialOperation, TaskOperation
 from app.domain.enums import (
@@ -309,6 +309,91 @@ async def test_advice_is_grounded_and_does_not_emit_mutation_activity() -> None:
     assert response.json()["kind"] == "advice"
     assert response.json()["mutation_performed"] is False
     assert store.repository(ActivityEvent).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
+async def test_unauthorized_conversation_action_is_rejected_without_mutation() -> None:
+    app, store = make_app()
+
+    def deny_access(*_args: object, **_kwargs: object) -> ProjectAccessContext:
+        raise ProjectForbiddenError("project access denied")
+
+    app.state.project_access_provider = deny_access
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "we've got 100 bags of cement now"},
+            headers={"Idempotency-Key": "conversation:unauthorized:1"},
+        )
+
+    assert response.status_code == 403
+    assert store.repository(ActivityEvent).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_entity_requests_clarification_without_mutation() -> None:
+    app, store = make_app()
+    store.repository(Task).create(
+        Task(
+            id="tsk_plaster_duplicate123",
+            project_id=PROJECT_ID,
+            title="Plastering",
+            status=TaskStatus.PLANNED,
+        )
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:ambiguous:1"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kind"] == "clarification"
+    assert response.json()["mutation_performed"] is False
+    assert store.repository(ActivityEvent).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
+async def test_expired_unreserved_proposal_is_rejected_without_mutation() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        proposed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:expired:1"},
+        )
+        memory = store.repository(ConversationMemory).list(PROJECT_ID)[0]
+        assert memory.pending_command is not None
+        now = datetime.now(UTC)
+        expired = memory.pending_command.model_copy(
+            update={"created_at": now - timedelta(minutes=20), "expires_at": now - timedelta(minutes=5)}
+        )
+        sealed = ConversationMemoryService(
+            store,
+            ConversationEntityResolver(store),
+            proposal_signing_key=PROPOSAL_SIGNING_KEY,
+        ).seal_command(expired)
+        store.repository(ConversationMemory).save(
+            memory.model_copy(update={"pending_command": sealed}),
+            expected_version=memory.version,
+        )
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/"
+            f"{proposed.json()['proposal_id']}/confirm",
+            json={"observed_memory_version": proposed.json()["memory_version"] + 1},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "STALE_PROPOSAL"
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start is None
 
 
 @pytest.mark.asyncio

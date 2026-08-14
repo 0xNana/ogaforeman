@@ -21,6 +21,7 @@ from app.domain.conversation import (
     ConversationalProjectContext,
     EntityKind,
     EntityResolution,
+    EntityResolutionStatus,
     IssueOperation,
     MaterialOperation,
     MutationKind,
@@ -191,6 +192,23 @@ class ConversationActionExecutionService:
         )
         interpretation = await self._interpreter.interpret(message, context=snapshot)
         resolutions = self._resolve(access, interpretation)
+        unsafe_resolution = next(
+            (
+                resolution
+                for resolution in resolutions
+                if resolution.status is not EntityResolutionStatus.RESOLVED
+                or not resolution.can_mutate
+                or resolution.entity_id is None
+            ),
+            None,
+        )
+        if unsafe_resolution is not None:
+            return ConversationActionOutcome(
+                kind="clarification",
+                text=unsafe_resolution.clarification
+                or "I found more than one possible project record. Which one do you mean?",
+                mutation_performed=False,
+            )
         terms = tuple(
             dict.fromkeys(
                 term
