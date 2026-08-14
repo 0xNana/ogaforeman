@@ -17,6 +17,9 @@ class ConversationSiteUpdateRouter:
             access,
             idempotency_key=command.idempotency_key,
             raw_text=command.text,
+            transcript=command.transcript,
+            attachment_ids=command.attachment_ids,
+            input_type=command.input_type,
             occurred_at=command.occurred_at,
         )
 

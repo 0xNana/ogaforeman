@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import re
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agents.conversation import IntentRoutingService
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
 from app.domain.authorization import ProjectAccessContext, ProjectPermission
+from app.domain.enums import SiteUpdateInputType
 from app.domain.conversation import (
     ContextQuery,
     ConversationContext,
@@ -25,6 +26,7 @@ from app.services.conversation_responses import ConversationResponseService
 from app.services.conversation_site_update_routing import ConversationSiteUpdateRouter
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService
+from app.services.site_update_intake import SiteUpdateAttachmentError, SiteUpdatePublishError
 from app.repositories.interfaces import VersionConflictError
 
 from .projects import auth_runtime
@@ -46,7 +48,17 @@ def _proposal_signing_key(request: Request) -> bytes:
 
 class ConversationMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    message: str = Field(min_length=1, max_length=20_000)
+    message: str = Field(default="", max_length=20_000)
+    attachment_ids: tuple[str, ...] = Field(default=(), max_length=32)
+    input_type: SiteUpdateInputType | None = None
+
+    @model_validator(mode="after")
+    def require_input(self) -> "ConversationMessageRequest":
+        if not self.message.strip() and not self.attachment_ids:
+            raise ValueError("conversation input requires text or attachments")
+        if len(self.attachment_ids) != len(set(self.attachment_ids)):
+            raise ValueError("attachment_ids cannot contain duplicates")
+        return self
 
 
 class ConversationMessageResponse(BaseModel):
@@ -232,6 +244,39 @@ async def send_message(
 ) -> ConversationMessageResponse:
     access = configured_project_access(request, project_id, ProjectPermission.READ)
     runtime = auth_runtime(request)
+    if payload.attachment_ids:
+        access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
+        intake = getattr(request.app.state, "site_update_intake", None)
+        if intake is None:
+            raise ApiError(
+                "DEPENDENCY_UNAVAILABLE",
+                "Site updates are temporarily unavailable.",
+                status_code=503,
+            )
+        try:
+            result = ConversationSiteUpdateRouter(intake).submit(
+                access,
+                SiteUpdateRouteCommand(
+                    project_id=project_id,
+                    text=payload.message.strip() or None,
+                    attachment_ids=payload.attachment_ids,
+                    input_type=payload.input_type,
+                    idempotency_key=require_idempotency_key(request),
+                ),
+            )
+        except SiteUpdatePublishError as exc:
+            raise ApiError(
+                "SITE_UPDATE_SAVED_NOT_QUEUED",
+                "Your update was saved, but Oga could not queue it yet. Retry safely.",
+                status_code=503,
+            ) from exc
+        except SiteUpdateAttachmentError as exc:
+            raise ApiError(exc.code, str(exc), status_code=422) from exc
+        return ConversationMessageResponse(
+            kind="workflow",
+            text="Got it. I saved the update and started the site workflow.",
+            workflow_run_id=result.agent_run_id,
+        )
     memory_service = ConversationMemoryService(
         runtime.store, ConversationEntityResolver(runtime.store)
     )

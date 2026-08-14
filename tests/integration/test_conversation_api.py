@@ -1,5 +1,6 @@
 from decimal import Decimal
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from types import SimpleNamespace
 
 import httpx
@@ -15,6 +16,7 @@ from app.domain.conversation import IntentDecision, IntentType, PendingConversat
 from app.domain.conversation import IssueOperation, MaterialOperation, TaskOperation
 from app.domain.enums import (
     AgentRunStatus,
+    AttachmentUploadStatus,
     ActorType,
     ApprovalStatus,
     IssueDetectedBy,
@@ -31,6 +33,7 @@ from app.domain.models import (
     AgentRun,
     ActivityEvent,
     Approval,
+    Attachment,
     ConversationMemory,
     ConversationProposalClaim,
     Issue,
@@ -39,6 +42,7 @@ from app.domain.models import (
     OutboxMessage,
     Project,
     ProjectMember,
+    SiteUpdate,
     Task,
 )
 from app.repositories.memory import InMemoryRepositoryStore
@@ -55,11 +59,24 @@ from app.services.conversation_schedule_operations import ConversationScheduleSe
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService
 from app.services.external_actions import ExternalActionService
+from app.services.site_update_intake import SiteUpdateIntakeService
 from app.workflows.resume import ResumeWorkflow
 
 
 PROJECT_ID = "prj_conversation123"
 PROPOSAL_SIGNING_KEY = b"conversation-api-envelope-signing-key-32-bytes"
+
+
+class Publisher:
+    def publish(
+        self,
+        topic: str | None,
+        data: bytes,
+        *,
+        attributes: dict[str, str] | None = None,
+    ) -> str:
+        del topic, data, attributes
+        return "msg_conversation123"
 
 
 class FakeActionInterpreter:
@@ -309,6 +326,44 @@ async def test_advice_is_grounded_and_does_not_emit_mutation_activity() -> None:
     assert response.json()["kind"] == "advice"
     assert response.json()["mutation_performed"] is False
     assert store.repository(ActivityEvent).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
+async def test_multimodal_conversation_entry_routes_photo_to_golden_intake() -> None:
+    app, store = make_app()
+    publisher = Publisher()
+    photo = b"site-photo"
+    store.repository(Attachment).create(
+        Attachment(
+            id="att_sitephoto123",
+            project_id=PROJECT_ID,
+            object_path=f"projects/{PROJECT_ID}/attachments/att_sitephoto123",
+            content_type="image/jpeg",
+            byte_size=len(photo),
+            sha256=sha256(photo).hexdigest(),
+            upload_status=AttachmentUploadStatus.VERIFIED,
+        )
+    )
+    app.state.site_update_intake = SiteUpdateIntakeService(store, publisher)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={
+                "message": "",
+                "attachment_ids": ["att_sitephoto123"],
+                "input_type": "photo",
+            },
+            headers={"Idempotency-Key": "conversation:photo:1"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kind"] == "workflow"
+    assert response.json()["workflow_run_id"] is not None
+    updates = store.repository(SiteUpdate).list(PROJECT_ID)
+    assert len(updates) == 1
+    assert updates[0].attachment_ids == ["att_sitephoto123"]
 
 
 @pytest.mark.asyncio

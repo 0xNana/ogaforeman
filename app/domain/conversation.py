@@ -9,7 +9,14 @@ from typing import Annotated, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.enums import IssueStatus, IssueType, Severity, TaskPriority, TaskStatus
+from app.domain.enums import (
+    IssueStatus,
+    IssueType,
+    Severity,
+    SiteUpdateInputType,
+    TaskPriority,
+    TaskStatus,
+)
 
 
 class IntentType(StrEnum):
@@ -578,9 +585,20 @@ PendingConversationCommand = Annotated[
 class SiteUpdateRouteCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
     project_id: str
-    text: str = Field(min_length=1, max_length=1_000_000)
+    text: str | None = Field(default=None, min_length=1, max_length=1_000_000)
+    transcript: str | None = Field(default=None, min_length=1, max_length=1_000_000)
+    attachment_ids: tuple[str, ...] = Field(default=(), max_length=32)
+    input_type: SiteUpdateInputType | None = None
     idempotency_key: str = Field(min_length=1, max_length=256)
     occurred_at: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def require_site_evidence(self) -> Self:
+        if not self.text and not self.transcript and not self.attachment_ids:
+            raise ValueError("site update route requires text, transcript, or attachments")
+        if len(self.attachment_ids) != len(set(self.attachment_ids)):
+            raise ValueError("attachment_ids cannot contain duplicates")
+        return self
 
 
 __all__ = [
