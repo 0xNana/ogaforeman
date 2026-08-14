@@ -1,4 +1,6 @@
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+import json
 
 import pytest
 
@@ -11,13 +13,19 @@ from app.domain.conversation import (
     MutationPolicyClass,
     ScheduleChangeCommand,
 )
-from app.domain.enums import ActorType, MemberRole, TaskStatus
-from app.domain.models import ActivityEvent, Task
+from app.domain.enums import ActorType, MemberRole, MemberStatus, TaskStatus
+from app.domain.models import ActivityEvent, Approval, ProjectMember, Task
+from app.domain.models import OutboxMessage
+from app.domain.events import ProjectEvent
+from app.config.settings import Settings
 from app.repositories.activity import ActivityIdempotencyConflict
 from app.repositories.interfaces import VersionConflictError
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.conversation_mutation_policy import MutationPolicyService
+from app.services.conversation_schedule_approval import ConversationScheduleApprovalService
 from app.services.conversation_schedule_operations import ConversationScheduleService
+from app.services.approvals import ApprovalService, ResolutionCommand
+from app.worker import process_event
 
 NOW = datetime(2026, 8, 14, 12, tzinfo=UTC)
 PID = "prj_schedule123"
@@ -102,6 +110,167 @@ def test_schedule_proposal_calculates_dependency_impact_without_mutation() -> No
     assert proposal.affected_task_ids == ("tsk_plastering123", "tsk_painting123")
     assert "moves Painting preparation by 2 days" in proposal.reply
     assert data.repository(ActivityEvent).list(PID) == ()
+
+
+def test_major_schedule_change_uses_existing_approval_before_typed_execution() -> None:
+    data = store()
+    data.repository(ProjectMember).create(
+        ProjectMember(
+            project_id=PID,
+            user_id="usr_manager123",
+            role=MemberRole.MANAGER,
+            status=MemberStatus.ACTIVE,
+        )
+    )
+    for index, dependency in enumerate(
+        ("tsk_painting123", "tsk_major_extra1", "tsk_major_extra2"), start=1
+    ):
+        data.repository(Task).create(
+            Task(
+                id=f"tsk_major_extra{index}",
+                project_id=PID,
+                title=f"Downstream {index}",
+                status=TaskStatus.PLANNED,
+                planned_start=NOW + timedelta(days=3 + index),
+                planned_end=NOW + timedelta(days=4 + index),
+                dependency_ids=[dependency],
+            )
+        )
+    schedules = schedule_service(data)
+    approvals = ConversationScheduleApprovalService(
+        data, schedules, approval_signing_key=SIGNING_KEY
+    )
+    command = ScheduleChangeCommand(
+        project_id=PID,
+        task=task_ref(),
+        planned_start=NOW + timedelta(days=3),
+        planned_end=NOW + timedelta(days=4),
+    )
+    prepared = approvals.prepare(access(), command, context("og:schedule:major"))
+
+    assert prepared.approval.action_type.value == "schedule_change"
+    assert data.repository(Task).require(PID, "tsk_plastering123").planned_start == NOW + timedelta(
+        days=1
+    )
+    ApprovalService(data).approve(
+        access(),
+        ResolutionCommand(
+            project_id=PID,
+            approval_id=prepared.approval.id,
+            expected_version=prepared.approval.version,
+            occurred_at=NOW + timedelta(minutes=1),
+        ),
+        context("og:schedule:major:approve"),
+    )
+    continuation = next(
+        message
+        for message in data.repository(OutboxMessage).list(PID)
+        if message.message_type == "APPROVAL_GRANTED"
+    )
+    event = ProjectEvent.model_validate(continuation.payload)
+    executed_by_worker = process_event(
+        event.model_dump_json().encode(),
+        store=data,
+        settings=Settings(
+            _env_file=None,
+            conversation_proposal_signing_key=SIGNING_KEY.decode(),
+        ),
+    )
+    replay = approvals.continue_approved(
+        PID,
+        prepared.approval.id,
+        source_event_id=event.event_id,
+        resolver_id="usr_manager123",
+    )
+
+    assert executed_by_worker.status == "completed"
+    assert replay.duplicate is True
+    assert data.repository(Task).require(PID, "tsk_plastering123").planned_start == NOW + timedelta(
+        days=3
+    )
+    assert data.repository(Approval).require(PID, prepared.approval.id).status.value == "approved"
+
+
+def test_major_schedule_approval_rejects_resolver_and_payload_tampering() -> None:
+    data = store()
+    data.repository(ProjectMember).create(
+        ProjectMember(
+            project_id=PID,
+            user_id="usr_manager123",
+            role=MemberRole.MANAGER,
+            status=MemberStatus.ACTIVE,
+        )
+    )
+    for index, dependency in enumerate(
+        ("tsk_painting123", "tsk_major_extra1", "tsk_major_extra2"), start=1
+    ):
+        data.repository(Task).create(
+            Task(
+                id=f"tsk_major_extra{index}",
+                project_id=PID,
+                title=f"Downstream {index}",
+                status=TaskStatus.PLANNED,
+                planned_start=NOW + timedelta(days=3 + index),
+                planned_end=NOW + timedelta(days=4 + index),
+                dependency_ids=[dependency],
+            )
+        )
+    schedules = schedule_service(data)
+    approvals = ConversationScheduleApprovalService(
+        data, schedules, approval_signing_key=SIGNING_KEY
+    )
+    prepared = approvals.prepare(
+        access(),
+        ScheduleChangeCommand(
+            project_id=PID,
+            task=task_ref(),
+            planned_start=NOW + timedelta(days=3),
+            planned_end=NOW + timedelta(days=4),
+        ),
+        context("og:schedule:tamper"),
+    )
+    ApprovalService(data).approve(
+        access(),
+        ResolutionCommand(
+            project_id=PID,
+            approval_id=prepared.approval.id,
+            expected_version=0,
+            occurred_at=NOW + timedelta(minutes=1),
+        ),
+        context("og:schedule:tamper:approve"),
+    )
+
+    with pytest.raises(PermissionError, match="resolver"):
+        approvals.continue_approved(
+            PID,
+            prepared.approval.id,
+            source_event_id="evt_wrongresolver123",
+            resolver_id="usr_attacker123",
+        )
+
+    persisted = data.repository(Approval).require(PID, prepared.approval.id)
+    proposed_action = dict(persisted.proposed_action)
+    command_payload = dict(proposed_action["schedule_command"])
+    command_payload["planned_start"] = (NOW + timedelta(days=7)).date().isoformat()
+    proposed_action["schedule_command"] = command_payload
+    proposed_action["command_fingerprint"] = sha256(
+        json.dumps(command_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    data.repository(Approval).save(
+        persisted.model_copy(update={"proposed_action": proposed_action}),
+        expected_version=persisted.version,
+    )
+
+    with pytest.raises(PermissionError, match="signature"):
+        approvals.continue_approved(
+            PID,
+            prepared.approval.id,
+            source_event_id="evt_tamperedpayload123",
+            resolver_id="usr_manager123",
+        )
+    assert data.repository(Task).require(PID, "tsk_plastering123").planned_start == NOW + timedelta(
+        days=1
+    )
 
 
 def test_confirmed_schedule_change_shifts_dependencies_atomically_and_replays() -> None:

@@ -15,6 +15,8 @@ from app.agents.site_update_execution import EventPayloadMismatchError, SiteUpda
 from app.config.settings import Settings, get_settings
 from app.domain.authorization import ProjectForbiddenError, RoleRequiredError
 from app.domain.events import EventType, ProjectEvent
+from app.domain.enums import ApprovalActionType
+from app.domain.models import Approval
 from app.infrastructure.gemini import GeminiSiteInterpreter
 from app.infrastructure.storage import StorageAdapter
 from app.observability.context import bind_context, new_correlation_context
@@ -25,6 +27,9 @@ from app.observability.tracing import cloud_trace_exporter
 from app.repositories.interfaces import EntityNotFoundError, RepositoryStore
 from app.services.event_claims import ClaimOutcome, EventClaimService, InvalidEventClaim
 from app.services.external_actions import ExternalActionService
+from app.services.conversation_mutation_policy import MutationPolicyService
+from app.services.conversation_schedule_approval import ConversationScheduleApprovalService
+from app.services.conversation_schedule_operations import ConversationScheduleService
 from app.services.routed_events import RoutedEventExecutor
 from app.services.site_update_lifecycle import InvalidSiteUpdateTransition
 from app.workflows.resume import ResumeWorkflow
@@ -147,40 +152,68 @@ async def process_event_async(
                 ):
                     pending_actions = tuple(execution_actions)
             elif event.event_type is EventType.APPROVAL_GRANTED:
-                resume_workflow = ResumeWorkflow(store)
-                continuation = resume_workflow.handle_approval_granted(
-                    event.project_id,
-                    str(event.payload["approval_id"]),
-                    str(event.payload["resolver"]),
-                    source_event_id=event.event_id,
-                    occurred_at=event.occurred_at,
-                )
-                delay_event = ExternalActionService(store).continue_approved_purchase(event)
-                if delay_event is not None:
-                    await process_event_async(
-                        delay_event.model_dump_json().encode(),
-                        store=store,
-                        event_coordinator=event_coordinator,
-                        settings=runtime,
-                        site_interpreter=site_interpreter,
-                        storage_adapter=storage_adapter,
+                approval_id = str(event.payload["approval_id"])
+                approval = store.repository(Approval).require(event.project_id, approval_id)
+                if approval.action_type is ApprovalActionType.SCHEDULE_CHANGE:
+                    signing_secret = runtime.conversation_proposal_signing_key
+                    if signing_secret is None:
+                        raise RuntimeError("conversation proposal signing is unavailable")
+                    schedules = ConversationScheduleService(
+                        store,
+                        MutationPolicyService(),
+                        proposal_signing_key=signing_secret.get_secret_value().encode(),
                     )
-                resume_workflow.complete_approved_purchase(
-                    event.project_id,
-                    str(event.payload["approval_id"]),
-                    str(event.payload["resolver"]),
-                    source_event_id=event.event_id,
-                )
-                result_ref = f"run:{continuation.run_id}"
+                    ConversationScheduleApprovalService(
+                        store,
+                        schedules,
+                        approval_signing_key=signing_secret.get_secret_value().encode(),
+                    ).continue_approved(
+                        event.project_id,
+                        approval_id,
+                        source_event_id=event.event_id,
+                        resolver_id=str(event.payload["resolver"]),
+                    )
+                    result_ref = f"approval:{approval_id}"
+                else:
+                    resume_workflow = ResumeWorkflow(store)
+                    continuation = resume_workflow.handle_approval_granted(
+                        event.project_id,
+                        approval_id,
+                        str(event.payload["resolver"]),
+                        source_event_id=event.event_id,
+                        occurred_at=event.occurred_at,
+                    )
+                    delay_event = ExternalActionService(store).continue_approved_purchase(event)
+                    if delay_event is not None:
+                        await process_event_async(
+                            delay_event.model_dump_json().encode(),
+                            store=store,
+                            event_coordinator=event_coordinator,
+                            settings=runtime,
+                            site_interpreter=site_interpreter,
+                            storage_adapter=storage_adapter,
+                        )
+                    resume_workflow.complete_approved_purchase(
+                        event.project_id,
+                        approval_id,
+                        str(event.payload["resolver"]),
+                        source_event_id=event.event_id,
+                    )
+                    result_ref = f"run:{continuation.run_id}"
             elif event.event_type is EventType.APPROVAL_REJECTED:
-                continuation = ResumeWorkflow(store).handle_approval_rejected(
-                    event.project_id,
-                    str(event.payload["approval_id"]),
-                    str(event.payload["resolver"]),
-                    source_event_id=event.event_id,
-                    occurred_at=event.occurred_at,
-                )
-                result_ref = f"run:{continuation.run_id}"
+                approval_id = str(event.payload["approval_id"])
+                approval = store.repository(Approval).require(event.project_id, approval_id)
+                if approval.action_type is ApprovalActionType.SCHEDULE_CHANGE:
+                    result_ref = f"approval:{approval_id}"
+                else:
+                    continuation = ResumeWorkflow(store).handle_approval_rejected(
+                        event.project_id,
+                        approval_id,
+                        str(event.payload["resolver"]),
+                        source_event_id=event.event_id,
+                        occurred_at=event.occurred_at,
+                    )
+                    result_ref = f"run:{continuation.run_id}"
             else:
                 routed_execution = RoutedEventExecutor(store).execute(event)
                 result_ref = routed_execution.result_ref

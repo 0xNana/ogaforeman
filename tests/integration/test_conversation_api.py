@@ -448,6 +448,51 @@ async def test_server_proposal_confirmation_executes_once_and_consumes_command()
 
 
 @pytest.mark.asyncio
+async def test_major_schedule_change_routes_to_existing_approval_without_mutation() -> None:
+    app, store = make_app()
+    dependency = "tsk_plaster123"
+    for index in range(3):
+        task_id = f"tsk_schedule_major{index}"
+        store.repository(Task).create(
+            Task(
+                id=task_id,
+                project_id=PROJECT_ID,
+                title=f"Major downstream {index}",
+                status=TaskStatus.PLANNED,
+                planned_start=datetime(2026, 8, 22 + index, 8, tzinfo=UTC),
+                planned_end=datetime(2026, 8, 22 + index, 17, tzinfo=UTC),
+                dependency_ids=[dependency],
+            )
+        )
+        dependency = task_id
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        first = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:schedule:major"},
+        )
+        replay = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "move plastering to Friday"},
+            headers={"Idempotency-Key": "conversation:schedule:major"},
+        )
+
+    assert first.status_code == replay.status_code == 200
+    assert first.json()["kind"] == "needs_approval"
+    assert [first.json()["mutation_performed"], replay.json()["mutation_performed"]] == [
+        True,
+        False,
+    ]
+    assert first.json()["approval_id"] == replay.json()["approval_id"]
+    approval = store.repository(Approval).require(PROJECT_ID, first.json()["approval_id"])
+    assert approval.action_type.value == "schedule_change"
+    assert store.repository(Task).require(PROJECT_ID, "tsk_plaster123").planned_start is None
+    assert store.repository(ConversationMemory).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
 async def test_confirmation_rejects_stale_state_and_browser_command_payload() -> None:
     app, store = make_app()
     async with httpx.AsyncClient(

@@ -54,6 +54,7 @@ from app.services.conversation_material_operations import ConversationMaterialSe
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_task_operations import ConversationTaskService
 from app.services.conversation_schedule_operations import ConversationScheduleService
+from app.services.conversation_schedule_approval import ConversationScheduleApprovalService
 from app.services.issues import IssueService
 from app.services.materials import MaterialService
 from app.services.material_requests import (
@@ -134,6 +135,15 @@ class ConversationActionExecutionService:
             proposal_signing_key=proposal_signing_key,
         )
         self._schedules = schedules
+        self._schedule_approvals = (
+            ConversationScheduleApprovalService(
+                store,
+                schedules,
+                approval_signing_key=proposal_signing_key,
+            )
+            if schedules is not None and proposal_signing_key is not None
+            else None
+        )
 
     async def execute(
         self,
@@ -255,6 +265,29 @@ class ConversationActionExecutionService:
                 material_request_id=purchase.request.id,
                 agent_run_id=purchase.run.id,
             )
+        if isinstance(proposal.command, ScheduleChangeCommand):
+            if self._schedules is None or self._schedule_approvals is None:
+                raise RuntimeError("schedule approval service is unavailable")
+            schedule_proposal = self._schedules.propose(access, proposal.command)
+            if schedule_proposal.policy is MutationPolicyClass.APPROVAL_REQUIRED:
+                approval_context = MutationContext(
+                    project_id=access.project_id,
+                    actor_type=ActorType.USER,
+                    actor_id=access.actor.user_id,
+                    idempotency_key=idempotency_key,
+                    request_fingerprint=sha256(message.encode("utf-8")).hexdigest(),
+                )
+                schedule_approval = self._schedule_approvals.prepare(
+                    access, proposal.command, approval_context
+                )
+                return ConversationActionOutcome(
+                    kind="needs_approval",
+                    text="This major schedule change is waiting for approval.",
+                    mutation_performed=not schedule_approval.duplicate,
+                    proposed_action=message,
+                    activity_id=schedule_approval.activity.id,
+                    approval_id=schedule_approval.approval.id,
+                )
         if proposal.policy_decision.policy is not MutationPolicyClass.AUTO_EXECUTE:
             memory = self._memory.load(access)
             pending = self._pending(

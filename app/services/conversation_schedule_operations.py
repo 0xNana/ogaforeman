@@ -23,8 +23,8 @@ from app.domain.conversation import (
     ScheduleProposalToken,
     ScheduleTaskVersion,
 )
-from app.domain.enums import ActorType
-from app.domain.models import Task
+from app.domain.enums import ActorType, ApprovalActionType, ApprovalStatus
+from app.domain.models import Approval, Task
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.interfaces import VersionConflictError
 from app.repositories.tasks import TaskRepository
@@ -122,8 +122,37 @@ class ConversationScheduleService:
         ensure_project_scope(access, context.project_id)
         if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
             raise PermissionError("schedule change requires the authorized user actor")
+        return self._execute_confirmed(access, command, context, allow_major=False)
+
+    def execute_approved(
+        self,
+        access: ProjectAccessContext,
+        command: ScheduleChangeCommand,
+        context: MutationContext,
+        approval: Approval,
+    ) -> ScheduleChangeResult:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        if context.actor_type is not ActorType.SYSTEM:
+            raise PermissionError("approved schedule continuation requires the system actor")
+        if (
+            approval.project_id != access.project_id
+            or approval.action_type is not ApprovalActionType.SCHEDULE_CHANGE
+            or approval.status is not ApprovalStatus.APPROVED
+        ):
+            raise PermissionError("schedule change does not have a valid approved decision")
+        return self._execute_confirmed(access, command, context, allow_major=True)
+
+    def _execute_confirmed(
+        self,
+        access: ProjectAccessContext,
+        command: ScheduleChangeCommand,
+        context: MutationContext,
+        *,
+        allow_major: bool,
+    ) -> ScheduleChangeResult:
         task_id = _task_id(command)
-        token = self._confirmed_token(access, command, task_id)
+        token = self._confirmed_token(access, command, task_id, allow_major=allow_major)
         affected = tuple(item.task_id for item in token.affected_versions)
         result = self._activities.mutate(
             context,
@@ -163,6 +192,8 @@ class ConversationScheduleService:
         access: ProjectAccessContext,
         command: ScheduleChangeCommand,
         task_id: str,
+        *,
+        allow_major: bool = False,
     ) -> ScheduleProposalToken:
         token = command.proposal
         if token is None:
@@ -177,7 +208,7 @@ class ConversationScheduleService:
             or token.planned_end != command.planned_end
         ):
             raise VersionConflictError("confirmed schedule command does not match its proposal")
-        if len(token.affected_versions) > 3:
+        if len(token.affected_versions) > 3 and not allow_major:
             raise PermissionError("major schedule changes require the approval workflow")
         return token
 

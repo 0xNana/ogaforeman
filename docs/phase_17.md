@@ -10,8 +10,8 @@
 | P0.4 Proposal identity and versions | Complete | Server-derived IDs, signatures, entity/memory CAS, and durable confirmation fencing. |
 | P0.5 Confirm/cancel APIs | Complete | Idempotent server-only confirm/cancel endpoints with stale, replay, expiry, collision, and restart coverage. |
 | P0.6 Purchase approval handoff | Complete | Exact-quantity request, approval, waiting run, replay, approval resume, supplier simulation, and terminal cleanup use the existing workflow. |
-| P0.7 Major schedule approval | Active | Next implementation slice. |
-| P0.8 Drawer proposal controls | Pending | Depends on finalized approval and proposal response contracts. |
+| P0.7 Major schedule approval | Complete | Signed approval-bound commands use the existing approval outbox/worker, resolver checks, typed schedule CAS, atomic activity emission, and idempotent replay. |
+| P0.8 Drawer proposal controls | Active | Backend proposal and approval contracts are finalized. |
 | P0.9 Runtime conversational evals | Pending | Depends on all backend routes. |
 | P0.10 Golden Flow | Pending | Final API, Firestore restart, and browser gate. |
 
