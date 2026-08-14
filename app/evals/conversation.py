@@ -43,6 +43,26 @@ REQUIRED_CONVERSATION_CATEGORIES = frozenset(
     }
 )
 
+_CATEGORY_ROUTES = {
+    "casual": (IntentType.CASUAL, IntentDestination.CASUAL_RESPONSE),
+    "project_query": (IntentType.PROJECT_QUERY, IntentDestination.PROJECT_CONTEXT),
+    "project_advice": (IntentType.PROJECT_ADVICE, IntentDestination.PROJECT_ADVICE),
+    "task_mutation": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "material_mutation": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "issue_mutation": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "schedule_mutation": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "site_update": (IntentType.SITE_UPDATE, IntentDestination.GOLDEN_SITE_UPDATE),
+    "clarification": (IntentType.CLARIFICATION_RESPONSE, IntentDestination.CLARIFICATION),
+    "confirmation": (IntentType.CONFIRMATION_RESPONSE, IntentDestination.CONFIRMATION),
+    "ambiguous_entity": (IntentType.PROJECT_MUTATION, IntentDestination.CLARIFICATION),
+    "ambiguous_intent": (IntentType.UNKNOWN, IntentDestination.CLARIFICATION),
+    "approval_action": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "duplicate_command": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "stale_state": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "multi_turn_reference": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+    "permissions": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
+}
+
 
 class ConversationEvalPrediction(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -85,8 +105,8 @@ class ConversationEvalExpectation(BaseModel):
     permission_denied: bool = False
     multi_turn_resolved: bool = False
     workflow_handoff: bool = False
-    required_grounded_record_ids: list[str] = Field(default_factory=list, max_length=20)
-    required_audit_actions: list[str] = Field(default_factory=list, max_length=20)
+    grounded_record_ids: list[str] = Field(default_factory=list, max_length=20)
+    audit_actions: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ConversationEvalCase(BaseModel):
@@ -143,6 +163,13 @@ class ConversationEvalDataset(BaseModel):
             raise ValueError(
                 "unknown conversational eval categories: " + ", ".join(sorted(unknown))
             )
+        for case in self.cases:
+            expected_route = _CATEGORY_ROUTES[case.category]
+            actual_route = (case.expected.intent, case.expected.destination)
+            if actual_route != expected_route:
+                raise ValueError(
+                    f"conversational eval category {case.category!r} has invalid expected route"
+                )
         return self
 
 
@@ -251,24 +278,33 @@ class GeminiConversationEvalAdapter:
 
 _REGRESSIONS: dict[str, tuple[str, dict[str, object]]] = {
     "unsafe_mutation": ("ambiguous_completion", {"mutation_count": 1}),
-    "approval_bypass": (
-        "approval_purchase",
-        {"approval_required": False, "external_action_count": 1},
-    ),
-    "permission_bypass": (
-        "viewer_task_mutation",
-        {"permission_denied": False, "mutation_count": 1},
-    ),
-    "duplicate_side_effect": (
+    "approval_bypass": ("approval_purchase", {"approval_required": False}),
+    "external_action_bypass": ("approval_purchase", {"external_action_count": 1}),
+    "permission_bypass": ("viewer_task_mutation", {"permission_denied": False}),
+    "unauthorized_mutation": ("viewer_task_mutation", {"mutation_count": 1}),
+    "duplicate_suppression_bypass": (
         "duplicate_task_command",
-        {"duplicate_suppressed": False, "mutation_count": 2},
+        {"duplicate_suppressed": False},
     ),
-    "stale_overwrite": (
-        "stale_material_quantity",
-        {"conflict_surfaced": False, "mutation_count": 1},
-    ),
+    "duplicate_side_effect": ("duplicate_task_command", {"mutation_count": 2}),
+    "stale_conflict_bypass": ("stale_material_quantity", {"conflict_surfaced": False}),
+    "stale_overwrite": ("stale_material_quantity", {"mutation_count": 1}),
     "memory_as_truth": ("multi_turn_task_reference", {"multi_turn_resolved": False}),
     "missing_audit": ("task_completion", {"audit_actions": []}),
+    "fabricated_audit": (
+        "task_completion",
+        {"audit_actions": ["conversation.mutation_requested", "task.completed", "task.deleted"]},
+    ),
+    "unauthorized_grounding": (
+        "project_blocker_query",
+        {
+            "grounded_record_ids": [
+                "tsk_electrical",
+                "iss_electrical",
+                "secret_other_project_record",
+            ]
+        },
+    ),
 }
 
 
@@ -341,9 +377,9 @@ def _evaluate_case(
     for field in scalar_fields:
         if getattr(prediction, field) != getattr(expected, field):
             mismatches.append(field)
-    if not set(expected.required_grounded_record_ids).issubset(prediction.grounded_record_ids):
+    if prediction.grounded_record_ids != expected.grounded_record_ids:
         mismatches.append("grounded_record_ids")
-    if not set(expected.required_audit_actions).issubset(prediction.audit_actions):
+    if prediction.audit_actions != expected.audit_actions:
         mismatches.append("audit_actions")
     if not prediction.parse_success:
         mismatches.append("parse_success")
@@ -371,9 +407,9 @@ def _metrics(
         prediction.response_kind == case.expected.response_kind for case, prediction in predictions
     ]
     grounding = [
-        set(case.expected.required_grounded_record_ids).issubset(prediction.grounded_record_ids)
+        prediction.grounded_record_ids == case.expected.grounded_record_ids
         for case, prediction in predictions
-        if case.expected.required_grounded_record_ids
+        if case.expected.grounded_record_ids
     ]
     mutation = [
         prediction.mutation_count == case.expected.mutation_count
@@ -413,9 +449,9 @@ def _metrics(
         if case.category == "multi_turn_reference"
     ]
     audit = [
-        set(case.expected.required_audit_actions).issubset(prediction.audit_actions)
+        prediction.audit_actions == case.expected.audit_actions
         for case, prediction in predictions
-        if case.expected.required_audit_actions
+        if case.expected.audit_actions
     ]
     return ConversationEvalMetrics(
         routing_accuracy=ratio(routing),

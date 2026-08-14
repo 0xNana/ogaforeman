@@ -3,8 +3,8 @@
   "prompt_version": "site-interpreter-v1",
   "adapter": "fixture",
   "model_id": null,
-  "commit_sha": "b6db749f2b6de1a0a74e5b4a1c2b6042bfba5a93",
-  "generated_at": "2026-08-13T10:06:27.306513Z",
+  "commit_sha": "6fbb6817d8cf51b698b3edc7fab56e54a74dfef8",
+  "generated_at": "2026-08-14T01:56:30.410420Z",
   "passed": true,
   "metrics": {
     "event_deduplication": 1.0,

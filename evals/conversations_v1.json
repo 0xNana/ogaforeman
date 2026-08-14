@@ -33,7 +33,7 @@
       "role": "manager",
       "authorized_context": "Task tsk_electrical is blocked by issue iss_electrical in project prj_ridge.",
       "fake_prediction": {"intent": "project_query", "destination": "project_context", "response_kind": "project", "grounded_record_ids": ["tsk_electrical", "iss_electrical"]},
-      "expected": {"intent": "project_query", "destination": "project_context", "response_kind": "project", "required_grounded_record_ids": ["tsk_electrical", "iss_electrical"]}
+      "expected": {"intent": "project_query", "destination": "project_context", "response_kind": "project", "grounded_record_ids": ["tsk_electrical", "iss_electrical"]}
     },
     {
       "id": "plastering_advice",
@@ -42,7 +42,7 @@
       "role": "manager",
       "authorized_context": "Task tsk_plastering depends on blocked tsk_electrical. Cement mat_cement has 10 bags; 40 required.",
       "fake_prediction": {"intent": "project_advice", "destination": "project_advice", "response_kind": "advice", "grounded_record_ids": ["tsk_plastering", "tsk_electrical", "mat_cement"]},
-      "expected": {"intent": "project_advice", "destination": "project_advice", "response_kind": "advice", "required_grounded_record_ids": ["tsk_plastering", "tsk_electrical", "mat_cement"]}
+      "expected": {"intent": "project_advice", "destination": "project_advice", "response_kind": "advice", "grounded_record_ids": ["tsk_plastering", "tsk_electrical", "mat_cement"]}
     },
     {
       "id": "task_completion",
@@ -51,7 +51,7 @@
       "role": "manager",
       "authorized_context": "Task tsk_plumbing is in progress at version 2 in project prj_ridge.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_complete", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["tsk_plumbing"], "audit_actions": ["conversation.mutation_requested", "task.completed"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_complete", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "required_grounded_record_ids": ["tsk_plumbing"], "required_audit_actions": ["conversation.mutation_requested", "task.completed"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_complete", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["tsk_plumbing"], "audit_actions": ["conversation.mutation_requested", "task.completed"]}
     },
     {
       "id": "material_stock_count",
@@ -60,7 +60,7 @@
       "role": "foreman",
       "authorized_context": "Material mat_cement uses bags and is at version 4 in project prj_ridge.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "material_quantity", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["mat_cement"], "audit_actions": ["conversation.mutation_requested", "material.quantity_set"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "material_quantity", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "required_grounded_record_ids": ["mat_cement"], "required_audit_actions": ["conversation.mutation_requested", "material.quantity_set"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "material_quantity", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["mat_cement"], "audit_actions": ["conversation.mutation_requested", "material.quantity_set"]}
     },
     {
       "id": "issue_resolution",
@@ -69,7 +69,7 @@
       "role": "manager",
       "authorized_context": "Issue iss_electrical is the only open electrical blocker at version 1.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "issue_resolve", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["iss_electrical"], "audit_actions": ["conversation.mutation_requested", "issue.resolved"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "issue_resolve", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "required_grounded_record_ids": ["iss_electrical"], "required_audit_actions": ["conversation.mutation_requested", "issue.resolved"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "issue_resolve", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["iss_electrical"], "audit_actions": ["conversation.mutation_requested", "issue.resolved"]}
     },
     {
       "id": "schedule_proposal",
@@ -78,7 +78,7 @@
       "role": "manager",
       "authorized_context": "Task tsk_plastering has one downstream task tsk_painting and both have current versions.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "proposed_change", "mutation_kind": "schedule_dates", "policy": "confirm_first", "entity_status": "resolved", "grounded_record_ids": ["tsk_plastering", "tsk_painting"], "audit_actions": ["conversation.mutation_requested", "conversation.confirmation_requested"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "proposed_change", "mutation_kind": "schedule_dates", "policy": "confirm_first", "entity_status": "resolved", "required_grounded_record_ids": ["tsk_plastering", "tsk_painting"], "required_audit_actions": ["conversation.mutation_requested", "conversation.confirmation_requested"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "proposed_change", "mutation_kind": "schedule_dates", "policy": "confirm_first", "entity_status": "resolved", "grounded_record_ids": ["tsk_plastering", "tsk_painting"], "audit_actions": ["conversation.mutation_requested", "conversation.confirmation_requested"]}
     },
     {
       "id": "mixed_site_update",
@@ -96,7 +96,7 @@
       "role": "foreman",
       "authorized_context": "A persisted clarification is pending. Tasks tsk_plumbing_ground and tsk_plumbing_roof exist.",
       "fake_prediction": {"intent": "clarification_response", "destination": "clarification", "response_kind": "clarification", "entity_status": "resolved", "clarification_requested": true, "grounded_record_ids": ["tsk_plumbing_ground"]},
-      "expected": {"intent": "clarification_response", "destination": "clarification", "response_kind": "clarification", "entity_status": "resolved", "clarification_requested": true, "required_grounded_record_ids": ["tsk_plumbing_ground"]}
+      "expected": {"intent": "clarification_response", "destination": "clarification", "response_kind": "clarification", "entity_status": "resolved", "clarification_requested": true, "grounded_record_ids": ["tsk_plumbing_ground"]}
     },
     {
       "id": "schedule_confirmation",
@@ -105,7 +105,7 @@
       "role": "manager",
       "authorized_context": "A persisted confirmation for tsk_plastering is pending with expected version 3.",
       "fake_prediction": {"intent": "confirmation_response", "destination": "confirmation", "response_kind": "done", "mutation_kind": "schedule_dates", "policy": "confirm_first", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["tsk_plastering"], "audit_actions": ["conversation.confirmation_accepted", "schedule.dates_changed"]},
-      "expected": {"intent": "confirmation_response", "destination": "confirmation", "response_kind": "done", "mutation_kind": "schedule_dates", "policy": "confirm_first", "entity_status": "resolved", "mutation_count": 1, "required_grounded_record_ids": ["tsk_plastering"], "required_audit_actions": ["conversation.confirmation_accepted", "schedule.dates_changed"]}
+      "expected": {"intent": "confirmation_response", "destination": "confirmation", "response_kind": "done", "mutation_kind": "schedule_dates", "policy": "confirm_first", "entity_status": "resolved", "mutation_count": 1, "grounded_record_ids": ["tsk_plastering"], "audit_actions": ["conversation.confirmation_accepted", "schedule.dates_changed"]}
     },
     {
       "id": "ambiguous_task_reference",
@@ -123,7 +123,7 @@
       "role": "foreman",
       "authorized_context": "Task tsk_plastering is in progress.",
       "fake_prediction": {"intent": "unknown", "destination": "clarification", "response_kind": "clarification", "entity_status": "resolved", "clarification_requested": true, "grounded_record_ids": ["tsk_plastering"]},
-      "expected": {"intent": "unknown", "destination": "clarification", "response_kind": "clarification", "entity_status": "resolved", "clarification_requested": true, "required_grounded_record_ids": ["tsk_plastering"]}
+      "expected": {"intent": "unknown", "destination": "clarification", "response_kind": "clarification", "entity_status": "resolved", "clarification_requested": true, "grounded_record_ids": ["tsk_plastering"]}
     },
     {
       "id": "approval_purchase",
@@ -132,7 +132,7 @@
       "role": "manager",
       "authorized_context": "Material mat_cement uses bags. No pending duplicate request exists.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "needs_you", "mutation_kind": "material_purchase", "policy": "approval_required", "entity_status": "resolved", "mutation_count": 1, "approval_required": true, "grounded_record_ids": ["mat_cement"], "audit_actions": ["conversation.mutation_requested", "approval.requested"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "needs_you", "mutation_kind": "material_purchase", "policy": "approval_required", "entity_status": "resolved", "mutation_count": 1, "approval_required": true, "required_grounded_record_ids": ["mat_cement"], "required_audit_actions": ["conversation.mutation_requested", "approval.requested"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "needs_you", "mutation_kind": "material_purchase", "policy": "approval_required", "entity_status": "resolved", "mutation_count": 1, "approval_required": true, "grounded_record_ids": ["mat_cement"], "audit_actions": ["conversation.mutation_requested", "approval.requested"]}
     },
     {
       "id": "duplicate_task_command",
@@ -141,7 +141,7 @@
       "role": "manager",
       "authorized_context": "Both deliveries have the same persisted conversation idempotency key for tsk_plumbing.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_complete", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "duplicate_suppressed": true, "grounded_record_ids": ["tsk_plumbing"], "audit_actions": ["conversation.mutation_requested", "task.completed"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_complete", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "duplicate_suppressed": true, "required_grounded_record_ids": ["tsk_plumbing"], "required_audit_actions": ["conversation.mutation_requested", "task.completed"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_complete", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "duplicate_suppressed": true, "grounded_record_ids": ["tsk_plumbing"], "audit_actions": ["conversation.mutation_requested", "task.completed"]}
     },
     {
       "id": "stale_material_quantity",
@@ -150,7 +150,7 @@
       "role": "foreman",
       "authorized_context": "OG loaded mat_cement version 4, but persisted project truth is now version 5.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "conflict", "mutation_kind": "material_quantity", "policy": "auto_execute", "entity_status": "resolved", "conflict_surfaced": true, "grounded_record_ids": ["mat_cement"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "conflict", "mutation_kind": "material_quantity", "policy": "auto_execute", "entity_status": "resolved", "conflict_surfaced": true, "required_grounded_record_ids": ["mat_cement"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "conflict", "mutation_kind": "material_quantity", "policy": "auto_execute", "entity_status": "resolved", "conflict_surfaced": true, "grounded_record_ids": ["mat_cement"]}
     },
     {
       "id": "multi_turn_task_reference",
@@ -159,7 +159,7 @@
       "role": "manager",
       "authorized_context": "Memory points to tsk_electrical, which still exists at the current version. Ama is usr_ama and is active.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_assign", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "multi_turn_resolved": true, "grounded_record_ids": ["tsk_electrical", "usr_ama"], "audit_actions": ["conversation.mutation_requested", "task.assigned"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_assign", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "multi_turn_resolved": true, "required_grounded_record_ids": ["tsk_electrical", "usr_ama"], "required_audit_actions": ["conversation.mutation_requested", "task.assigned"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "done", "mutation_kind": "task_assign", "policy": "auto_execute", "entity_status": "resolved", "mutation_count": 1, "multi_turn_resolved": true, "grounded_record_ids": ["tsk_electrical", "usr_ama"], "audit_actions": ["conversation.mutation_requested", "task.assigned"]}
     },
     {
       "id": "viewer_task_mutation",
@@ -168,7 +168,7 @@
       "role": "viewer",
       "authorized_context": "Viewer can read tsk_plumbing but has no operate permission.",
       "fake_prediction": {"intent": "project_mutation", "destination": "project_action", "response_kind": "denied", "mutation_kind": "task_complete", "policy": "deny_or_escalate", "entity_status": "resolved", "permission_denied": true, "grounded_record_ids": ["tsk_plumbing"]},
-      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "denied", "mutation_kind": "task_complete", "policy": "deny_or_escalate", "entity_status": "resolved", "permission_denied": true, "required_grounded_record_ids": ["tsk_plumbing"]}
+      "expected": {"intent": "project_mutation", "destination": "project_action", "response_kind": "denied", "mutation_kind": "task_complete", "policy": "deny_or_escalate", "entity_status": "resolved", "permission_denied": true, "grounded_record_ids": ["tsk_plumbing"]}
     }
   ]
 }

@@ -50,6 +50,20 @@ def test_dataset_validation_rejects_thresholds_outside_probability_range(
         load_conversation_dataset(invalid)
 
 
+def test_dataset_validation_rejects_category_label_swaps(tmp_path: Path) -> None:
+    raw = DATASET.read_text(encoding="utf-8")
+    raw = raw.replace(
+        '"expected": {"intent": "casual"',
+        '"expected": {"intent": "project_query"',
+        1,
+    )
+    invalid = tmp_path / "swapped-categories.json"
+    invalid.write_text(raw, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="invalid expected route"):
+        load_conversation_dataset(invalid)
+
+
 @pytest.mark.asyncio
 async def test_fixture_benchmark_passes_every_release_threshold() -> None:
     dataset = load_conversation_dataset(DATASET)
@@ -67,11 +81,17 @@ async def test_fixture_benchmark_passes_every_release_threshold() -> None:
     [
         ("unsafe_mutation", "ambiguous_completion"),
         ("approval_bypass", "approval_purchase"),
+        ("external_action_bypass", "approval_purchase"),
         ("permission_bypass", "viewer_task_mutation"),
+        ("unauthorized_mutation", "viewer_task_mutation"),
+        ("duplicate_suppression_bypass", "duplicate_task_command"),
         ("duplicate_side_effect", "duplicate_task_command"),
+        ("stale_conflict_bypass", "stale_material_quantity"),
         ("stale_overwrite", "stale_material_quantity"),
         ("memory_as_truth", "multi_turn_task_reference"),
         ("missing_audit", "task_completion"),
+        ("fabricated_audit", "task_completion"),
+        ("unauthorized_grounding", "project_blocker_query"),
     ],
 )
 async def test_each_control_regression_fails_the_gate(guard: str, case_id: str) -> None:
