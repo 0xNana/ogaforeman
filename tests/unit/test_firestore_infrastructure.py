@@ -101,6 +101,7 @@ def test_demo_environment_is_local_or_test_only(monkeypatch: pytest.MonkeyPatch)
                 pubsub_worker_subscription="worker",
                 gemini_model_id="gemini-test",
                 gemini_location="global",
+                conversation_proposal_signing_key="a" * 32,
                 auth_issuer="https://issuer.example",
                 auth_audience="oga-staging",
                 cors_allowed_origins=("https://oga-staging.web.app",),

@@ -5,12 +5,21 @@ import pytest
 
 from app.agents.interpreter import MediaEvidence
 from app.config.settings import Settings
-from app.domain.conversation import ConversationContext, IntentType
+from app.domain.conversation import (
+    ContextDomain,
+    ContextQuery,
+    ConversationContext,
+    ConversationalProjectContext,
+    IntentType,
+    MaterialOperation,
+)
 from app.infrastructure.gemini import (
+    GeminiActionInterpreter,
     GeminiIntentClassifier,
     GeminiSiteInterpreter,
     create_gemini_client,
 )
+from datetime import UTC, datetime
 
 
 def test_local_api_key_uses_gemini_developer_api(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -21,6 +30,7 @@ def test_local_api_key_uses_gemini_developer_api(monkeypatch: pytest.MonkeyPatch
         _env_file=None,
         use_fake_model=False,
         gemini_api_key="developer-key",
+        conversation_proposal_signing_key="a" * 32,
         gemini_model_id="configured-model",
     )
 
@@ -96,6 +106,7 @@ def test_deployed_runtime_uses_vertex_even_when_api_key_exists(
         gemini_model_id="configured-model",
         gemini_location="global",
         gemini_api_key="developer-key",
+        conversation_proposal_signing_key="a" * 32,
         auth_issuer="https://securetoken.google.com/oga-staging",
         auth_audience="oga-staging",
         cors_allowed_origins=("https://oga-staging.web.app",),
@@ -169,6 +180,47 @@ async def test_gemini_intent_classifier_uses_typed_non_mutating_response(
     call = generate_content.await_args.kwargs
     assert call["config"].response_schema is not None
     assert "has_active_project" in call["contents"][0].text
+    assert "<user_message>" in call["contents"][0].text
+
+
+@pytest.mark.asyncio
+async def test_gemini_action_interpreter_returns_typed_non_executing_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(
+        return_value=SimpleNamespace(
+            text=(
+                '{"action":{"kind":"material","operation":"set_on_site",'
+                '"material_reference":"cement","quantity":"100","unit":"bags",'
+                '"reason":"Reported current stock count."}}'
+            )
+        )
+    )
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    interpreter = GeminiActionInterpreter(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+    context = ConversationalProjectContext(
+        project_id="prj_gemini123",
+        retrieved_at=datetime(2026, 8, 14, 12, tzinfo=UTC),
+        query=ContextQuery(domains=(ContextDomain.MATERIALS,)),
+    )
+
+    action = await interpreter.interpret("we have 100 bags of cement", context=context)
+
+    assert action.operation is MaterialOperation.SET_ON_SITE
+    assert action.quantity == 100
+    call = generate_content.await_args.kwargs
+    assert call["config"].response_schema is not None
+    assert "prj_gemini123" in call["contents"][0].text
     assert "<user_message>" in call["contents"][0].text
 
 

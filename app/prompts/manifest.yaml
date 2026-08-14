@@ -28,3 +28,7 @@ agents:
     description: "Classifies conversational messages into typed, non-mutating destinations."
     prompt_file: "intent_router.txt"
     tools: []
+  - name: action_interpreter
+    description: "Interprets one authorized conversational mutation into a typed semantic action."
+    prompt_file: "action_interpreter.txt"
+    tools: []

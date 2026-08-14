@@ -116,6 +116,15 @@ ActionInterpretation: TypeAlias = Annotated[
     | PurchaseActionInterpretation,
     Field(discriminator="kind"),
 ]
+
+
+class ActionInterpretationEnvelope(BaseModel):
+    """Structured model boundary for exactly one proposed conversational action."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    action: ActionInterpretation
+
+
 ActionCommand: TypeAlias = (
     ConversationTaskCommand
     | ConversationMaterialCommand
@@ -652,6 +661,7 @@ def _reject_operation_fields(command: BaseModel, allowed: set[str]) -> None:
 __all__ = [
     "ActionComposer",
     "ActionInterpretation",
+    "ActionInterpretationEnvelope",
     "ComposedAction",
     "IssueActionInterpretation",
     "MaterialActionInterpretation",

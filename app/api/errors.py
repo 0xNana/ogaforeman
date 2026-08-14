@@ -173,6 +173,10 @@ def install_error_handlers(app: FastAPI) -> None:
         VersionConflictError,
         cast(ExceptionHandler, _handle_unexpected_error),
     )
+    app.add_exception_handler(
+        ActivityIdempotencyConflict,
+        cast(ExceptionHandler, _handle_unexpected_error),
+    )
     app.add_exception_handler(Exception, cast(ExceptionHandler, _handle_unexpected_error))
 
 

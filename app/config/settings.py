@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     gemini_fallback_model_id: str | None = None
     gemini_location: str | None = None
     gemini_api_key: SecretStr | None = None
+    conversation_proposal_signing_key: SecretStr | None = None
 
     event_claim_lease_seconds: int = Field(default=60, ge=30, le=600)
     event_claim_max_attempts: int = Field(default=3, ge=1, le=10)
@@ -103,6 +104,15 @@ class Settings(BaseSettings):
                 normalized.append(origin)
         return tuple(normalized)
 
+    @field_validator("conversation_proposal_signing_key")
+    @classmethod
+    def validate_conversation_proposal_signing_key(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value().encode()) < 32:
+            raise ValueError("conversation proposal signing key must be at least 32 bytes")
+        return value
+
     @model_validator(mode="after")
     def validate_environment_requirements(self) -> Self:
         if self.agent_workflow_timeout_seconds >= self.event_claim_lease_seconds:
@@ -147,6 +157,7 @@ class Settings(BaseSettings):
                 "pubsub_worker_subscription",
                 "gemini_model_id",
                 "gemini_location",
+                "conversation_proposal_signing_key",
                 "auth_issuer",
                 "auth_audience",
                 "cors_allowed_origins",

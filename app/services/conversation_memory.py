@@ -8,6 +8,7 @@ import json
 
 from pydantic import TypeAdapter
 
+from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.authorization import ProjectAccessContext, ProjectPermission, ensure_permission
 from app.domain.conversation import (
     EntityKind,
@@ -24,7 +25,7 @@ from app.domain.conversation import (
     PendingTaskCommand,
     TaskOperation,
 )
-from app.domain.enums import TaskStatus
+from app.domain.enums import ActorType, TaskStatus
 from app.domain.models import (
     ConversationEntityReference,
     ConversationMemory,
@@ -33,6 +34,7 @@ from app.domain.models import (
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_mutation_policy import MutationPolicyService
+from app.services.activity import ActivityService
 
 
 _PENDING_COMMAND_ADAPTER: TypeAdapter[PendingConversationCommand] = TypeAdapter(
@@ -50,6 +52,7 @@ class ConversationMemoryService:
         self._store = store
         self._resolver = resolver
         self._policies = policies or MutationPolicyService()
+        self._activities = ActivityService(store)
 
     def load(self, access: ProjectAccessContext) -> ConversationMemory:
         ensure_permission(access, ProjectPermission.READ)
@@ -140,6 +143,23 @@ class ConversationMemoryService:
         expected_policy = self._policies.classify(access, _policy_request(command))
         if command.policy_decision != expected_policy:
             raise ValueError("pending command policy does not match deterministic policy")
+        if (
+            self._store.repository(ConversationProposalClaim).get(
+                access.project_id, command.proposal_id
+            )
+            is not None
+        ):
+            raise ValueError("a consumed proposal identity cannot be reused")
+        observed = self._store.repository(ConversationMemory).get(
+            access.project_id, _memory_id(access)
+        )
+        if observed is not None and observed.pending_command is not None:
+            if observed.pending_command == command:
+                pass
+            elif observed.pending_command.proposal_id == command.proposal_id:
+                raise ValueError("a proposal identity cannot be reused for different content")
+            else:
+                raise ValueError("another conversational proposal is already pending")
 
         def operation(session: RepositorySession) -> ConversationMemory:
             repository = session.repository(ConversationMemory)
@@ -173,7 +193,37 @@ class ConversationMemoryService:
                 return repository.create(saved)
             return repository.save(saved, expected_version=current.version)
 
-        return self._store.run_transaction(operation)
+        command_json = command.model_dump_json(exclude={"created_at"})
+        command_fingerprint = sha256(command_json.encode("utf-8")).hexdigest()
+        audit_key = f"conversation-proposal:{sha256(command.idempotency_key.encode()).hexdigest()}"
+        result = self._activities.mutate(
+            MutationContext(
+                project_id=access.project_id,
+                actor_type=ActorType.USER,
+                actor_id=access.actor.user_id,
+                idempotency_key=audit_key,
+                request_fingerprint=command_fingerprint,
+            ),
+            ActivitySpec(
+                action="conversation.proposal_created",
+                entity_type="conversation_memory",
+                entity_id=_memory_id(access),
+                summary="Conversation change proposed for review.",
+                metadata={
+                    "proposal_id": command.proposal_id,
+                    "command_kind": command.kind,
+                    "policy": command.policy_decision.policy.value,
+                    "command_fingerprint": command_fingerprint,
+                },
+            ),
+            operation,
+            replay=lambda session, _event: session.repository(ConversationMemory).require(
+                access.project_id, _memory_id(access)
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("proposal audit replay did not recover conversation memory")
+        return result.value
 
     def require_command(
         self,

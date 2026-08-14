@@ -66,6 +66,7 @@ class MutationContext(DomainModel):
     source_event_id: CanonicalId | None = None
     agent_run_id: CanonicalId | None = None
     idempotency_key: IdempotencyKey
+    request_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
@@ -117,20 +118,25 @@ def activity_id(context: MutationContext) -> str:
 def mutation_fingerprint(context: MutationContext, spec: ActivitySpec) -> str:
     """Fingerprint the complete safe mutation envelope for replay protection."""
 
+    payload = {
+        "project_id": context.project_id,
+        "actor_type": context.actor_type.value,
+        "actor_id": context.actor_id,
+        "source_event_id": context.source_event_id,
+        "agent_run_id": context.agent_run_id,
+        "idempotency_key": context.idempotency_key,
+        "action": spec.action,
+        "entity_type": spec.entity_type,
+        "entity_id": spec.entity_id,
+        "summary": spec.summary,
+        "metadata": spec.metadata,
+    }
+    # Keep fingerprints for all pre-existing mutation callers byte-for-byte
+    # compatible across this rollout. Conversation request binding is opt-in.
+    if context.request_fingerprint is not None:
+        payload["request_fingerprint"] = context.request_fingerprint
     canonical = json.dumps(
-        {
-            "project_id": context.project_id,
-            "actor_type": context.actor_type.value,
-            "actor_id": context.actor_id,
-            "source_event_id": context.source_event_id,
-            "agent_run_id": context.agent_run_id,
-            "idempotency_key": context.idempotency_key,
-            "action": spec.action,
-            "entity_type": spec.entity_type,
-            "entity_id": spec.entity_id,
-            "summary": spec.summary,
-            "metadata": spec.metadata,
-        },
+        payload,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,

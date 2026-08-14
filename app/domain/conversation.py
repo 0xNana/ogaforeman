@@ -52,6 +52,7 @@ class ContextDomain(StrEnum):
 
 
 class ContextFocus(StrEnum):
+    ALL = "all"
     CURRENT = "current"
     TODAY = "today"
     TOMORROW = "tomorrow"

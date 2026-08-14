@@ -44,10 +44,17 @@ export FIRESTORE_LOCATION=your-approved-firestore-location
 export MEDIA_BUCKET=oga-staging-media
 export GEMINI_MODEL_ID=your-approved-model
 export GEMINI_LOCATION=global
+export CONVERSATION_PROPOSAL_SIGNING_SECRET=oga-conversation-proposal-signing-key-staging
 export AUTH_ISSUER=https://securetoken.google.com/oga-staging
 export AUTH_AUDIENCE=oga-staging
 export CORS_ALLOWED_ORIGINS='["https://oga-staging.web.app","https://oga-staging.firebaseapp.com"]'
 ```
+
+Create the named Secret Manager secret before deployment and add a current
+version containing at least 32 cryptographically random bytes. The deployment
+grants only the API and worker service accounts access and mounts it as
+`CONVERSATION_PROPOSAL_SIGNING_KEY`; the secret value must never be placed in
+the deploy `.env` file.
 
 `FIRESTORE_LOCATION` is mandatory because the database location cannot be
 changed after creation. Choose it explicitly before the first real deployment;

@@ -212,7 +212,7 @@ class ProjectContextService:
                 if ContextDomain.RECENT_ACTIVITY in domains
                 else ()
             ),
-            members=self._members(project.id, names)
+            members=self._members(project.id, names, query)
             if ContextDomain.PROJECT_MEMBERS in domains
             else (),
         )
@@ -270,11 +270,14 @@ class ProjectContextService:
         matched_task_ids: set[str],
     ) -> tuple[IssueContextItem, ...]:
         versioned_issues = self._versioned_items(Issue, project_id)
-        issues = [
-            (issue, version)
-            for issue, version in versioned_issues
-            if issue.status in {IssueStatus.OPEN, IssueStatus.ACKNOWLEDGED, IssueStatus.MITIGATED}
-        ]
+        issues = list(versioned_issues)
+        if query.focus is not ContextFocus.ALL:
+            issues = [
+                (issue, version)
+                for issue, version in issues
+                if issue.status
+                in {IssueStatus.OPEN, IssueStatus.ACKNOWLEDGED, IssueStatus.MITIGATED}
+            ]
         if query.search_terms:
             issues = [
                 (issue, version)
@@ -303,6 +306,17 @@ class ProjectContextService:
         materials = list(self._versioned_items(Material, project_id))
         if query.focus is ContextFocus.LOW_STOCK:
             materials = [item for item in materials if _is_low(item[0])]
+        elif query.search_terms:
+            materials = [
+                item
+                for item in materials
+                if _matches(
+                    query.search_terms,
+                    item[0].name,
+                    item[0].normalized_name,
+                    *item[0].aliases,
+                )
+            ]
         return tuple(
             MaterialContextItem(
                 id=item.id,
@@ -328,6 +342,19 @@ class ProjectContextService:
                 MaterialRequestStatus.REJECTED,
             }
             requests = [item for item in requests if item[0].status not in terminal]
+        if query.search_terms:
+            material_names = {
+                item.id: item.name for item in self._store.repository(Material).list(project_id)
+            }
+            requests = [
+                item
+                for item in requests
+                if _matches(
+                    query.search_terms,
+                    item[0].reason,
+                    material_names.get(item[0].material_id),
+                )
+            ]
         requests.sort(key=lambda pair: pair[0].updated_at, reverse=True)
         return tuple(
             MaterialRequestContextItem(
@@ -409,12 +436,18 @@ class ProjectContextService:
             for item in events[: self._limit]
         )
 
-    def _members(self, project_id: str, names: dict[str, str]) -> tuple[MemberContextItem, ...]:
+    def _members(
+        self, project_id: str, names: dict[str, str], query: ContextQuery
+    ) -> tuple[MemberContextItem, ...]:
         members = [
             item
             for item in self._store.repository(ProjectMember).list(project_id)
             if item.status is MemberStatus.ACTIVE
         ]
+        if query.focus is ContextFocus.ALL and query.search_terms:
+            members = [
+                item for item in members if _matches(query.search_terms, names.get(item.user_id))
+            ]
         members.sort(key=lambda item: (names.get(item.user_id, "").casefold(), item.user_id))
         return tuple(
             MemberContextItem(

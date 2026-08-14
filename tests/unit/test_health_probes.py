@@ -82,6 +82,7 @@ def test_configuration_probe_reports_local_and_deployed_contracts() -> None:
         pubsub_worker_subscription="oga-worker",
         gemini_model_id="gemini-model",
         gemini_location="global",
+        conversation_proposal_signing_key="a" * 32,
         auth_issuer="https://securetoken.google.com/oga-staging",
         auth_audience="oga-staging",
         cors_allowed_origins=("https://oga-staging.web.app",),

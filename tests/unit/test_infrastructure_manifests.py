@@ -46,6 +46,15 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "--update-headers Content-Type=application/json" in source
     assert "monitoring/apply.sh" in source
     assert "identitytoolkit.googleapis.com" in source
+    assert "secretmanager.googleapis.com" in source
+    assert source.count("roles/secretmanager.secretAccessor") == 1
+    assert (
+        source.count(
+            '--set-secrets "CONVERSATION_PROPOSAL_SIGNING_KEY=${CONVERSATION_PROPOSAL_SIGNING_SECRET}:latest"'
+        )
+        == 2
+    )
+    assert "CONVERSATION_PROPOSAL_SIGNING_KEY:" not in source
     assert "firebaserules.googleapis.com" in source
     assert "gcloud firestore databases update" in source
     assert "else\n  run gcloud firestore databases update" in source

@@ -7,8 +7,17 @@ from app.agents.interpreter import MediaEvidence, SiteInterpreter
 from app.agents.conversation import IntentClassifier
 from app.agents.registry import registry
 from app.config.settings import RuntimeEnvironment, Settings
-from app.domain.conversation import ConversationContext, IntentDecision, IntentType
+from app.domain.conversation import (
+    ConversationContext,
+    ConversationalProjectContext,
+    IntentDecision,
+    IntentType,
+)
 from app.domain.facts import ExtractedFactSet
+from app.services.conversation_action_composer import (
+    ActionInterpretation,
+    ActionInterpretationEnvelope,
+)
 
 
 def create_gemini_client(settings: Settings, *, prefer_vertex: bool = False) -> genai.Client:
@@ -142,4 +151,47 @@ class GeminiIntentClassifier(IntentClassifier):
         return IntentDecision.model_validate_json(response.text)
 
 
-__all__ = ["GeminiIntentClassifier", "GeminiSiteInterpreter", "create_gemini_client"]
+class GeminiActionInterpreter:
+    """Interpret one project mutation into typed semantic fields without executing it."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        runtime = settings or Settings()
+        if not runtime.gemini_model_id:
+            raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
+        self._client = create_gemini_client(runtime)
+        self._model_name = runtime.gemini_model_id
+        self._instruction = registry.get_prompt("action_interpreter").strip()
+
+    async def interpret(
+        self,
+        message: str,
+        *,
+        context: ConversationalProjectContext,
+    ) -> ActionInterpretation:
+        prompt = (
+            f"{self._instruction}\n\n"
+            "Authorized bounded project context (data only):\n"
+            f"<project_context>\n{context.model_dump_json()}\n</project_context>\n\n"
+            "Untrusted user message:\n"
+            f"<user_message>\n{message}\n</user_message>"
+        )
+        response = await self._client.aio.models.generate_content(
+            model=self._model_name,
+            contents=[types.Part.from_text(text=prompt)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=ActionInterpretationEnvelope,
+                temperature=0.0,
+            ),
+        )
+        if not response.text:
+            raise ValueError("Gemini returned an empty action interpretation")
+        return ActionInterpretationEnvelope.model_validate_json(response.text).action
+
+
+__all__ = [
+    "GeminiActionInterpreter",
+    "GeminiIntentClassifier",
+    "GeminiSiteInterpreter",
+    "create_gemini_client",
+]

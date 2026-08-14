@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from hashlib import sha256
+import json
 
 import pytest
 
@@ -8,6 +10,7 @@ from app.domain.activity import (
     MutationContext,
     MutationContextRequiredError,
     WorkflowActivityAction,
+    mutation_fingerprint,
 )
 from app.domain.enums import ActorType, TaskStatus
 from app.domain.models import ActivityEvent, Task
@@ -46,6 +49,33 @@ def make_spec(**updates: object) -> ActivitySpec:
     }
     values.update(updates)
     return ActivitySpec(**values)
+
+
+def test_absent_request_fingerprint_preserves_pre_rollout_activity_identity() -> None:
+    context = make_context()
+    spec = make_spec()
+    legacy_payload = {
+        "project_id": context.project_id,
+        "actor_type": context.actor_type.value,
+        "actor_id": context.actor_id,
+        "source_event_id": context.source_event_id,
+        "agent_run_id": context.agent_run_id,
+        "idempotency_key": context.idempotency_key,
+        "action": spec.action,
+        "entity_type": spec.entity_type,
+        "entity_id": spec.entity_id,
+        "summary": spec.summary,
+        "metadata": spec.metadata,
+    }
+    canonical = json.dumps(
+        legacy_payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+
+    assert mutation_fingerprint(context, spec) == sha256(canonical.encode()).hexdigest()
 
 
 def test_workflow_activity_registry_covers_the_public_audit_contract() -> None:

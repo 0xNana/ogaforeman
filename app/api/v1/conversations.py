@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from hashlib import sha256
 import re
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,7 +8,6 @@ from app.agents.conversation import IntentRoutingService
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
 from app.domain.authorization import ProjectAccessContext, ProjectPermission
-from app.domain.activity import MutationContext
 from app.domain.conversation import (
     ContextQuery,
     ConversationContext,
@@ -18,9 +16,7 @@ from app.domain.conversation import (
     IntentDestination,
     SiteUpdateRouteCommand,
 )
-from app.domain.enums import ActorType
-from app.services.activity import ActivityService
-from app.services.conversation_audit import ConversationAuditService
+from app.services.conversation_action_execution import ConversationActionExecutionService
 from app.services.conversation_advice import ConversationAdviceService, plan_advice_query
 from app.services.conversation_context import ProjectContextService, plan_context_query
 from app.services.conversation_responses import ConversationResponseService
@@ -48,6 +44,9 @@ class ConversationMessageResponse(BaseModel):
     mutation_performed: bool = False
     workflow_run_id: str | None = None
     proposed_action: str | None = None
+    proposal_id: str | None = None
+    memory_version: int | None = None
+    activity_id: str | None = None
 
 
 @router.post("/messages", response_model=ConversationMessageResponse)
@@ -131,45 +130,32 @@ async def send_message(
     if route.destination is IntentDestination.PROJECT_ACTION:
         access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
         key = require_idempotency_key(request)
-        audit = ConversationAuditService(ActivityService(runtime.store))
-        base = MutationContext(
-            project_id=project_id,
-            actor_type=ActorType.USER,
-            actor_id=access.actor.user_id,
-            idempotency_key=_audit_key(key, "requested"),
-        )
-        audit.record(
-            base,
-            action="conversation.mutation_requested",
-            entity_type="project",
-            entity_id=project_id,
-            summary="Project change requested through OG.",
-            reason_code=route.decision.reason_code,
-        )
-        audit.record(
-            base.model_copy(update={"idempotency_key": _audit_key(key, "confirmation")}),
-            action="conversation.confirmation_requested",
-            entity_type="project",
-            entity_id=project_id,
-            summary="OG requested confirmation before applying a project change.",
-            reason_code="confirmation_required",
-        )
-        proposed = route.decision.requested_action or payload.message
-        # Raw model text is display-only. It is not an executable confirmation token.
-        memory_service.remember_pending(access, proposed_action=proposed)
+        interpreter = getattr(request.app.state, "action_interpreter", None)
+        if interpreter is None or not hasattr(interpreter, "interpret"):
+            raise ApiError(
+                "DEPENDENCY_UNAVAILABLE",
+                "OG project actions are temporarily unavailable.",
+                status_code=503,
+            )
+        outcome = await ConversationActionExecutionService(
+            runtime.store,
+            runtime.projects,
+            interpreter,
+            member_names=getattr(runtime, "project_member_names", None),
+            schedules=getattr(request.app.state, "conversation_schedule_service", None),
+        ).execute(access, payload.message, idempotency_key=key)
         return ConversationMessageResponse(
-            kind="proposed_change",
-            text="I understood the requested project change. Review and confirm the exact record change before I apply it.",
-            proposed_action=proposed,
+            kind=outcome.kind,
+            text=outcome.text,
+            mutation_performed=outcome.mutation_performed,
+            proposed_action=outcome.proposed_action,
+            proposal_id=outcome.proposal_id,
+            memory_version=outcome.memory_version,
+            activity_id=outcome.activity_id,
         )
     return ConversationMessageResponse(
         kind="clarification", text="Please clarify the project change you want OG to make."
     )
-
-
-def _audit_key(request_key: str, transition: str) -> str:
-    digest = sha256(request_key.encode()).hexdigest()[:32]
-    return f"conversation:{digest}:{transition}"
 
 
 def _query_with_recent_reference(
