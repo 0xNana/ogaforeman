@@ -72,11 +72,11 @@ Status: COMPLETE
 
 Phase 17 — Final Conversational Golden Flow
 
-Status: ACTIVE
+Status: COMPLETE
 
 ## Current blockers
 
-- None for local Phase 16 implementation. A configured live-Gemini evaluation is required before
+- None for local Phase 17 implementation. A configured live-Gemini evaluation is required before
   changing the production conversation prompt or model.
 
 ## Final audit remediation
@@ -90,24 +90,22 @@ Status: ACTIVE
   persists an exact signed typed command and confirmation accepts only its proposal ID plus the
   caller-observed memory version.
 - The deterministic Phase 16 fixture comparator remains intentionally separate from runtime
-  conformance. A runtime conversation gate cannot be marked green until Phase 17 dispatches typed
-  mutations, resumes confirmations, and hands approval-required work to the existing workflows.
+  conformance. Phase 17 adds a production-API runtime gate that inspects real typed mutations,
+  activities, proposal lifecycle, stale/replay behavior, and approval handoff.
 
 ## Known regressions
 
 - None.
 
-## Known Phase 17 integration gaps
+## Phase 17 integration evidence
 
-- Approval-required purchase requests are not yet handed from conversation into the existing
-  approval workflow.
-- The responsive drawer does not yet render executable confirm/cancel controls for a persisted
-  proposed change.
-- The final runtime-backed restart, authorization, approval, and browser Golden Flow gates remain
-  to be completed after the approval handoff and drawer controls land.
-
-These are explicitly outside the deterministic Phase 16 evaluator's runtime claim and are the
-active Phase 17 end-to-end scope.
+- Routine task, material, and issue actions dispatch only through existing typed services.
+- Purchases and major schedule changes enter existing approval/outbox/worker continuations without
+  external execution before approval.
+- Signed server proposals persist in `ConversationMemory`; confirm/cancel clients send only the
+  proposal ID and observed memory version.
+- Runtime evals exercise the production API and persisted outcomes. Fresh Firestore clients prove
+  restart-safe confirmation/replay, and Playwright proves drawer recovery after reload.
 
 ## Phase 16 evidence
 

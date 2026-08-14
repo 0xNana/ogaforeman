@@ -50,6 +50,60 @@ test('desktop command center and activity use API projections', async ({ page },
   expect(browserErrors).toEqual([]);
 });
 
+test('conversation proposal survives refresh and confirms through the server contract', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Desktop evidence runs in Chromium desktop.');
+  let pending: Record<string, unknown> | null = null;
+  const proposal = {
+    proposal_id: 'cpr_browsergolden',
+    kind: 'schedule',
+    project_id: 'prj_ridge_house',
+    actor_id: 'usr_manager',
+    policy_decision: { policy: 'confirm_first', reason_code: 'consequential_reversible_change', use_existing_approval: false },
+    idempotency_key: 'conversation:browser:golden',
+    requested_action: 'Move plastering to Friday',
+    observed_memory_version: 0,
+    observed_entity_versions: { tsk_plastering: 7 },
+    created_at: '2026-08-14T10:00:00Z',
+    expires_at: '2026-08-14T10:15:00Z',
+    signature: 'a'.repeat(64),
+    command: {},
+  };
+  await page.route('**/conversations/proposals/pending', async (route) => {
+    await route.fulfill({ json: { proposal: pending, memory_version: pending ? 1 : 0 } });
+  });
+  await page.route('**/conversations/messages', async (route) => {
+    pending = proposal;
+    await route.fulfill({
+      json: {
+        kind: 'proposed_change', text: 'That affects one downstream activity.', cited_record_ids: [],
+        mutation_performed: false, proposed_action: 'Move plastering to Friday', proposal_id: proposal.proposal_id,
+        memory_version: 1, proposal,
+      },
+    });
+  });
+  await page.route('**/conversations/proposals/cpr_browsergolden/confirm', async (route) => {
+    const request = route.request();
+    expect(request.postDataJSON()).toEqual({ observed_memory_version: 1 });
+    pending = null;
+    await route.fulfill({ json: { kind: 'done', text: 'Schedule updated.', cited_record_ids: [], mutation_performed: true } });
+  });
+
+  await signInToProject(page, testInfo);
+  await page.getByRole('button', { name: 'Ask OG' }).click();
+  let drawer = page.getByRole('dialog', { name: 'Ask OG' });
+  await drawer.getByRole('textbox', { name: 'Message OG' }).fill('move plastering to Friday');
+  await drawer.getByRole('button', { name: 'Send message' }).click();
+  await expect(drawer.getByRole('button', { name: 'Confirm' })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Ask OG' }).click();
+  drawer = page.getByRole('dialog', { name: 'Ask OG' });
+  await expect(drawer.getByRole('heading', { name: 'Move plastering to Friday' })).toBeVisible();
+  await drawer.getByRole('button', { name: 'Confirm' }).click();
+  await expect(drawer.getByText('Schedule updated.')).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Confirm' })).toHaveCount(0);
+});
+
 test('mobile command center navigation remains usable without overflow', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Mobile evidence runs with the Pixel viewport.');
   const browserErrors = captureBrowserErrors(page);

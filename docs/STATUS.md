@@ -6,7 +6,7 @@
 
 ## Summary
 
-Conversational Operations phases 11–16 are implemented locally. OG now returns cited read-only
+Conversational Operations phases 11–17 are implemented locally. OG now returns cited read-only
 project advice, retains bounded per-user/project references that are revalidated against persisted
 truth, and exposes typed conversation/advice/proposal/workflow responses in the global responsive
 Ask OG drawer while reusing the existing multimodal Golden intake. Significant conversational
@@ -15,11 +15,11 @@ material, and issue commands surface optimistic conflicts instead of overwriting
 The versioned conversational benchmark covers all 17 required categories, locks every release
 threshold at 100%, and includes independent negative controls for mutation, approval, permission,
 replay, conflict, memory, and audit failures. Its fixture result is evaluator evidence rather than
-runtime-conformance evidence; the Phase 17 end-to-end conversation flow remains active scope.
+runtime-conformance evidence; Phase 17 adds a separate production-pipeline runtime gate.
 The final Phase 1–16 audit also aligned mutation-policy permissions and bound schedule confirmation
-to signed actor/project/versioned proposals. Phase 17 now composes and dispatches typed routine
-mutations and persists exact signed confirmation commands behind server-issued, version-bound
-proposal IDs; approval handoff, drawer controls, and the final runtime/browser gates remain active.
+to signed actor/project/versioned proposals. Phase 17 composes and dispatches typed routine
+mutations, persists exact signed confirmation commands behind server-issued IDs, reuses existing
+purchase/schedule approvals, and proves confirmation through Firestore restart and browser reload.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed

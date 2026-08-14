@@ -43,6 +43,9 @@ real cloud environment, live model credential/billing, or human release gate.
   conversational task, material, and issue commands.
 - [x] C-17 Phase 16 provides a versioned, category-complete conversational evaluation gate with
   deterministic release artifacts and negative controls for every safety-critical outcome.
+- [x] C-18 Phase 17 connects the conversational API to typed mutations, durable signed proposals,
+  existing purchase and schedule approvals, accessible drawer confirmation, runtime evals, and
+  Firestore/browser restart proof.
 
 ## Audit findings requiring implementation
 

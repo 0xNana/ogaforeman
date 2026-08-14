@@ -286,6 +286,7 @@ class LocalE2ERuntime:
             max_upload_bytes=10 * 1024 * 1024,
             firestore_emulator_host=os.getenv("FIRESTORE_EMULATOR_HOST"),
             google_cloud_project="oga-foreman-playwright",
+            conversation_proposal_signing_key="e2e-conversation-proposal-signing-key-32-bytes",
         )
         project = Project(
             id=PROJECT_ID,
@@ -540,6 +541,10 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Oga Foreman local E2E API")
     app.state.auth_runtime = runtime
     app.state.project_access_provider = runtime.project_access
+    signing_key = runtime.settings.conversation_proposal_signing_key
+    if signing_key is None:
+        raise RuntimeError("E2E conversation proposal signing key is required")
+    app.state.conversation_proposal_signing_key = signing_key.get_secret_value().encode()
     app.state.attachment_service = AttachmentService(
         runtime.store,
         runtime.storage,
@@ -553,7 +558,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=["http://127.0.0.1:3100"],
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
     )
     install_request_id_middleware(app)

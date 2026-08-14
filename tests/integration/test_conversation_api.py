@@ -374,7 +374,10 @@ async def test_expired_unreserved_proposal_is_rejected_without_mutation() -> Non
         assert memory.pending_command is not None
         now = datetime.now(UTC)
         expired = memory.pending_command.model_copy(
-            update={"created_at": now - timedelta(minutes=20), "expires_at": now - timedelta(minutes=5)}
+            update={
+                "created_at": now - timedelta(minutes=20),
+                "expires_at": now - timedelta(minutes=5),
+            }
         )
         sealed = ConversationMemoryService(
             store,
@@ -407,9 +410,7 @@ async def test_project_change_is_proposed_audited_and_replay_safe() -> None:
             json={"message": "move plastering to Friday"},
             headers={"Idempotency-Key": "conversation:move:1"},
         )
-        pending = await client.get(
-            f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/pending"
-        )
+        pending = await client.get(f"/api/v1/projects/{PROJECT_ID}/conversations/proposals/pending")
         task = store.repository(Task).require(PROJECT_ID, "tsk_plaster123")
         store.repository(Task).save(
             task.model_copy(update={"description": "Changed after proposal."}),

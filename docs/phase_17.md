@@ -13,7 +13,7 @@
 | P0.7 Major schedule approval | Complete | Signed approval-bound commands use the existing approval outbox/worker, resolver checks, typed schedule CAS, atomic activity emission, and idempotent replay. |
 | P0.8 Drawer proposal controls | Complete | Drawer reloads durable server proposals and sends only the proposal ID plus observed memory version to accessible Confirm/Cancel controls. |
 | P0.9 Runtime conversational evals | Complete | CI executes 11 runtime cases through the production API, resolver, composer, policy, typed services, repositories, activities, proposal lifecycle, and approval handoff. |
-| P0.10 Golden Flow | Active | Final Firestore restart and browser persistence gate. |
+| P0.10 Golden Flow | Complete | Fresh Firestore clients preserve and confirm the signed schedule proposal exactly once; Playwright proves drawer proposal recovery after reload and server-only confirmation. |
 
 ### 1. Build the Action Composer
 

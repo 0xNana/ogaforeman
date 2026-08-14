@@ -129,9 +129,7 @@ class ConversationScheduleApprovalService:
             raise ValueError("schedule approval command fingerprint is invalid")
         signature = approval.proposed_action.get("approval_signature")
         expected_signature = self._signature(approval.id, payload)
-        if not isinstance(signature, str) or not hmac.compare_digest(
-            signature, expected_signature
-        ):
+        if not isinstance(signature, str) or not hmac.compare_digest(signature, expected_signature):
             raise PermissionError("schedule approval envelope signature is invalid")
         command = ScheduleChangeCommand.model_validate(payload)
         if command.project_id != project_id or command.proposal is None:

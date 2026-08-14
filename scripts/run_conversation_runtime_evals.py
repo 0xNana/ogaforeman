@@ -36,9 +36,7 @@ class _ReportCollector:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--output", default="artifacts/evals/conversation-runtime-latest.json"
-    )
+    parser.add_argument("--output", default="artifacts/evals/conversation-runtime-latest.json")
     return parser.parse_args()
 
 
@@ -63,9 +61,7 @@ def main() -> None:
                 "executed_test_count": len(matched),
             }
         )
-    passed = exit_code == pytest.ExitCode.OK and all(
-        item["passed"] for item in case_results
-    )
+    passed = exit_code == pytest.ExitCode.OK and all(item["passed"] for item in case_results)
     artifact = {
         "suite": "phase17-conversation-runtime-v1",
         "generated_at": datetime.now(UTC).isoformat(),

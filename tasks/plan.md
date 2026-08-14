@@ -25,7 +25,7 @@ Verification: focused unit/API/Firestore tests after each slice; Ruff, formattin
 lint/typecheck/tests/build, full non-backing and backing-service suites, conversational runtime
 eval, and canonical mobile Golden Scenario.
 
-Status: active on 2026-08-14.
+Status: complete locally on 2026-08-14. Phase 17 runtime, Firestore restart, and browser gates pass.
 
 ## Conversational Operations — Phase 16: Conversational Evals
 
