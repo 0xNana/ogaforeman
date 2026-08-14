@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 
 import yaml
@@ -68,6 +69,22 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "Refusing cloud deployment from a dirty worktree" in source
     assert 'load_deploy_env "${DEPLOY_ENV_FILE}"' in source
     assert 'export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_PROJECT}"' in source
+
+
+def test_api_and_worker_can_invoke_vertex_ai() -> None:
+    source = (ROOT / "infra" / "deploy.sh").read_text(encoding="utf-8")
+
+    def granted_roles(service_account_variable: str) -> set[str]:
+        match = re.search(
+            rf"for role in ([^;]+); do\n\s+grant_project_role "
+            rf'"serviceAccount:\$\{{{service_account_variable}\}}"',
+            source,
+        )
+        assert match is not None
+        return set(match.group(1).split())
+
+    assert "roles/aiplatform.user" in granted_roles("API_SERVICE_ACCOUNT_EMAIL")
+    assert "roles/aiplatform.user" in granted_roles("WORKER_SERVICE_ACCOUNT_EMAIL")
     assert "firebase_project_exists" in source
     assert "projects:addfirebase" in source
     assert "run_with_transient_retry" in source

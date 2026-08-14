@@ -268,7 +268,7 @@ create_service_account "${WORKER_SERVICE_ACCOUNT}" "Oga Foreman worker ${DEPLOY_
 create_service_account "${WEB_SERVICE_ACCOUNT}" "Oga Foreman web ${DEPLOY_ENVIRONMENT}"
 create_service_account "${PUSH_SERVICE_ACCOUNT}" "Oga Foreman push invoker ${DEPLOY_ENVIRONMENT}"
 
-for role in roles/datastore.user roles/storage.objectAdmin roles/pubsub.publisher roles/logging.logWriter roles/cloudtrace.agent; do
+for role in roles/datastore.user roles/storage.objectAdmin roles/pubsub.publisher roles/aiplatform.user roles/logging.logWriter roles/cloudtrace.agent; do
   grant_project_role "serviceAccount:${API_SERVICE_ACCOUNT_EMAIL}" "${role}"
 done
 for role in roles/datastore.user roles/storage.objectViewer roles/pubsub.publisher roles/aiplatform.user roles/logging.logWriter roles/cloudtrace.agent; do
