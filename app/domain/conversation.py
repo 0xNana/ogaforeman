@@ -417,6 +417,34 @@ class MutationPolicyDecision(BaseModel):
     use_existing_approval: bool = False
 
 
+class ScheduleTaskVersion(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    task_id: str
+    version: int = Field(ge=0)
+
+
+class ScheduleProposalToken(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    project_id: str
+    actor_id: str
+    target_task_id: str
+    planned_start: AwareDatetime
+    planned_end: AwareDatetime
+    affected_versions: tuple[ScheduleTaskVersion, ...]
+    signature: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def validate_token(self) -> Self:
+        task_ids = [item.task_id for item in self.affected_versions]
+        if not task_ids or len(task_ids) != len(set(task_ids)):
+            raise ValueError("schedule proposal task versions must be non-empty and unique")
+        if self.target_task_id not in task_ids:
+            raise ValueError("schedule proposal must include its target task")
+        if self.planned_end < self.planned_start:
+            raise ValueError("planned_end cannot be before planned_start")
+        return self
+
+
 class ScheduleChangeCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     project_id: str
@@ -424,11 +452,14 @@ class ScheduleChangeCommand(BaseModel):
     planned_start: AwareDatetime
     planned_end: AwareDatetime
     confirmed: bool = False
+    proposal: ScheduleProposalToken | None = None
 
     @model_validator(mode="after")
     def validate_dates(self) -> Self:
         if self.planned_end < self.planned_start:
             raise ValueError("planned_end cannot be before planned_start")
+        if self.confirmed and self.proposal is None:
+            raise ValueError("confirmed schedule changes require the reviewed proposal")
         return self
 
 
