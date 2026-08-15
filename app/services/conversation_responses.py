@@ -102,16 +102,35 @@ class ConversationResponseService:
             return _risk(context)
         if domains == {ContextDomain.ISSUES, ContextDomain.TASKS}:
             return _blockers(context)
+        if context.query.search_terms:
+            return _entity_status(context)
         return _overview(context)
 
 
 def _overview(context: ConversationalProjectContext) -> ConversationReply:
     parts: list[str] = []
     refs: list[str] = []
-    completed = next((task for task in context.tasks if task.status == "completed"), None)
-    if completed is not None:
-        parts.append(f"{completed.title} is done.")
-        refs.append(completed.id)
+    if context.project is not None:
+        parts.append(f"{context.project.name} is {context.project.status}.")
+    completed = [task for task in context.tasks if task.status == "completed"]
+    active = [task for task in context.tasks if task.status == "in_progress"]
+    blocked = [task for task in context.tasks if task.status == "blocked"]
+    upcoming = [task for task in context.tasks if task.status in {"planned", "proposed"}]
+    if completed:
+        parts.append(" ".join(f"{task.title} is done." for task in completed[:3]))
+        refs.extend(task.id for task in completed[:3])
+    if active:
+        parts.append("In progress: " + ", ".join(task.title for task in active[:3]) + ".")
+        refs.extend(task.id for task in active[:3])
+    blocked_without_issue = [
+        task for task in blocked if not any(task.id in issue.task_ids for issue in context.issues)
+    ]
+    if blocked_without_issue:
+        parts.append("Blocked: " + ", ".join(task.title for task in blocked_without_issue[:3]) + ".")
+        refs.extend(task.id for task in blocked_without_issue[:3])
+    if upcoming:
+        parts.append("Next: " + ", ".join(task.title for task in upcoming[:3]) + ".")
+        refs.extend(task.id for task in upcoming[:3])
     if context.issues:
         parts.append(_sentence(context.issues[0].description))
         refs.append(context.issues[0].id)
@@ -135,8 +154,30 @@ def _overview(context: ConversationalProjectContext) -> ConversationReply:
         parts.append(f"{_count(count, 'approval')} needs you.")
         refs.extend(item.id for item in context.approvals)
     if not parts:
-        return _project_reply("I don't see any urgent project changes right now.")
+        return _project_reply("I don't have any persisted project activity to report yet.")
     return _project_reply(" ".join(parts), refs)
+
+
+def _entity_status(context: ConversationalProjectContext) -> ConversationReply:
+    if not context.tasks and not context.issues and not context.materials:
+        return _project_reply("I can't find a matching activity in this project.")
+    if context.tasks:
+        task = context.tasks[0]
+        status = task.status.replace("_", " ")
+        text = f"{task.title} is {status}."
+        if task.completion_percent:
+            text += f" It is { _quantity(task.completion_percent) }% complete."
+        if task.assignee_name:
+            text += f" {task.assignee_name} is assigned."
+        if task.actual_completion:
+            text += f" It was completed on {task.actual_completion.date().isoformat()}."
+        issue = next((item for item in context.issues if task.id in item.task_ids), None)
+        if issue:
+            text += f" Blocker: {_sentence(issue.description)}"
+            return _project_reply(text, (task.id, issue.id))
+        return _project_reply(text, (task.id,))
+    issue = context.issues[0]
+    return _project_reply(_sentence(issue.description), (issue.id,))
 
 
 def _today(context: ConversationalProjectContext) -> ConversationReply:

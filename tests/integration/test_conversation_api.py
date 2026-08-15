@@ -435,6 +435,83 @@ async def test_project_setup_question_reports_live_readiness_and_counts() -> Non
 
 
 @pytest.mark.asyncio
+async def test_project_status_follow_up_returns_grounded_entity_state() -> None:
+    app, store = make_app()
+    store.repository(Task).create(
+        Task(
+            id="tsk_clearance123",
+            project_id=PROJECT_ID,
+            title="Site clearance",
+            status=TaskStatus.COMPLETED,
+            completion_percent=Decimal("100"),
+            actual_completion=datetime(2026, 8, 12, 12, tzinfo=UTC),
+        )
+    )
+    classifier = app.state.intent_classifier
+    classifier._responses.update(
+        {
+            "OG where are we with our project": IntentDecision(
+                intent=IntentType.PROJECT_QUERY,
+                confidence=0.99,
+                requires_project_context=True,
+                reason_code="project_status",
+            ),
+            "how about site clearance": IntentDecision(
+                intent=IntentType.PROJECT_QUERY,
+                confidence=0.99,
+                requires_project_context=True,
+                reason_code="entity_status",
+            ),
+        }
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        first = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "OG where are we with our project"},
+        )
+        second = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "how about site clearance"},
+        )
+
+    assert first.status_code == 200
+    assert "Ridge House is active" in first.json()["text"]
+    assert second.status_code == 200
+    assert "Site clearance is completed" in second.json()["text"]
+    assert "urgent project changes" not in second.json()["text"]
+
+
+@pytest.mark.asyncio
+async def test_malformed_action_interpretation_is_recoverable_without_mutation() -> None:
+    app, store = make_app()
+
+    class MalformedInterpreter:
+        async def interpret(self, message: str, *, context: object) -> object:
+            from app.services.conversation_action_composer import ActionInterpretationEnvelope
+
+            return ActionInterpretationEnvelope.model_validate(
+                {"action": {"operation": "adjust_on_hand", "quantity_delta": 50}}
+            ).action
+
+    app.state.action_interpreter = MalformedInterpreter()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "add 20 bags of cement to our inventory"},
+            headers={"Idempotency-Key": "conversation:malformed-action:1"},
+        )
+
+    assert response.status_code == 200
+    assert "couldn't safely interpret" in response.json()["text"]
+    assert store.repository(Material).require(PROJECT_ID, "mat_cement123").available_quantity == 10
+    assert store.repository(ActivityEvent).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
 async def test_project_setup_question_guides_a_minimal_project_without_fake_counts() -> None:
     app, store = make_app()
     for model in (Task, Issue, Material):

@@ -67,7 +67,11 @@ _GENERAL_DOMAINS = (
     ContextDomain.SCHEDULE,
 )
 _STOP_WORDS = frozenset(
-    {"what", "whats", "what's", "who", "owns", "why", "is", "are", "the", "at", "us"}
+    {
+        "what", "whats", "what's", "who", "owns", "why", "is", "are", "the", "at", "us",
+        "how", "about", "happening", "with", "where", "we", "our", "project", "current",
+        "status", "going", "on", "for", "me", "tell",
+    }
 )
 
 
@@ -119,6 +123,17 @@ def plan_context_query(message: str) -> ContextQuery:
             ),
             search_terms=_search_terms(normalized),
         )
+    if (
+        normalized.startswith("how about ")
+        or normalized.startswith("what about ")
+        or normalized.startswith("what's happening with ")
+        or normalized.startswith("whats happening with ")
+        or normalized.startswith("how is ")
+        or normalized.startswith("what is happening with ")
+    ):
+        terms = _search_terms(normalized)
+        if terms:
+            return ContextQuery(domains=_GENERAL_DOMAINS, search_terms=terms)
     return ContextQuery(domains=_GENERAL_DOMAINS)
 
 
@@ -490,6 +505,7 @@ def _task_item(task: Task, names: dict[str, str]) -> TaskContextItem:
         planned_start=task.planned_start,
         planned_end=task.planned_end,
         actual_completion=task.actual_completion,
+        completion_percent=task.completion_percent,
         dependency_ids=tuple(task.dependency_ids),
         version=task.version,
     )

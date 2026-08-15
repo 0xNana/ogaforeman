@@ -101,6 +101,15 @@ def test_query_planner_selects_only_relevant_domains(
     assert set(query.domains) == expected
 
 
+@pytest.mark.parametrize("message", ["how about site clearance", "what about electrical"])
+def test_query_planner_searches_entity_follow_up(message: str) -> None:
+    query = plan_context_query(message)
+
+    assert ContextDomain.TASKS in query.domains
+    assert query.search_terms
+    assert "site" in query.search_terms or "electrical" in query.search_terms
+
+
 def test_context_is_project_scoped_typed_bounded_and_derived_from_current_state() -> None:
     store = InMemoryRepositoryStore()
     project = Project(

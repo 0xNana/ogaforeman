@@ -199,6 +199,31 @@ def test_project_overview_mentions_only_grounded_operational_facts() -> None:
     assert "analysis" not in reply.text.casefold()
 
 
+def test_entity_project_query_returns_matching_task_state() -> None:
+    query = ContextQuery(
+        domains=(ContextDomain.PROJECT, ContextDomain.TASKS, ContextDomain.ISSUES),
+        search_terms=("site", "clearance"),
+    )
+    reply = ConversationResponseService().project(
+        context(
+            query,
+            tasks=(
+                task(
+                    "tsk_clearance123",
+                    "Site clearance",
+                    "completed",
+                    completion_percent=Decimal("100"),
+                    actual_completion=NOW,
+                ),
+            ),
+        )
+    )
+
+    assert "Site clearance is completed" in reply.text
+    assert "100% complete" in reply.text
+    assert reply.cited_record_ids == ("tsk_clearance123",)
+
+
 @pytest.mark.parametrize(
     ("snapshot", "expected"),
     [

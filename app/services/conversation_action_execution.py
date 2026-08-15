@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from collections.abc import Callable
+import logging
 from typing import Protocol
+
+from pydantic import ValidationError
 
 from app.domain.activity import MutationContext
 from app.domain.authorization import ProjectAccessContext
@@ -63,6 +66,9 @@ from app.services.material_requests import (
     MaterialRequestService,
 )
 from app.services.tasks import TaskService
+
+
+logger = logging.getLogger(__name__)
 
 
 class ActionInterpreter(Protocol):
@@ -190,7 +196,26 @@ class ConversationActionExecutionService:
         snapshot = self._context.retrieve(
             access, ContextQuery(domains=_ACTION_DOMAINS, focus=ContextFocus.ALL)
         )
-        interpretation = await self._interpreter.interpret(message, context=snapshot)
+        try:
+            interpretation = await self._interpreter.interpret(message, context=snapshot)
+        except (ValidationError, ValueError, TypeError) as exc:
+            # A malformed model response is recoverable conversationally.  It
+            # must never reach the client as a Pydantic traceback, and no
+            # command has been composed or persisted at this point.
+            logger.warning(
+                "conversation_action_interpretation_failed",
+                extra={
+                    "project_id": access.project_id,
+                    "actor_id": access.actor.user_id,
+                    "error_type": type(exc).__name__,
+                    "error_fields": len(getattr(exc, "errors", lambda: ())()),
+                },
+            )
+            return ConversationActionOutcome(
+                kind="clarification",
+                text="I couldn't safely interpret that update. Nothing was changed. Try rephrasing it.",
+                mutation_performed=False,
+            )
         resolutions = self._resolve(access, interpretation)
         unsafe_resolution = next(
             (

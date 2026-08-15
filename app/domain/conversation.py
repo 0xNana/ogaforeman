@@ -264,6 +264,7 @@ class TaskContextItem(BaseModel):
     planned_start: datetime | None = None
     planned_end: datetime | None = None
     actual_completion: datetime | None = None
+    completion_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     dependency_ids: tuple[str, ...] = ()
     version: int = Field(default=0, ge=0)
 
