@@ -19,6 +19,7 @@ from app.domain.models import Material
 from app.services.materials import (
     CreateMaterialCommand,
     MaterialService,
+    MaterialQuantityCommand,
     RecordMaterialDeliveryCommand,
     SetMaterialQuantityCommand,
     UpdateMaterialDetailsCommand,
@@ -99,6 +100,30 @@ class ConversationMaterialService:
                 changed.activity.id,
                 f"Done. {changed.material.name} is now recorded at {quantity} {changed.material.unit}.",
                 changed.duplicate,
+            )
+
+        if command.operation is MaterialOperation.ADJUST_ON_SITE:
+            if command.quantity_delta is None or command.unit is None:
+                raise ValueError("material stock adjustment requires delta and unit")
+            adjusted = self._materials.update_quantity(
+                access,
+                MaterialQuantityCommand(
+                    project_id=access.project_id,
+                    material_id_or_alias=material_id,
+                    quantity_delta=command.quantity_delta,
+                    unit=command.unit,
+                    expected_version=current.version,
+                    reason=command.reason or "Conversational stock adjustment.",
+                    occurred_at=context.occurred_at,
+                ),
+                context,
+            )
+            return _result(
+                adjusted.material,
+                adjusted.activity.id,
+                f"Done. {adjusted.material.name} is now recorded at "
+                f"{adjusted.material.available_quantity} {adjusted.material.unit}.",
+                adjusted.duplicate,
             )
 
         if command.operation is MaterialOperation.SET_REQUIRED:

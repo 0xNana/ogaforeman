@@ -117,6 +117,26 @@ def test_absolute_on_site_quantity_replays_without_a_second_ledger_entry() -> No
     assert len(material_store.repository(ActivityEvent).list(PROJECT_ID)) == 1
 
 
+def test_relative_on_site_adjustment_is_atomic_and_replay_safe() -> None:
+    material_store = store()
+    command = ConversationMaterialCommand(
+        operation=MaterialOperation.ADJUST_ON_SITE,
+        material=material(),
+        quantity_delta=Decimal("60"),
+        unit="bags",
+        reason="Add additional 60 bags of cement.",
+    )
+
+    first = service(material_store).execute(access(), command, context("og:cement:add:60"))
+    replay = service(material_store).execute(access(), command, context("og:cement:add:60"))
+
+    assert first.material.available_quantity == 80
+    assert first.reply == "Done. Cement is now recorded at 80 bags."
+    assert replay.duplicate is True
+    assert len(material_store.repository(MaterialLedgerEntry).list(PROJECT_ID)) == 1
+    assert len(material_store.repository(ActivityEvent).list(PROJECT_ID)) == 1
+
+
 def test_required_quantity_and_note_are_atomic_and_authorized() -> None:
     material_store = store()
 

@@ -546,6 +546,7 @@ def _mutation_kind(
             return MutationKind.MATERIAL_DELIVERY
         if interpretation.operation in {
             MaterialOperation.SET_ON_SITE,
+            MaterialOperation.ADJUST_ON_SITE,
             MaterialOperation.SET_REQUIRED,
         }:
             return MutationKind.MATERIAL_QUANTITY

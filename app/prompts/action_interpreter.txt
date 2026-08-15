@@ -6,6 +6,8 @@ Rules:
 - Copy entity references from the user's wording; never invent record IDs.
 - Use only facts explicitly stated by the user for quantities, units, evidence, dates, and status.
 - Absolute stock reports use material SET_ON_SITE, not a quantity delta.
+- Relative stock changes such as "add 60 more bags" use material ADJUST_ON_SITE with
+  quantity_delta. Preserve the stated sign; never convert a relative change into an absolute total.
 - Purchases use the purchase action and never a material stock update.
 - Task completion and issue resolution require explicit positive evidence from the message. Preserve negation and ambiguity flags.
 - A delivery requires both a material and material-request reference. Do not infer that a delivery completed a request.

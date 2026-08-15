@@ -699,7 +699,10 @@ def _policy_request(command: PendingConversationCommand) -> MutationPolicyReques
         material_operation = command.command.operation
         if material_operation is MaterialOperation.CREATE:
             kind = MutationKind.MATERIAL_CREATE
-        elif material_operation is MaterialOperation.SET_ON_SITE:
+        elif material_operation in {
+            MaterialOperation.SET_ON_SITE,
+            MaterialOperation.ADJUST_ON_SITE,
+        }:
             kind = MutationKind.MATERIAL_QUANTITY
         elif material_operation is MaterialOperation.RECORD_DELIVERY:
             kind = MutationKind.MATERIAL_DELIVERY

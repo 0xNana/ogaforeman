@@ -62,6 +62,7 @@ class MaterialActionInterpretation(_Interpretation):
     name: str | None = Field(default=None, min_length=1, max_length=300)
     aliases: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
     quantity: Decimal | None = Field(default=None, ge=0)
+    quantity_delta: Decimal | None = None
     unit: str | None = Field(default=None, min_length=1, max_length=100)
     note: str | None = Field(default=None, min_length=1, max_length=5_000)
     reason: str | None = Field(default=None, min_length=1, max_length=5_000)
@@ -287,6 +288,7 @@ class ActionComposer:
             name=value.name,
             aliases=value.aliases,
             quantity=value.quantity,
+            quantity_delta=value.quantity_delta,
             unit=value.unit,
             note=value.note,
             reason=value.reason,
@@ -461,7 +463,11 @@ def _material_mutation(command: ConversationMaterialCommand) -> MutationKind:
         return MutationKind.MATERIAL_CREATE
     if command.operation is MaterialOperation.RECORD_DELIVERY:
         return MutationKind.MATERIAL_DELIVERY
-    if command.operation in {MaterialOperation.SET_ON_SITE, MaterialOperation.SET_REQUIRED}:
+    if command.operation in {
+        MaterialOperation.SET_ON_SITE,
+        MaterialOperation.ADJUST_ON_SITE,
+        MaterialOperation.SET_REQUIRED,
+    }:
         return MutationKind.MATERIAL_QUANTITY
     return MutationKind.ADD_NOTE
 
@@ -566,6 +572,14 @@ def _validate_material(command: ConversationMaterialCommand) -> None:
             "reason",
             "expected_version",
         },
+        MaterialOperation.ADJUST_ON_SITE: {
+            "operation",
+            "material",
+            "quantity_delta",
+            "unit",
+            "reason",
+            "expected_version",
+        },
         MaterialOperation.SET_REQUIRED: {
             "operation",
             "material",
@@ -597,6 +611,10 @@ def _validate_material(command: ConversationMaterialCommand) -> None:
         command.quantity is None or command.unit is None
     ):
         raise ValueError("material quantity change requires quantity and unit")
+    if command.operation is MaterialOperation.ADJUST_ON_SITE and (
+        command.quantity_delta is None or command.quantity_delta == 0 or command.unit is None
+    ):
+        raise ValueError("material stock adjustment requires a non-zero delta and unit")
     if command.operation is MaterialOperation.RECORD_DELIVERY and (
         command.material_request is None or command.quantity is None or command.unit is None
     ):

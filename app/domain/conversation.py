@@ -104,6 +104,7 @@ class TaskOperation(StrEnum):
 class MaterialOperation(StrEnum):
     CREATE = "create"
     SET_ON_SITE = "set_on_site"
+    ADJUST_ON_SITE = "adjust_on_site"
     SET_REQUIRED = "set_required"
     RECORD_DELIVERY = "record_delivery"
     ADD_NOTE = "add_note"
@@ -417,6 +418,7 @@ class ConversationMaterialCommand(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=300)
     aliases: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
     quantity: Decimal | None = Field(default=None, ge=0)
+    quantity_delta: Decimal | None = None
     unit: str | None = Field(default=None, min_length=1, max_length=100)
     note: str | None = Field(default=None, min_length=1, max_length=5_000)
     reason: str | None = Field(default=None, min_length=1, max_length=5_000)

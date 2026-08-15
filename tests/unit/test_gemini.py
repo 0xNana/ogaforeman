@@ -225,6 +225,43 @@ async def test_gemini_action_interpreter_returns_typed_non_executing_action(
 
 
 @pytest.mark.asyncio
+async def test_gemini_action_interpreter_supports_relative_stock_adjustments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(
+        return_value=SimpleNamespace(
+            text=(
+                '{"action":{"kind":"material","operation":"adjust_on_site",'
+                '"material_reference":"cement","quantity_delta":"60","unit":"bags",'
+                '"reason":"User requested an additional stock increment."}}'
+            )
+        )
+    )
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    interpreter = GeminiActionInterpreter(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+    context = ConversationalProjectContext(
+        project_id="prj_gemini123",
+        retrieved_at=datetime(2026, 8, 15, 1, tzinfo=UTC),
+        query=ContextQuery(domains=(ContextDomain.MATERIALS,)),
+    )
+
+    action = await interpreter.interpret("add additional 60 bags of cement", context=context)
+
+    assert action.operation is MaterialOperation.ADJUST_ON_SITE
+    assert action.quantity_delta == 60
+
+
+@pytest.mark.asyncio
 async def test_gemini_transcription_receives_inline_audio_bytes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
