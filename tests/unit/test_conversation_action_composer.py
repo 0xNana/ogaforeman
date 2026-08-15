@@ -33,12 +33,32 @@ from app.services.conversation_action_composer import (
     PurchaseActionInterpretation,
     ScheduleActionInterpretation,
     TaskActionInterpretation,
+    ambiguous_material_quantity_phrase,
 )
 from app.services.conversation_mutation_policy import MutationPolicyService
 
 
 NOW = datetime(2026, 8, 14, 12, tzinfo=UTC)
 PROJECT_ID = "prj_composer123"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("add 20 bags of cement to inventory", None),
+        ("put another 20 bags of cement in stock", None),
+        ("add 20 more cement bags", None),
+        ("we have 20 bags of cement", None),
+        ("20 bags of cement arrived", None),
+        ("buy 20 bags", None),
+        ("prepare a request for 20 bags", None),
+        ("add 20 bags of cement", ("20", "bags")),
+    ],
+)
+def test_material_quantity_language_distinguishes_bare_addition(
+    message: str, expected: tuple[str, str] | None
+) -> None:
+    assert ambiguous_material_quantity_phrase(message) == expected
 
 
 def access(project_id: str = PROJECT_ID) -> ProjectAccessContext:

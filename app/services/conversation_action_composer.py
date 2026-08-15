@@ -695,8 +695,14 @@ def ambiguous_material_quantity_phrase(message: str) -> tuple[str, str] | None:
     if (
         " additional " in padded
         or " more " in padded
+        or " to inventory " in padded
+        or " to our inventory " in padded
+        or " to stock " in padded
+        or " in stock " in padded
+        or " on site " in padded
         or " to the request " in padded
         or " arrived " in padded
+        or " delivered " in padded
         or " received " in padded
     ):
         return None

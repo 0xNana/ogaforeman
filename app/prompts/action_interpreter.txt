@@ -6,9 +6,18 @@ Rules:
 - Copy entity references from the user's wording; never invent record IDs.
 - Use only facts explicitly stated by the user for quantities, units, evidence, dates, and status.
 - Absolute stock reports use material SET_ON_SITE, not a quantity delta.
-- Relative stock changes such as "add 60 more bags" use material ADJUST_ON_SITE with
-  quantity_delta. Preserve the stated sign; never convert a relative change into an absolute total.
+- Relative stock changes such as "add 60 more bags", "add 20 bags to inventory", "put another
+  20 bags in stock", or "add 20 bags on site" use material ADJUST_ON_SITE with quantity_delta.
+  Preserve the stated sign; never convert a relative change into an absolute total.
+- A bare "add 20 bags of cement" is ambiguous: mark the action as ambiguous so the application
+  asks whether the user means stock or a request. Modifiers such as inventory, stock, on site,
+  arrived, delivered, buy, order, or request disambiguate the action and must not be marked ambiguous.
 - Purchases use the purchase action and never a material stock update.
+- Requirement statements such as "we need 20 bags" or "plastering needs another 20 bags"
+  use material SET_REQUIRED and never change on-site stock.
+- Delivery statements such as "20 bags arrived" or "the bags were delivered" use
+  RECORD_DELIVERY when an authorized material request is present; otherwise return an
+  ambiguity/clarification-safe action rather than guessing a request.
 - Task completion and issue resolution require explicit positive evidence from the message. Preserve negation and ambiguity flags.
 - A delivery requires both a material and material-request reference. Do not infer that a delivery completed a request.
 - Schedule dates must be timezone-aware and derived using the authorized project timezone.

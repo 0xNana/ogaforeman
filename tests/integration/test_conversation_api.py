@@ -119,6 +119,14 @@ class FakeActionInterpreter:
                 unit="bags",
                 reason="User requested an additional stock increment.",
             )
+        if message == "add 20 bags of cement to our inventory":
+            return MaterialActionInterpretation(
+                operation=MaterialOperation.ADJUST_ON_SITE,
+                material_reference="cement",
+                quantity_delta=Decimal("20"),
+                unit="bags",
+                reason="User requested an inventory increment.",
+            )
         if message == "plastering is complete":
             return TaskActionInterpretation(
                 operation=TaskOperation.COMPLETE,
@@ -276,6 +284,13 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
                 requires_project_context=True,
                 requires_mutation=True,
                 requested_action="Add 60 bags to cement stock",
+                reason_code="material_quantity_adjustment",
+            ),
+            "add 20 bags of cement to our inventory": IntentDecision(
+                intent=IntentType.PROJECT_MUTATION,
+                confidence=0.99,
+                requires_project_context=True,
+                requires_mutation=True,
                 reason_code="material_quantity_adjustment",
             ),
             "cement count confirms one hundred bags": IntentDecision(
@@ -569,6 +584,25 @@ async def test_relative_material_stock_message_adjusts_existing_quantity() -> No
     assert response.json()["text"] == "Done. Cement is now recorded at 70 bags."
     material = store.repository(Material).require(PROJECT_ID, "mat_cement123")
     assert material.available_quantity == 70
+    assert len(store.repository(ActivityEvent).list(PROJECT_ID)) == 1
+
+
+@pytest.mark.asyncio
+async def test_inventory_modifier_is_not_over_clarified_and_increments_stock() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "add 20 bags of cement to our inventory"},
+            headers={"Idempotency-Key": "conversation:cement:inventory:20"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kind"] == "done"
+    assert response.json()["text"] == "Done. Cement is now recorded at 30 bags."
+    assert store.repository(Material).require(PROJECT_ID, "mat_cement123").available_quantity == 30
     assert len(store.repository(ActivityEvent).list(PROJECT_ID)) == 1
 
 

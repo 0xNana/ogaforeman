@@ -19,6 +19,7 @@ from app.infrastructure.gemini import (
     GeminiSiteInterpreter,
     create_gemini_client,
 )
+from app.services.conversation_action_composer import PurchaseActionInterpretation
 from datetime import UTC, datetime
 
 
@@ -259,6 +260,99 @@ async def test_gemini_action_interpreter_supports_relative_stock_adjustments(
 
     assert action.operation is MaterialOperation.ADJUST_ON_SITE
     assert action.quantity_delta == 60
+
+
+@pytest.mark.parametrize(
+    ("message", "response", "expected_operation"),
+    [
+        (
+            "add 20 bags of cement to inventory",
+            '{"action":{"kind":"material","operation":"adjust_on_site","material_reference":"cement","quantity_delta":"20","unit":"bags","reason":"Inventory increment."}}',
+            MaterialOperation.ADJUST_ON_SITE,
+        ),
+        (
+            "cement is at 20 bags now",
+            '{"action":{"kind":"material","operation":"set_on_site","material_reference":"cement","quantity":"20","unit":"bags","reason":"Current stock count."}}',
+            MaterialOperation.SET_ON_SITE,
+        ),
+        (
+            "20 bags of cement arrived",
+            '{"action":{"kind":"material","operation":"record_delivery","material_reference":"cement","material_request_reference":"cement request","quantity":"20","unit":"bags","reason":"Delivery received."}}',
+            MaterialOperation.RECORD_DELIVERY,
+        ),
+        (
+            "plastering needs another 20 bags of cement",
+            '{"action":{"kind":"material","operation":"set_required","material_reference":"cement","quantity":"20","unit":"bags"}}',
+            MaterialOperation.SET_REQUIRED,
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_gemini_action_interpreter_preserves_material_operation_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+    message: str,
+    response: str,
+    expected_operation: MaterialOperation,
+) -> None:
+    generate_content = AsyncMock(return_value=SimpleNamespace(text=response))
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    interpreter = GeminiActionInterpreter(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+    context = ConversationalProjectContext(
+        project_id="prj_gemini123",
+        retrieved_at=datetime(2026, 8, 15, 1, tzinfo=UTC),
+        query=ContextQuery(domains=(ContextDomain.MATERIALS,)),
+    )
+
+    action = await interpreter.interpret(message, context=context)
+
+    assert not isinstance(action, PurchaseActionInterpretation)
+    assert action.operation is expected_operation
+
+
+@pytest.mark.asyncio
+async def test_gemini_action_interpreter_routes_purchase_to_approval_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(
+        return_value=SimpleNamespace(
+            text=(
+                '{"action":{"kind":"purchase","material_reference":"cement",'
+                '"quantity":"20","unit":"bags","reason":"Prepare a request."}}'
+            )
+        )
+    )
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    interpreter = GeminiActionInterpreter(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+    context = ConversationalProjectContext(
+        project_id="prj_gemini123",
+        retrieved_at=datetime(2026, 8, 15, 1, tzinfo=UTC),
+        query=ContextQuery(domains=(ContextDomain.MATERIALS,)),
+    )
+
+    action = await interpreter.interpret("prepare a request for 20 bags of cement", context=context)
+
+    assert isinstance(action, PurchaseActionInterpretation)
+    assert action.quantity == 20
 
 
 @pytest.mark.asyncio
