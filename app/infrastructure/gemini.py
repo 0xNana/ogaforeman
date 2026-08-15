@@ -180,7 +180,10 @@ class GeminiActionInterpreter:
             contents=[types.Part.from_text(text=prompt)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=ActionInterpretationEnvelope,
+                # The SDK's response_schema adapter rejects Pydantic discriminated
+                # unions (oneOf/discriminator). JSON Schema preserves the typed
+                # action union and is parsed again by ActionInterpretationEnvelope.
+                response_json_schema=ActionInterpretationEnvelope.model_json_schema(),
                 temperature=0.0,
             ),
         )

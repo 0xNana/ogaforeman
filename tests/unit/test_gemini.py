@@ -220,7 +220,7 @@ async def test_gemini_action_interpreter_returns_typed_non_executing_action(
     assert action.operation is MaterialOperation.SET_ON_SITE
     assert action.quantity == 100
     call = generate_content.await_args.kwargs
-    assert call["config"].response_schema is not None
+    assert call["config"].response_json_schema is not None
     assert "prj_gemini123" in call["contents"][0].text
     assert "<user_message>" in call["contents"][0].text
 
