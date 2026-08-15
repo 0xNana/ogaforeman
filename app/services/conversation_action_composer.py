@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import Annotated, Literal, TypeAlias
 
@@ -676,10 +677,37 @@ def _reject_operation_fields(command: BaseModel, allowed: set[str]) -> None:
         raise ValueError(f"{operation.value} does not accept fields: {', '.join(invalid)}")
 
 
+_AMBIGUOUS_MATERIAL_QUANTITY = re.compile(
+    r"^add\s+(?P<quantity>\d+(?:\.\d+)?)\s+(?P<unit>[a-z]+)\s+of\s+"
+    r"(?P<material>[a-z][a-z -]*?)(?:\s+to\s+stock)?$",
+    re.IGNORECASE,
+)
+
+
+def ambiguous_material_quantity_phrase(message: str) -> tuple[str, str] | None:
+    """Extract quantity and unit from additive stock wording lacking clear semantics."""
+
+    normalized = " ".join(message.casefold().split()).rstrip("?!. ")
+    match = _AMBIGUOUS_MATERIAL_QUANTITY.fullmatch(normalized)
+    if match is None:
+        return None
+    padded = f" {normalized} "
+    if (
+        " additional " in padded
+        or " more " in padded
+        or " to the request " in padded
+        or " arrived " in padded
+        or " received " in padded
+    ):
+        return None
+    return match.group("quantity"), match.group("unit")
+
+
 __all__ = [
     "ActionComposer",
     "ActionInterpretation",
     "ActionInterpretationEnvelope",
+    "ambiguous_material_quantity_phrase",
     "ComposedAction",
     "IssueActionInterpretation",
     "MaterialActionInterpretation",

@@ -228,6 +228,13 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
                 confidence=0.99,
                 reason_code="product_help",
             ),
+            "Add 50 bags of cement": IntentDecision(
+                intent=IntentType.PROJECT_MUTATION,
+                confidence=0.99,
+                requires_project_context=True,
+                requires_mutation=True,
+                reason_code="material_quantity",
+            ),
             "do we have our project set?": IntentDecision(
                 intent=IntentType.PROJECT_QUERY,
                 confidence=0.99,
@@ -459,6 +466,34 @@ async def test_project_setup_ignores_cancelled_tasks_for_readiness_and_counts() 
 
     assert response.status_code == 200
     assert "One task" not in response.json()["text"]
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_material_quantity_is_clarification_without_idempotency_key() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={
+                "message": "Add 50 bags of cement",
+                "attachment_ids": [],
+                "input_type": "text",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kind"] == "clarification"
+    assert response.json()["text"] == (
+        "Do you mean 50 bags arrived on site, or you want me to prepare a request for 50 bags?"
+    )
+    memory = store.repository(ConversationMemory).get(
+        PROJECT_ID,
+        f"mem_{sha256((PROJECT_ID + chr(0) + 'usr_ace123').encode()).hexdigest()[:24]}",
+    )
+    assert memory is not None
+    assert memory.pending_clarification == response.json()["text"]
 
 
 @pytest.mark.asyncio

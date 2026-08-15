@@ -11,6 +11,7 @@ from app.api.errors import (
     ApiError,
     install_error_handlers,
     install_request_id_middleware,
+    map_exception,
 )
 from app.api.limits import InMemoryRateLimiter, RateLimitExceededError
 from app.domain.authorization import ProjectForbiddenError
@@ -94,6 +95,20 @@ async def test_unexpected_error_is_redacted_but_correlated() -> None:
             }
         }
         assert "password" not in response.text
+
+
+def test_validation_details_are_meaningful_outside_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OGA_ENV", "staging")
+    staging = map_exception(ValueError("ambiguous material quantity"))
+    assert staging.status_code == 400
+    assert staging.message == "ambiguous material quantity"
+
+    monkeypatch.setenv("OGA_ENV", "production")
+    production = map_exception(ValueError("ambiguous material quantity"))
+    assert production.status_code == 400
+    assert production.message == "The request could not be accepted."
 
 
 def test_sliding_window_limits_user_project_and_ip_with_retry_header_data() -> None:

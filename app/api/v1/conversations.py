@@ -20,6 +20,7 @@ from app.domain.conversation import (
     SiteUpdateRouteCommand,
 )
 from app.services.conversation_action_execution import ConversationActionExecutionService
+from app.services.conversation_action_composer import ambiguous_material_quantity_phrase
 from app.services.conversation_advice import ConversationAdviceService, plan_advice_query
 from app.services.conversation_context import ProjectContextService, plan_context_query
 from app.services.conversation_confirmation import ConversationConfirmationService
@@ -428,6 +429,19 @@ async def send_message(
             event_id=result.event_id,
         )
     if route.destination is IntentDestination.PROJECT_ACTION:
+        quantity_unit = ambiguous_material_quantity_phrase(payload.message)
+        if quantity_unit is not None:
+            quantity, unit = quantity_unit
+            clarification = (
+                f"Do you mean {quantity} {unit} arrived on site, or you want me to prepare a "
+                f"request for {quantity} {unit}?"
+            )
+            memory_service.remember_pending(access, clarification=clarification)
+            return ConversationMessageResponse(
+                kind="clarification",
+                text=clarification,
+                intent=route.decision.intent.value,
+            )
         access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
         key = require_idempotency_key(request)
         interpreter = getattr(request.app.state, "action_interpreter", None)

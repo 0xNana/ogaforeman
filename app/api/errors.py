@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from contextlib import nullcontext
 from time import monotonic
@@ -392,7 +393,12 @@ def map_exception(exc: Exception) -> ApiError:
             "AUTH_PROJECT_FORBIDDEN", "You do not have access to this project.", status_code=403
         )
     if isinstance(exc, ValidationError | ValueError):
-        return ApiError("VALIDATION_FAILED", "The request could not be accepted.", status_code=400)
+        message = "The request could not be accepted."
+        if os.getenv("OGA_ENV", "local").casefold() != "production":
+            detail = str(exc).strip()
+            if detail:
+                message = _safe_message(detail, 400)
+        return ApiError("VALIDATION_FAILED", message, status_code=400)
     return ApiError("INTERNAL_ERROR", "An internal error occurred.", status_code=500)
 
 
