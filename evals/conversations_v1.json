@@ -27,6 +27,15 @@
       "expected": {"intent": "casual", "destination": "casual_response", "response_kind": "casual"}
     },
     {
+      "id": "product_getting_started",
+      "category": "help",
+      "turns": ["how do i get started?"],
+      "role": "foreman",
+      "authorized_context": "Product help is available without populated project state and performs no mutation.",
+      "fake_prediction": {"intent": "help", "destination": "product_help", "response_kind": "help"},
+      "expected": {"intent": "help", "destination": "product_help", "response_kind": "help"}
+    },
+    {
       "id": "project_blocker_query",
       "category": "project_query",
       "turns": ["what's blocking us?"],

@@ -11,6 +11,9 @@ from app.api.v1 import (
 
 api_router = APIRouter()
 api_router.include_router(authentication.router, prefix="/auth", tags=["authentication"])
+api_router.include_router(
+    conversations.user_router, prefix="/conversations", tags=["conversations"]
+)
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(resources.router, prefix="/projects", tags=["project-resources"])
 api_router.include_router(

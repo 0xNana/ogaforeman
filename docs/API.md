@@ -108,15 +108,21 @@ GET /projects/{project_id}/reports/{report_date}
 POST /projects/{project_id}/daily-logs/{report_id}/edit
 GET /projects/{project_id}/activity
 GET /projects/{project_id}/agent-runs/{run_id}
+POST /conversations/messages
 POST /projects/{project_id}/conversations/messages
 ```
 
-The conversation message endpoint accepts one bounded message plus optional pending-context
-booleans and returns one stable discriminated shape. `kind` is `casual`, `project`, `advice`,
-`clarification`, `proposed_change`, or `workflow`; all responses include user-facing `text`,
-`cited_record_ids`, and `mutation_performed`. Advice may add `recommendation`; proposals may add
-`proposed_action`; Golden workflow handoffs may add `workflow_run_id`. Project actions and site
-updates require an `Idempotency-Key`. A proposed change is not a completed mutation.
+The authenticated user-scoped conversation endpoint accepts bounded product-help and project-setup
+questions. Product help does not resolve a project or call Gemini; setup resolves the user's sole
+project, reports that no project exists, or asks the user to open one when the choice is ambiguous.
+The project-scoped conversation endpoint accepts one bounded message with optional authorized attachment
+IDs and returns one stable discriminated shape. `kind` includes `casual`, `help`, `project`,
+`advice`, `clarification`, `proposed_change`, and `workflow`; all responses include user-facing
+`text`, `cited_record_ids`, `mutation_performed`, and `assistant_name: "OG"`. Internal `intent`
+metadata is available to diagnostics but must not be rendered as the author or a user-facing badge.
+Advice may add `recommendation`; proposals may add `proposed_action`; Golden workflow handoffs may
+add `workflow_run_id`. Project actions and site updates require an `Idempotency-Key`. A proposed
+change is not a completed mutation.
 
 The additive agent-run response exposes `id` and its explicit alias `run_id`,
 `project_id`, `trigger_event_id`, `workflow`, `status`, `step`, `attempt`,

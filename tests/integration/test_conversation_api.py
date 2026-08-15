@@ -161,6 +161,10 @@ class Projects:
         assert access.project_id == self.project.id
         return self.project
 
+    def list_for_user(self, actor: AuthenticatedUser) -> tuple[Project, ...]:
+        assert actor.user_id == "usr_ace123"
+        return (self.project,)
+
 
 def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
     store = InMemoryRepositoryStore()
@@ -214,6 +218,22 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
     )
     classifier = FakeIntentClassifier(
         {
+            "how do i get started?": IntentDecision(
+                intent=IntentType.HELP,
+                confidence=0.99,
+                reason_code="product_help",
+            ),
+            "what can you do?": IntentDecision(
+                intent=IntentType.HELP,
+                confidence=0.99,
+                reason_code="product_help",
+            ),
+            "do we have our project set?": IntentDecision(
+                intent=IntentType.PROJECT_QUERY,
+                confidence=0.99,
+                requires_project_context=True,
+                reason_code="project_setup",
+            ),
             "wdyt about plastering tomorrow?": IntentDecision(
                 intent=IntentType.PROJECT_ADVICE,
                 confidence=0.99,
@@ -304,6 +324,7 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
     app.state.auth_runtime = SimpleNamespace(
         store=store,
         projects=Projects(project),
+        authenticate=lambda _request: AuthenticatedUser(user_id="usr_ace123", subject="ace"),
         project_member_names=lambda _project_id: {"usr_kofi123": "Kofi Mensah"},
     )
     app.state.project_access_provider = lambda _request, project_id, _permission: (
@@ -324,6 +345,120 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
     install_error_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
     return app, store
+
+
+@pytest.mark.asyncio
+async def test_product_help_needs_no_project_data_and_exposes_og_author() -> None:
+    app, _store = make_app()
+    app.state.project_access_provider = lambda *_args: (_ for _ in ()).throw(
+        AssertionError("product help must not authorize or read a project")
+    )
+    del app.state.intent_classifier
+    app.state.auth_runtime = SimpleNamespace(
+        authenticate=lambda _request: AuthenticatedUser(user_id="usr_ace123", subject="ace")
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "how do i get started?"},
+            headers={"Idempotency-Key": "conversation:help:1"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "help"
+    assert body["assistant_name"] == "OG"
+    assert body["intent"] == "help"
+    assert "type an update" in body["text"]
+    assert body["mutation_performed"] is False
+
+
+@pytest.mark.asyncio
+async def test_user_scoped_setup_reports_when_no_project_exists() -> None:
+    app, _store = make_app()
+    app.state.auth_runtime.projects = SimpleNamespace(list_for_user=lambda _actor: ())
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/v1/conversations/messages",
+            json={"message": "is my project set up?"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kind"] == "project"
+    assert "create or open a project" in response.json()["text"].casefold()
+
+
+@pytest.mark.asyncio
+async def test_project_setup_question_reports_live_readiness_and_counts() -> None:
+    app, store = make_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "do we have our project set?"},
+            headers={"Idempotency-Key": "conversation:setup:1"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["text"] == (
+        "Yes. Ridge House is set up and active. You have One task, One open issue, "
+        "and materials are being tracked."
+    )
+    assert store.repository(ActivityEvent).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
+async def test_project_setup_question_guides_a_minimal_project_without_fake_counts() -> None:
+    app, store = make_app()
+    for model in (Task, Issue, Material):
+        for item in store.repository(model).list(PROJECT_ID):
+            version = store.repository(model).version_of(PROJECT_ID, item.id)
+            store.repository(model).delete(PROJECT_ID, item.id, expected_version=version)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "do we have our project set?"},
+            headers={"Idempotency-Key": "conversation:setup:minimal"},
+        )
+
+    assert response.status_code == 200
+    text = response.json()["text"]
+    assert "Ridge House is created, but it's still mostly empty" in text
+    assert "tell me what's happening on site today" in text
+    assert "task" not in text.casefold()
+
+
+@pytest.mark.asyncio
+async def test_project_setup_ignores_cancelled_tasks_for_readiness_and_counts() -> None:
+    app, store = make_app()
+    task_repository = store.repository(Task)
+    task = task_repository.require(PROJECT_ID, "tsk_plaster123")
+    task_repository.save(
+        task.model_copy(
+            update={
+                "status": TaskStatus.CANCELLED,
+                "planned_start": datetime(2026, 8, 16, 8, tzinfo=UTC),
+            }
+        ),
+        expected_version=task_repository.version_of(PROJECT_ID, task.id),
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "do we have our project set?"},
+        )
+
+    assert response.status_code == 200
+    assert "One task" not in response.json()["text"]
 
 
 @pytest.mark.asyncio

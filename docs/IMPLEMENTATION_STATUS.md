@@ -112,7 +112,7 @@ Status: COMPLETE
 
 ## Phase 16 evidence
 
-- `evals/conversations_v1.json` covers all 17 required categories with strict schema validation.
+- `evals/conversations_v1.json` covers all 18 required categories with strict schema validation.
 - Every release metric is locked at 1.0; incomplete categories, duplicate IDs, invalid thresholds,
   mismatched typed outcomes, missing grounding/audit evidence, and parse failures fail the gate.
 - Thirteen isolated guard regressions prove unsafe mutation, approval/external action, permission,

@@ -28,6 +28,7 @@ def decision(intent: IntentType, **overrides: object) -> IntentDecision:
     ("message", "context", "expected"),
     [
         ("yo OG", ConversationContext(), IntentType.CASUAL),
+        ("how do i get started?", ConversationContext(), IntentType.HELP),
         (
             "what's up?",
             ConversationContext(has_active_project=True),
@@ -101,6 +102,73 @@ async def test_site_update_routes_to_existing_golden_workflow() -> None:
 
     assert result.destination is IntentDestination.GOLDEN_SITE_UPDATE
     assert result.decision.requires_mutation is True
+
+
+@pytest.mark.asyncio
+async def test_help_routes_without_project_context_or_mutation() -> None:
+    message = "what can you do?"
+    classifier = FakeIntentClassifier({message: decision(IntentType.HELP)})
+
+    result = await IntentRoutingService(classifier).route(message)
+
+    assert result.destination is IntentDestination.PRODUCT_HELP
+    assert result.decision.requires_project_context is False
+    assert result.mutation_allowed is False
+
+
+@pytest.mark.asyncio
+async def test_obvious_product_help_is_guarded_from_model_misrouting() -> None:
+    message = "how do I add a site update?"
+    classifier = FakeIntentClassifier(
+        {message: decision(IntentType.PROJECT_ADVICE, requires_project_context=True)}
+    )
+
+    result = await IntentRoutingService(classifier).route(message)
+
+    assert result.decision.intent is IntentType.HELP
+    assert result.destination is IntentDestination.PRODUCT_HELP
+    assert result.decision.requires_project_context is False
+
+
+@pytest.mark.asyncio
+async def test_project_setup_question_is_guarded_from_generic_status_misrouting() -> None:
+    message = "do we have our project set?"
+    classifier = FakeIntentClassifier({message: decision(IntentType.PROJECT_ADVICE)})
+
+    result = await IntentRoutingService(classifier).route(
+        message, context=ConversationContext(has_active_project=True)
+    )
+
+    assert result.decision.intent is IntentType.PROJECT_QUERY
+    assert result.destination is IntentDestination.PROJECT_CONTEXT
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "create a task called How do I create a task guide",
+        "mark the project setup task complete",
+    ],
+)
+@pytest.mark.asyncio
+async def test_deterministic_question_guards_do_not_override_mutation_messages(
+    message: str,
+) -> None:
+    classifier = FakeIntentClassifier(
+        {
+            message: decision(
+                IntentType.PROJECT_MUTATION,
+                requires_project_context=True,
+                requires_mutation=True,
+            )
+        }
+    )
+
+    result = await IntentRoutingService(classifier).route(message)
+
+    assert result.destination is IntentDestination.PROJECT_ACTION
+    assert result.mutation_allowed is True
+    assert classifier.calls[0][0] == message
 
 
 @pytest.mark.asyncio

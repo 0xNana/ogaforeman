@@ -13,7 +13,10 @@ from app.domain.conversation import (
     IntentDestination,
     IntentRoute,
     ReplyKind,
+    ProjectReadinessState,
+    ProjectSetupStatus,
 )
+from app.services.product_knowledge import ProductKnowledgeService
 
 
 class ConversationResponseService:
@@ -25,11 +28,24 @@ class ConversationResponseService:
     ) -> ConversationReply:
         if route.destination is IntentDestination.CASUAL_RESPONSE:
             return self.casual()
+        if route.destination is IntentDestination.PRODUCT_HELP:
+            return self.help("")
         if route.destination is IntentDestination.PROJECT_CONTEXT:
             if context is None:
                 raise ValueError("project context is required for a grounded project reply")
             return self.project(context)
         if route.destination is IntentDestination.CLARIFICATION:
+            if route.decision.intent.value == "unknown" and route.decision.reason_code in {
+                "no_classification",
+                "empty_model_response",
+            }:
+                return ConversationReply(
+                    kind=ReplyKind.CLARIFICATION,
+                    text=(
+                        "I'm not sure what you mean yet. If you're getting started, tell me what's "
+                        "happening on site or ask about tasks, materials, issues, or today's work."
+                    ),
+                )
             return ConversationReply(
                 kind=ReplyKind.CLARIFICATION,
                 text=route.decision.ambiguity or "Could you clarify what you need?",
@@ -40,6 +56,32 @@ class ConversationResponseService:
 
     def casual(self) -> ConversationReply:
         return ConversationReply(kind=ReplyKind.CASUAL, text="What's up?")
+
+    def help(self, message: str) -> ConversationReply:
+        return ConversationReply(
+            kind=ReplyKind.HELP,
+            text=ProductKnowledgeService().answer(message),
+        )
+
+    def project_setup(self, status: ProjectSetupStatus) -> ConversationReply:
+        if not status.project_exists:
+            return _project_reply(
+                "Not yet. Create or open a project first, then tell me what's happening on site "
+                "and I'll start organizing it."
+            )
+        name = status.project_name or "The project"
+        if status.readiness_state is not ProjectReadinessState.ACTIVE:
+            return _project_reply(
+                f"{name} is created, but it's still mostly empty. The fastest way to get it going "
+                "is to tell me what's happening on site today — work underway, materials on hand, "
+                "blockers, or what's planned next."
+            )
+        facts = [f"You have {_count(status.task_count, 'task')}"]
+        if status.open_issue_count:
+            facts.append(f"{_count(status.open_issue_count, 'open issue')}")
+        if status.has_materials:
+            facts.append("materials are being tracked")
+        return _project_reply(f"Yes. {name} is set up and active. " + _join_facts(facts) + ".")
 
     def project(self, context: ConversationalProjectContext) -> ConversationReply:
         focus = context.query.focus
@@ -230,6 +272,14 @@ def _count(count: int, noun: str) -> str:
     if count == 1:
         return f"One {noun}"
     return f"{count} {noun}s"
+
+
+def _join_facts(facts: list[str]) -> str:
+    if len(facts) == 1:
+        return facts[0]
+    if len(facts) == 2:
+        return " and ".join(facts)
+    return ", ".join(facts[:-1]) + ", and " + facts[-1]
 
 
 __all__ = ["ConversationResponseService"]

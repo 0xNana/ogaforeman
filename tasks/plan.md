@@ -1,5 +1,18 @@
 # Oga Foreman V1 Execution Plan
 
+## Conversational UX Correction — Product Help and Project Readiness
+
+Acceptance: product-help questions route without project state; setup questions use an authorized
+persisted readiness projection; unknown input recovers conversationally; the API identifies the
+assistant as OG; and the drawer never renders internal intent/response categories as authors.
+
+Verification: focused router/response/API/UI tests, category-complete conversation eval, full
+non-backing backend suite, frontend lint/typecheck/tests/build, and the canonical three-run Golden
+Scenario rehearsal.
+
+Status: complete locally on 2026-08-15. HELP is the eighteenth locked conversation-eval category;
+the three-run Golden Scenario passed with replay, approval/rejection, restart, and delay controls.
+
 ## Conversational Operations — Phase 17: Final Conversational Golden Flow
 
 Acceptance: execute the locked conversation through the authenticated API and responsive drawer;

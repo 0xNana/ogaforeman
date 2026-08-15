@@ -24,6 +24,7 @@ from app.infrastructure.gemini import create_gemini_client
 REQUIRED_CONVERSATION_CATEGORIES = frozenset(
     {
         "casual",
+        "help",
         "project_query",
         "project_advice",
         "task_mutation",
@@ -45,6 +46,7 @@ REQUIRED_CONVERSATION_CATEGORIES = frozenset(
 
 _CATEGORY_ROUTES = {
     "casual": (IntentType.CASUAL, IntentDestination.CASUAL_RESPONSE),
+    "help": (IntentType.HELP, IntentDestination.PRODUCT_HELP),
     "project_query": (IntentType.PROJECT_QUERY, IntentDestination.PROJECT_CONTEXT),
     "project_advice": (IntentType.PROJECT_ADVICE, IntentDestination.PROJECT_ADVICE),
     "task_mutation": (IntentType.PROJECT_MUTATION, IntentDestination.PROJECT_ACTION),
@@ -145,7 +147,7 @@ class ConversationEvalDataset(BaseModel):
     version: str
     prompt_version: str
     thresholds: ConversationEvalThresholds = Field(default_factory=ConversationEvalThresholds)
-    cases: list[ConversationEvalCase] = Field(min_length=17)
+    cases: list[ConversationEvalCase] = Field(min_length=18)
 
     @model_validator(mode="after")
     def validate_coverage(self) -> ConversationEvalDataset:

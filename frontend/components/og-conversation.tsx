@@ -66,7 +66,7 @@ export function OgConversation({ projectId }: Readonly<{ projectId: string }>) {
     <div className="og-transcript" aria-live="polite" aria-label="Conversation with OG">
       {turns.length === 0 ? <div className="og-empty"><strong>Ask about the project or tell OG what changed.</strong><span>Advice stays read-only. Project changes are shown clearly before they happen.</span></div> : null}
       {turns.map((turn) => <article className={`og-turn ${turn.role}`} key={turn.id}>
-        <span className="og-turn-label">{turn.role === 'og' ? responseLabel(turn.result) : 'YOU'}</span>
+        <span className="og-turn-label">{turn.role === 'og' ? 'OG' : 'YOU'}</span>
         {turn.result?.kind === 'proposed_change' && turn.result.proposed_action ? <strong>{turn.result.proposed_action}</strong> : null}
         <p>{turn.text}</p>
       </article>)}
@@ -88,13 +88,6 @@ export function OgConversation({ projectId }: Readonly<{ projectId: string }>) {
       onConversationResult={handleConversationResult}
     />
   </div>;
-}
-
-function responseLabel(result?: ConversationMessageResult): string {
-  if (!result) return 'OG';
-  if (result.kind === 'proposed_change') return 'PROPOSED CHANGE';
-  if (result.kind === 'workflow') return 'WORKFLOW STARTED';
-  return result.kind.toUpperCase();
 }
 
 export default OgConversation;

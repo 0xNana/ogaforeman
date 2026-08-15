@@ -237,7 +237,7 @@ export type AgentRunState = {
 export type ConversationInputType = 'text' | 'voice' | 'photo' | 'mixed' | 'file';
 
 export type ConversationMessageResult = {
-  kind: 'casual' | 'project' | 'advice' | 'clarification' | 'proposed_change' | 'workflow' | 'done' | 'proposal_cancelled' | 'needs_approval';
+  kind: 'casual' | 'help' | 'project' | 'advice' | 'clarification' | 'proposed_change' | 'workflow' | 'done' | 'proposal_cancelled' | 'needs_approval';
   text: string;
   cited_record_ids: string[];
   recommendation?: 'proceed' | 'hold' | 'review' | null;
@@ -251,6 +251,8 @@ export type ConversationMessageResult = {
   site_update_id?: string | null;
   event_id?: string | null;
   proposal?: PendingConversationProposal | null;
+  assistant_name?: 'OG';
+  intent?: string | null;
 };
 
 export type PendingConversationProposal = {

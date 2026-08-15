@@ -3,8 +3,8 @@
   "prompt_version": "intent-router-v1",
   "adapter": "conversation-fixture",
   "model_id": null,
-  "commit_sha": "6fbb6817d8cf51b698b3edc7fab56e54a74dfef8",
-  "generated_at": "2026-08-14T01:56:33.943010Z",
+  "commit_sha": "ae18aa269b4cf71dc9a1aee0eaf7b4de7082062f",
+  "generated_at": "2026-08-15T10:34:39.575223Z",
   "passed": true,
   "metrics": {
     "routing_accuracy": 1.0,
@@ -40,6 +40,12 @@
     {
       "id": "casual_greeting",
       "category": "casual",
+      "passed": true,
+      "mismatches": []
+    },
+    {
+      "id": "product_getting_started",
+      "category": "help",
       "passed": true,
       "mismatches": []
     },

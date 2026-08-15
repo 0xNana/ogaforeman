@@ -22,6 +22,8 @@ from app.domain.conversation import (
     MaterialContextItem,
     MemberContextItem,
     ReplyKind,
+    ProjectSetupStatus,
+    ProjectReadinessState,
     TaskContextItem,
 )
 from app.services.conversation_responses import ConversationResponseService
@@ -63,6 +65,49 @@ def test_casual_reply_is_short_and_does_not_require_project_context() -> None:
     reply = ConversationResponseService().casual()
 
     assert reply == ConversationReply(kind=ReplyKind.CASUAL, text="What's up?")
+
+
+def test_product_help_is_useful_without_project_context() -> None:
+    service = ConversationResponseService()
+
+    getting_started = service.help("how do i get started?")
+    capabilities = service.help("what can you do?")
+
+    assert getting_started.kind is ReplyKind.HELP
+    assert "type an update" in getting_started.text
+    assert "voice note" in getting_started.text
+    assert "photos" in getting_started.text
+    assert capabilities.kind is ReplyKind.HELP
+    assert "tasks, materials, issues, and daily logs" in capabilities.text
+    assert "purchase" not in capabilities.text.casefold()
+
+
+def test_project_setup_reply_uses_persisted_counts() -> None:
+    service = ConversationResponseService()
+
+    minimal = service.project_setup(
+        ProjectSetupStatus(project_exists=True, project_name="Ridge House", has_members=True)
+    )
+    active = service.project_setup(
+        ProjectSetupStatus(
+            project_exists=True,
+            project_name="Ridge House",
+            has_members=True,
+            has_tasks=True,
+            has_schedule=True,
+            has_materials=True,
+            has_recent_activity=True,
+            task_count=8,
+            open_issue_count=2,
+            readiness_state=ProjectReadinessState.ACTIVE,
+        )
+    )
+
+    assert "Ridge House is created, but it's still mostly empty" in minimal.text
+    assert active.text == (
+        "Yes. Ridge House is set up and active. You have 8 tasks, 2 open issues, "
+        "and materials are being tracked."
+    )
 
 
 def test_response_service_connects_typed_routes_without_swallowing_operational_work() -> None:

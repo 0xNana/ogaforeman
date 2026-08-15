@@ -16,6 +16,7 @@ from app.domain.conversation import (
     EntityResolutionStatus,
     IntentDestination,
     PendingConversationCommand,
+    ProjectSetupStatus,
     SiteUpdateRouteCommand,
 )
 from app.services.conversation_action_execution import ConversationActionExecutionService
@@ -27,12 +28,15 @@ from app.services.conversation_site_update_routing import ConversationSiteUpdate
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService
 from app.services.site_update_intake import SiteUpdateAttachmentError, SiteUpdatePublishError
+from app.services.product_knowledge import is_product_help_question
+from app.services.project_setup import ProjectSetupService, is_project_setup_question
 from app.repositories.interfaces import VersionConflictError
 
 from .projects import auth_runtime
 
 
 router = APIRouter()
+user_router = APIRouter()
 
 
 def _proposal_signing_key(request: Request) -> bytes:
@@ -78,6 +82,8 @@ class ConversationMessageResponse(BaseModel):
     site_update_id: str | None = None
     event_id: str | None = None
     proposal: PendingConversationCommand | None = None
+    assistant_name: str = "OG"
+    intent: str | None = None
 
 
 class ConversationProposalResponse(BaseModel):
@@ -95,6 +101,50 @@ class PendingConversationProposalResponse(BaseModel):
 class ConversationConfirmationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     observed_memory_version: int = Field(ge=0)
+
+
+def _product_help_response(message: str) -> ConversationMessageResponse:
+    reply = ConversationResponseService().help(message)
+    return ConversationMessageResponse(kind=reply.kind.value, text=reply.text, intent="help")
+
+
+@user_router.post("/messages", response_model=ConversationMessageResponse)
+def send_user_scoped_message(
+    payload: ConversationMessageRequest,
+    request: Request,
+) -> ConversationMessageResponse:
+    runtime = auth_runtime(request)
+    actor = runtime.authenticate(request)
+    if is_product_help_question(payload.message):
+        return _product_help_response(payload.message)
+    if not is_project_setup_question(payload.message):
+        return ConversationMessageResponse(
+            kind="clarification",
+            text="Open a project for project questions or changes, or ask me how OG works.",
+        )
+    projects = tuple(runtime.projects.list_for_user(actor))
+    if not projects:
+        reply = ConversationResponseService().project_setup(
+            ProjectSetupStatus(project_exists=False)
+        )
+        return ConversationMessageResponse(
+            kind=reply.kind.value, text=reply.text, intent="project_query"
+        )
+    if len(projects) != 1:
+        return ConversationMessageResponse(
+            kind="clarification",
+            text="Open the project you want me to check, then ask whether it's set up.",
+        )
+    access = configured_project_access(request, projects[0].id, ProjectPermission.READ)
+    reply = ConversationResponseService().project_setup(
+        ProjectSetupService(runtime.store, runtime.projects).retrieve(access)
+    )
+    return ConversationMessageResponse(
+        kind=reply.kind.value,
+        text=reply.text,
+        cited_record_ids=reply.cited_record_ids,
+        intent="project_query",
+    )
 
 
 @router.get(
@@ -244,6 +294,10 @@ async def send_message(
     payload: ConversationMessageRequest,
     request: Request,
 ) -> ConversationMessageResponse:
+    if not payload.attachment_ids and is_product_help_question(payload.message):
+        runtime = auth_runtime(request)
+        runtime.authenticate(request)
+        return _product_help_response(payload.message)
     access = configured_project_access(request, project_id, ProjectPermission.READ)
     runtime = auth_runtime(request)
     if payload.attachment_ids:
@@ -301,10 +355,17 @@ async def send_message(
     )
     if (
         route.destination is IntentDestination.CASUAL_RESPONSE
+        or route.destination is IntentDestination.PRODUCT_HELP
         or route.destination is IntentDestination.CLARIFICATION
     ):
-        reply = ConversationResponseService().respond(route)
-        return ConversationMessageResponse(kind=reply.kind.value, text=reply.text)
+        reply = (
+            ConversationResponseService().help(payload.message)
+            if route.destination is IntentDestination.PRODUCT_HELP
+            else ConversationResponseService().respond(route)
+        )
+        return ConversationMessageResponse(
+            kind=reply.kind.value, text=reply.text, intent=route.decision.intent.value
+        )
 
     context_service = ProjectContextService(
         runtime.store,
@@ -312,13 +373,26 @@ async def send_message(
         member_names=getattr(runtime, "project_member_names", None),
     )
     if route.destination is IntentDestination.PROJECT_CONTEXT:
+        if is_project_setup_question(payload.message):
+            reply = ConversationResponseService().project_setup(
+                ProjectSetupService(runtime.store, runtime.projects).retrieve(access)
+            )
+            return ConversationMessageResponse(
+                kind=reply.kind.value,
+                text=reply.text,
+                cited_record_ids=reply.cited_record_ids,
+                intent=route.decision.intent.value,
+            )
         snapshot = context_service.retrieve(
             access, _query_with_recent_reference(payload.message, memory_service, access)
         )
         reply = ConversationResponseService().project(snapshot)
         _remember_citations(memory_service, access, reply.cited_record_ids)
         return ConversationMessageResponse(
-            kind=reply.kind.value, text=reply.text, cited_record_ids=reply.cited_record_ids
+            kind=reply.kind.value,
+            text=reply.text,
+            cited_record_ids=reply.cited_record_ids,
+            intent=route.decision.intent.value,
         )
     if route.destination is IntentDestination.PROJECT_ADVICE:
         snapshot = context_service.retrieve(access, plan_advice_query(payload.message))
@@ -431,4 +505,4 @@ def _remember_citations(
             return
 
 
-__all__ = ["ConversationMessageRequest", "ConversationMessageResponse", "router"]
+__all__ = ["ConversationMessageRequest", "ConversationMessageResponse", "router", "user_router"]

@@ -48,6 +48,9 @@ real cloud environment, live model credential/billing, or human release gate.
   Firestore/browser restart proof.
 - [x] C-19 The existing multimodal composer is the single OG input across drawer and mobile entry;
   all modalities use the conversational API and `SITE_UPDATE` preserves the Golden workflow.
+- [x] C-20 Product help works without populated project state; project setup/readiness comes from
+  authorized persisted state; assistant turns render as OG without exposing internal route labels;
+  conversational and Golden Scenario regression gates pass.
 
 ## Audit findings requiring implementation
 

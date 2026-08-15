@@ -2,7 +2,7 @@
 
 ## Status date
 
-2026-08-14
+2026-08-15
 
 ## Summary
 
@@ -12,7 +12,7 @@ truth, and exposes typed conversation/advice/proposal/workflow responses in the 
 Ask OG drawer while reusing the existing multimodal Golden intake. Significant conversational
 change requests and confirmation pauses are replay-safe ActivityEvents, and conversational task,
 material, and issue commands surface optimistic conflicts instead of overwriting newer state.
-The versioned conversational benchmark covers all 17 required categories, locks every release
+The versioned conversational benchmark covers all 18 required categories, locks every release
 threshold at 100%, and includes independent negative controls for mutation, approval, permission,
 replay, conflict, memory, and audit failures. Its fixture result is evaluator evidence rather than
 runtime-conformance evidence; Phase 17 adds a separate production-pipeline runtime gate.
@@ -24,6 +24,13 @@ The OG drawer and mobile `Talk to OG` action now use one universal multimodal co
 voice, photo, and attachment submissions enter the same conversational API; intent routing decides
 whether to answer, advise, mutate, confirm, or invoke the existing Golden site-update workflow.
 The frontend has no competing conversational/site-update form or duplicate upload/send path.
+The conversational UX correction adds authenticated product-help routing that bypasses project
+authorization, memory, storage, and Gemini; a user-scoped entry point makes the no-project setup
+response reachable; and cancelled tasks are excluded from persisted readiness counts. Deterministic
+guards match only complete help/setup questions, so mutation-shaped messages still reach the model.
+Setup/readiness answers remain persisted and authorized, unknown intent recovers conversationally,
+and the API exposes an explicit `OG` assistant identity. Internal routing labels are no longer rendered as authors in the
+conversation transcript. The locked conversational evaluation now includes the HELP category.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed
@@ -94,7 +101,7 @@ configured model, or human release review. The canonical evidence checklist is
 
 Conversational Phase 16 verification on 2026-08-14:
 
-- category-complete conversational fixture eval: 17/17 passed at every locked threshold
+- category-complete conversational fixture eval: 18/18 passed at every locked threshold
 - deliberate unsafe-mutation artifact: gate failed on `ambiguous_completion` as expected
 - 13 isolated guard regressions: all detected by the release gate
 - focused eval tests: 20 passed

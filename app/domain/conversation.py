@@ -21,6 +21,7 @@ from app.domain.enums import (
 
 class IntentType(StrEnum):
     CASUAL = "casual"
+    HELP = "help"
     PROJECT_QUERY = "project_query"
     PROJECT_ADVICE = "project_advice"
     PROJECT_MUTATION = "project_mutation"
@@ -32,6 +33,7 @@ class IntentType(StrEnum):
 
 class IntentDestination(StrEnum):
     CASUAL_RESPONSE = "casual_response"
+    PRODUCT_HELP = "product_help"
     PROJECT_CONTEXT = "project_context"
     PROJECT_ADVICE = "project_advice"
     PROJECT_ACTION = "project_action"
@@ -70,6 +72,7 @@ class ContextFocus(StrEnum):
 
 class ReplyKind(StrEnum):
     CASUAL = "casual"
+    HELP = "help"
     PROJECT = "project"
     CLARIFICATION = "clarification"
     ADVICE = "advice"
@@ -89,6 +92,29 @@ class EntityResolutionStatus(StrEnum):
     RESOLVED = "resolved"
     AMBIGUOUS = "ambiguous"
     NOT_FOUND = "not_found"
+
+
+class ProjectReadinessState(StrEnum):
+    EMPTY = "empty"
+    STARTED = "started"
+    ACTIVE = "active"
+
+
+class ProjectSetupStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    project_exists: bool
+    project_name: str | None = None
+    has_members: bool = False
+    has_tasks: bool = False
+    has_schedule: bool = False
+    has_materials: bool = False
+    has_site_updates: bool = False
+    has_daily_logs: bool = False
+    has_recent_activity: bool = False
+    task_count: int = Field(default=0, ge=0)
+    open_issue_count: int = Field(default=0, ge=0)
+    readiness_state: ProjectReadinessState = ProjectReadinessState.EMPTY
 
 
 class TaskOperation(StrEnum):

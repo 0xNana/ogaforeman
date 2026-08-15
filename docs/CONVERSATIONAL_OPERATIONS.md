@@ -106,3 +106,11 @@ chain-of-thought, and secrets are excluded.
 Phase 15 carries optional expected versions into conversational task, material, and issue
 commands. Replayed idempotency scopes return the prior result, while stale commands raise a
 conflict and preserve the latest persisted value.
+
+The conversational UX correction adds a non-mutating `HELP` destination backed by implemented
+product knowledge, plus a deterministic persisted project-setup projection. Bounded product-help
+utterances are answered after user authentication but before project authorization, memory, storage,
+or Gemini access. `POST /api/v1/conversations/messages` makes the no-project setup state reachable
+and resolves a sole authorized project without weakening project-scoped access. Cancelled tasks do
+not contribute to readiness, schedule presence, or task counts. The API identifies assistant responses as `OG`; intent and
+response categories remain diagnostic metadata and are never rendered as conversation authors.

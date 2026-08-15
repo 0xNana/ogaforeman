@@ -12,6 +12,8 @@ from app.domain.conversation import (
     IntentRoute,
     IntentType,
 )
+from app.services.product_knowledge import is_product_help_question
+from app.services.project_setup import is_project_setup_question
 
 
 class IntentClassifier(Protocol):
@@ -72,7 +74,11 @@ class IntentRoutingService:
         if not normalized:
             raise ValueError("conversation message cannot be empty")
         active_context = context or ConversationContext()
-        decision = await self._classifier.classify(normalized, context=active_context)
+        decision = (
+            _deterministic_product_help(normalized)
+            or _deterministic_project_setup(normalized)
+            or await self._classifier.classify(normalized, context=active_context)
+        )
         decision = _validate_contextual_response(decision, active_context)
         mutation_intent = decision.intent in {
             IntentType.PROJECT_MUTATION,
@@ -102,6 +108,7 @@ class IntentRoutingService:
 
 _DESTINATIONS = {
     IntentType.CASUAL: IntentDestination.CASUAL_RESPONSE,
+    IntentType.HELP: IntentDestination.PRODUCT_HELP,
     IntentType.PROJECT_QUERY: IntentDestination.PROJECT_CONTEXT,
     IntentType.PROJECT_ADVICE: IntentDestination.PROJECT_ADVICE,
     IntentType.PROJECT_MUTATION: IntentDestination.PROJECT_ACTION,
@@ -110,6 +117,27 @@ _DESTINATIONS = {
     IntentType.CONFIRMATION_RESPONSE: IntentDestination.CONFIRMATION,
     IntentType.UNKNOWN: IntentDestination.CLARIFICATION,
 }
+
+
+def _deterministic_product_help(message: str) -> IntentDecision | None:
+    if not is_product_help_question(message):
+        return None
+    return IntentDecision(
+        intent=IntentType.HELP,
+        confidence=1.0,
+        reason_code="deterministic_product_help",
+    )
+
+
+def _deterministic_project_setup(message: str) -> IntentDecision | None:
+    if not is_project_setup_question(message):
+        return None
+    return IntentDecision(
+        intent=IntentType.PROJECT_QUERY,
+        confidence=1.0,
+        requires_project_context=True,
+        reason_code="deterministic_project_setup",
+    )
 
 
 def _validate_contextual_response(

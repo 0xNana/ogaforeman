@@ -42,7 +42,8 @@ describe('OgConversation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send to OG' }));
 
     await waitFor(() => expect(screen.getByText("I'd hold off committing yet. Cement is low.")).toBeVisible());
-    expect(screen.getByText('ADVICE')).toBeVisible();
+    expect(screen.getByText('OG')).toBeVisible();
+    expect(screen.queryByText('ADVICE')).not.toBeInTheDocument();
   });
 
   it('shows proposed changes separately from completed work', async () => {
@@ -62,7 +63,8 @@ describe('OgConversation', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Message OG' }), { target: { value: 'move plastering to Friday' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send to OG' }));
 
-    await waitFor(() => expect(screen.getAllByText('PROPOSED CHANGE')).toHaveLength(2));
+    await waitFor(() => expect(screen.getByText('PROPOSED CHANGE')).toBeVisible());
+    expect(screen.getByText('OG')).toBeVisible();
     expect(screen.queryByText('DONE')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
