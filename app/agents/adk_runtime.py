@@ -15,7 +15,7 @@ from google.adk.sessions import BaseSessionService
 from google.adk.events import RequestInput
 from google.adk.workflow import FunctionNode, START, Workflow
 from google.adk.agents.context import Context
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config.settings import RuntimeEnvironment, Settings
 
@@ -24,6 +24,7 @@ class SiteUpdateWorkflowState(BaseModel):
     """Serializable state owned by the native ADK site-update graph."""
 
     stage: str = "created"
+    stage_history: list[str] = Field(default_factory=list)
     result: dict[str, Any] | None = None
 
 
@@ -80,15 +81,33 @@ def build_site_update_workflow(
     reintroducing a second orchestration loop.
     """
 
-    async def load_site_update(ctx: Context) -> dict[str, str]:
-        ctx.state["stage"] = "loaded"
-        return {"stage": "loaded"}
+    async def receive_input(ctx: Context) -> dict[str, str]:
+        ctx.state["stage"] = "received"
+        ctx.state["stage_history"] = ["receive_input"]
+        return {"stage": "received"}
+
+    async def prepare_multimodal_input(ctx: Context) -> dict[str, str]:
+        ctx.state["stage"] = "prepared"
+        history = list(ctx.state.get("stage_history", []))
+        history.append("prepare_multimodal_input")
+        ctx.state["stage_history"] = history
+        return {"stage": "prepared"}
+
+    async def interpret_and_route(ctx: Context) -> dict[str, str]:
+        ctx.state["stage"] = "interpreting"
+        history = list(ctx.state.get("stage_history", []))
+        history.append("interpret_and_route")
+        ctx.state["stage_history"] = history
+        return {"stage": "interpreting"}
 
     async def execute_site_update(ctx: Context) -> Any:
         result = await execute()
         if isinstance(result, dict):
-            ctx.state["stage"] = "executed"
+            ctx.state["stage"] = "tools_executed"
             ctx.state["result"] = result
+            history = list(ctx.state.get("stage_history", []))
+            history.append("execute_tools")
+            ctx.state["stage_history"] = history
         if result.get("has_clarifications") or result.get("has_safety_stops"):
             return RequestInput(
                 interrupt_id=(
@@ -108,10 +127,23 @@ def build_site_update_workflow(
         return result
 
     async def finalize_site_update(ctx: Context) -> dict[str, Any]:
-        ctx.state["stage"] = "finalized"
+        ctx.state["stage"] = "completed"
+        history = list(ctx.state.get("stage_history", []))
+        history.append("completion")
+        ctx.state["stage_history"] = history
         return ctx.state.get("result") or {}
 
-    load = FunctionNode(func=load_site_update, name="load_site_update", timeout=timeout_seconds)
+    receive = FunctionNode(func=receive_input, name="receive_input", timeout=timeout_seconds)
+    prepare = FunctionNode(
+        func=prepare_multimodal_input,
+        name="prepare_multimodal_input",
+        timeout=timeout_seconds,
+    )
+    interpret = FunctionNode(
+        func=interpret_and_route,
+        name="interpret_and_route",
+        timeout=timeout_seconds,
+    )
     execute_node = FunctionNode(
         func=execute_site_update,
         name="execute_site_update",
@@ -127,7 +159,7 @@ def build_site_update_workflow(
         name="daily_site_update_workflow",
         state_schema=SiteUpdateWorkflowState,
         edges=[
-            (START, load, execute_node),
+            (START, receive, prepare, interpret, execute_node),
             (execute_node, finalize),
         ],
     )
