@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, ProjectForbiddenError
-from app.domain.conversation import ContextDomain
+from app.domain.conversation import ContextDomain, ContextFocus, ContextQuery
 from app.domain.enums import (
     ActorType,
     IssueDetectedBy,
@@ -264,3 +264,37 @@ def test_context_rejects_a_project_reader_that_returns_another_project() -> None
         ProjectContextService(InMemoryRepositoryStore(), ProjectReader(other)).retrieve(
             access(), plan_context_query("what's up?"), now=NOW
         )
+
+
+def test_issue_id_search_keeps_issue_in_authorized_action_context() -> None:
+    store = InMemoryRepositoryStore()
+    project = Project(
+        id=PROJECT_ID,
+        name="Airport Residence",
+        location="Accra",
+        timezone="Africa/Accra",
+        status=ProjectStatus.ACTIVE,
+        created_by="usr_admin123",
+    )
+    issue = Issue(
+        id="iss_delivery123",
+        project_id=PROJECT_ID,
+        type=IssueType.DELAY_RISK,
+        severity=Severity.MEDIUM,
+        description="Plasterboard delivery postponed due to access issues.",
+        status=IssueStatus.OPEN,
+        detected_by=IssueDetectedBy.SITE_UPDATE,
+    )
+    store.repository(Issue).create(issue)
+
+    snapshot = ProjectContextService(store, ProjectReader(project)).retrieve(
+        access(),
+        ContextQuery(
+            domains=(ContextDomain.ISSUES,),
+            focus=ContextFocus.ALL,
+            search_terms=(issue.id,),
+        ),
+        now=NOW,
+    )
+
+    assert [item.id for item in snapshot.issues] == [issue.id]

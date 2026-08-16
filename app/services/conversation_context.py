@@ -320,7 +320,7 @@ class ProjectContextService:
             issues = [
                 (issue, version)
                 for issue, version in issues
-                if _matches(query.search_terms, issue.description)
+                if _matches(query.search_terms, issue.id, issue.description)
                 or bool(matched_task_ids.intersection(issue.task_ids))
             ]
         issues.sort(key=lambda item: (item[0].severity.value, item[0].updated_at), reverse=True)
