@@ -2,7 +2,7 @@ import app.tools
 from google.adk.agents import BaseAgent, LlmAgent
 
 from app.agents.registry import Registry, registry
-from app.config import get_settings
+from app.config import DEFAULT_GEMINI_MODEL_ID, get_settings
 
 
 def create_agent(name: str, reg: Registry = registry) -> LlmAgent:
@@ -22,7 +22,7 @@ def create_agent(name: str, reg: Registry = registry) -> LlmAgent:
     return LlmAgent(
         name=name,
         description=config.description,
-        model=get_settings().gemini_model_id or "gemini-2.0-flash",
+        model=get_settings().gemini_model_id or DEFAULT_GEMINI_MODEL_ID,
         instruction=prompt,
         tools=tool_funcs,
         sub_agents=sub_agents,

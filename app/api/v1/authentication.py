@@ -30,5 +30,5 @@ def bootstrap_identity(payload: BootstrapRequest, request: Request) -> Bootstrap
     return BootstrapResponse(
         id=actor.user_id,
         email=actor.email,
-        display_name=payload.display_name or "Oga user",
+        display_name=payload.display_name or "OG user",
     )

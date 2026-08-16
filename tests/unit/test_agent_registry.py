@@ -5,6 +5,7 @@ from google.adk.agents import LlmAgent
 
 from app.agents.factory import create_agent
 from app.agents.registry import Registry
+from app.config import DEFAULT_GEMINI_MODEL_ID, Settings
 
 
 def test_registry_loads_manifest():
@@ -71,11 +72,14 @@ agents:
         Registry(str(manifest_path))
 
 
-def test_factory_creates_agent():
+def test_factory_uses_default_model_when_unconfigured(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("app.agents.factory.get_settings", lambda: Settings(_env_file=None))
+
     agent = create_agent("communicator")
     assert isinstance(agent, LlmAgent)
     assert agent.name == "communicator"
     assert "briefs" in agent.instruction
+    assert agent.model == DEFAULT_GEMINI_MODEL_ID
 
 
 def test_factory_creates_coordinator_with_subagents():

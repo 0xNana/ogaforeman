@@ -104,7 +104,7 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
                 "FIRESTORE_DATABASE='(default)'",
                 "FIRESTORE_LOCATION=europe-west1",
                 "MEDIA_BUCKET=dotenv-media",
-                "GEMINI_MODEL_ID=gemini-3.1-pro-preview",
+                "GEMINI_MODEL_ID=gemini-3.6-flash",
                 "GEMINI_LOCATION=global",
                 "AUTH_ISSUER=https://securetoken.google.com/dotenv-project",
                 "AUTH_AUDIENCE=dotenv-project",

@@ -16,6 +16,12 @@ class RuntimeEnvironment(StrEnum):
     PRODUCTION = "production"
 
 
+# Keep the local agent factory aligned with the minimum model generation used by
+# the current hackathon and deployment contract. Deployed environments must
+# still provide GEMINI_MODEL_ID explicitly.
+DEFAULT_GEMINI_MODEL_ID = "gemini-3.6-flash"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",

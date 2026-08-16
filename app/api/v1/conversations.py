@@ -342,7 +342,7 @@ async def send_message(
         except SiteUpdatePublishError as exc:
             raise ApiError(
                 "SITE_UPDATE_SAVED_NOT_QUEUED",
-                "Your update was saved, but Oga could not queue it yet. Retry safely.",
+                "Your update was saved, but OG could not queue it yet. Retry safely.",
                 status_code=503,
             ) from exc
         except SiteUpdateAttachmentError as exc:

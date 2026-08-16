@@ -34,7 +34,7 @@ settings = get_settings()
 configure_logging()
 
 app = FastAPI(
-    title="Oga Foreman API",
+    title="OG Foreman API",
     description="Tell Oga what happened. Oga handles the follow-through.",
     version="0.1.0",
 )

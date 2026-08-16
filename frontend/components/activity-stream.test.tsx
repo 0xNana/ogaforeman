@@ -18,12 +18,12 @@ const activities: Activity[] = [
   {
     id: 'act_task', kind: 'progress', title: 'Blockwork completed', description: 'Blockwork completed',
     date: '10:15', dateLabel: 'Saturday, 8 August 2026', occurredAt: '2026-08-08T10:15:00Z',
-    user: 'Oga', actorType: 'agent', action: 'task.completed', entityType: 'task', entityId: 'tsk_blockwork',
+    user: 'OG', actorType: 'agent', action: 'task.completed', entityType: 'task', entityId: 'tsk_blockwork',
   },
   {
     id: 'act_report', kind: 'report', title: 'Daily report published', description: 'Daily report published',
     date: '17:30', dateLabel: 'Friday, 7 August 2026', occurredAt: '2026-08-07T17:30:00Z',
-    user: 'Oga', actorType: 'system', action: 'report.published', entityType: 'daily_report', entityId: 'rpt_daily',
+    user: 'OG', actorType: 'system', action: 'report.published', entityType: 'daily_report', entityId: 'rpt_daily',
   },
 ];
 

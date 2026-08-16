@@ -99,7 +99,7 @@ def authenticate_or_provision_bearer(
             User(
                 id=canonical_user_id(identity.subject),
                 identity_subject=identity.subject,
-                display_name=display_name or "Oga user",
+                display_name=display_name or "OG user",
                 email=identity.email,
             )
         )
