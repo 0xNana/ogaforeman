@@ -581,7 +581,9 @@ def _clarification_actions(clarifications: Sequence[BaseFact]) -> list[str]:
                 "to record it accurately."
             )
         if not message and isinstance(fact, TaskCompletionFact):
-            message = f"I couldn't match '{fact.task_name}' to a project task. Which task did you mean?"
+            message = (
+                f"I couldn't match '{fact.task_name}' to a project task. Which task did you mean?"
+            )
         if message and message not in actions:
             actions.append(message)
     return actions

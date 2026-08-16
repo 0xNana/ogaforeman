@@ -46,6 +46,8 @@ from app.workflows.runtime import run_id_for_event
 
 
 logger = logging.getLogger("ogaforeman.agents.site_update")
+
+
 class EventPayloadMismatchError(ValueError):
     code = "EVENT_PAYLOAD_MISMATCH"
 
@@ -238,6 +240,7 @@ class SiteUpdateEventExecutor:
                 ):
                     if agent_event.output is not None:
                         from google.adk.events import RequestInput
+
                         if isinstance(agent_event.output, RequestInput):
                             output = agent_event.output.payload
                         elif not isinstance(agent_event.output, dict):

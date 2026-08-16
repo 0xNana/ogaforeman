@@ -33,4 +33,7 @@ def test_delay_risk_is_not_presented_as_a_blocked_task() -> None:
 
     assert daily_log_projection(report)["blocked"] == ["Electrical work is blocked."]
     assert report_projection(report)["blocked"] == ["Electrical work is blocked."]
-    assert "Plasterboard delivery postponed to tomorrow morning due to access issues." in report_projection(report)["risks"]
+    assert (
+        "Plasterboard delivery postponed to tomorrow morning due to access issues."
+        in report_projection(report)["risks"]
+    )

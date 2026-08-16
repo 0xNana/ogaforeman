@@ -23,9 +23,7 @@ def test_site_update_graph_contains_native_fanout_and_join() -> None:
     } <= names
 
     branch_edges = [
-        edge
-        for edge in workflow.graph.edges
-        if edge.from_node.name == "interpret_and_route"
+        edge for edge in workflow.graph.edges if edge.from_node.name == "interpret_and_route"
     ]
     assert {edge.to_node.name for edge in branch_edges} == {
         "progress_node",

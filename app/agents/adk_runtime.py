@@ -42,11 +42,16 @@ def create_session_service(settings: Settings) -> BaseSessionService:
 
     backend = settings.adk_session_backend
     if backend == "auto":
-        backend = "vertex_ai" if settings.oga_env in {
-            RuntimeEnvironment.PREVIEW,
-            RuntimeEnvironment.STAGING,
-            RuntimeEnvironment.PRODUCTION,
-        } else "database"
+        backend = (
+            "vertex_ai"
+            if settings.oga_env
+            in {
+                RuntimeEnvironment.PREVIEW,
+                RuntimeEnvironment.STAGING,
+                RuntimeEnvironment.PRODUCTION,
+            }
+            else "database"
+        )
 
     if backend == "vertex_ai":
         if not settings.google_cloud_project or not settings.google_cloud_region:
@@ -135,9 +140,7 @@ def build_site_update_workflow(
         if result.get("has_clarifications") or result.get("has_safety_stops"):
             return RequestInput(
                 interrupt_id=(
-                    "clarification_needed"
-                    if result.get("has_clarifications")
-                    else "safety_stop"
+                    "clarification_needed" if result.get("has_clarifications") else "safety_stop"
                 ),
                 message=result.get("summary", ""),
                 payload=result,
@@ -165,11 +168,7 @@ def build_site_update_workflow(
 
     async def merge_actions(ctx: Context) -> dict[str, str]:
         expected = {"progress", "blocker", "material"}
-        completed = {
-            branch
-            for branch in expected
-            if ctx.state.get(f"{branch}_ready", False)
-        }
+        completed = {branch for branch in expected if ctx.state.get(f"{branch}_ready", False)}
         missing = expected - completed
         if missing:
             raise RuntimeError(f"ADK fan-in missing branches: {sorted(missing)}")
