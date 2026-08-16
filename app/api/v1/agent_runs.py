@@ -26,6 +26,9 @@ class AgentRunResponse(BaseModel):
     step: str | None
     attempt: int
     trace_id: str
+    adk_session_id: str | None
+    adk_invocation_id: str | None
+    adk_workflow_id: str | None
     started_at: datetime
     updated_at: datetime
     result_summary: str | None
@@ -56,6 +59,9 @@ def get_agent_run(
         step=run.step,
         attempt=run.attempt,
         trace_id=run.trace_id,
+        adk_session_id=run.adk_session_id,
+        adk_invocation_id=run.adk_invocation_id,
+        adk_workflow_id=run.adk_workflow_id,
         started_at=run.started_at,
         updated_at=run.updated_at,
         result_summary=run.result_summary,

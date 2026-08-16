@@ -130,6 +130,8 @@ The additive agent-run response exposes `id` and its explicit alias `run_id`,
 `pending_actions`, `error_code`, and `error_summary`. For site updates the summary
 and actions are the concise, user-safe Oga response persisted on the exact run
 before it completes or pauses; clients do not reconstruct them from browser state.
+The response also includes nullable `adk_session_id`, `adk_invocation_id`, and
+`adk_workflow_id` correlation fields for authorized diagnostics.
 
 Example response:
 
@@ -144,6 +146,9 @@ Example response:
   "step": "approval_required",
   "attempt": 1,
   "trace_id": "evt_01JEXAMPLE",
+  "adk_session_id": "agents-ogaforeman/run_01JEXAMPLE-attempt-1",
+  "adk_invocation_id": "evt_01JEXAMPLE",
+  "adk_workflow_id": "daily_site_update_workflow",
   "started_at": "2026-08-09T10:00:00Z",
   "updated_at": "2026-08-09T10:00:04Z",
   "completed_at": null,
