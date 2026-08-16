@@ -151,12 +151,36 @@ def build_site_update_workflow(
         ctx.state["stage_history"] = history
         return {"stage": "merged"}
 
+    async def compose_actions(ctx: Context) -> dict[str, str]:
+        history = list(ctx.state.get("stage_history", []))
+        history.append("compose_actions")
+        ctx.state["stage_history"] = history
+        return {"stage": "composed"}
+
+    async def evaluate_policy(ctx: Context) -> dict[str, str]:
+        history = list(ctx.state.get("stage_history", []))
+        history.append("evaluate_policy")
+        ctx.state["stage_history"] = history
+        return {"stage": "policy_evaluated"}
+
     async def finalize_site_update(ctx: Context) -> dict[str, Any]:
         ctx.state["stage"] = "completed"
         history = list(ctx.state.get("stage_history", []))
         history.append("completion")
         ctx.state["stage_history"] = history
         return ctx.state.get("result") or {}
+
+    async def project_daily_log(ctx: Context) -> dict[str, str]:
+        history = list(ctx.state.get("stage_history", []))
+        history.append("project_daily_log")
+        ctx.state["stage_history"] = history
+        return {"stage": "daily_log_projected"}
+
+    async def emit_activity(ctx: Context) -> dict[str, str]:
+        history = list(ctx.state.get("stage_history", []))
+        history.append("emit_activity")
+        ctx.state["stage_history"] = history
+        return {"stage": "activity_emitted"}
 
     receive = FunctionNode(func=receive_input, name="receive_input", timeout=timeout_seconds)
     prepare = FunctionNode(
@@ -174,6 +198,8 @@ def build_site_update_workflow(
     material = FunctionNode(func=material_node, name="material_node", timeout=timeout_seconds)
     branch_join = JoinNode(name="merge_branch_results")
     merge = FunctionNode(func=merge_actions, name="merge_actions", timeout=timeout_seconds)
+    compose = FunctionNode(func=compose_actions, name="compose_actions", timeout=timeout_seconds)
+    policy = FunctionNode(func=evaluate_policy, name="evaluate_policy", timeout=timeout_seconds)
     execute_node = FunctionNode(
         func=execute_site_update,
         name="execute_site_update",
@@ -185,6 +211,12 @@ def build_site_update_workflow(
         name="finalize_site_update",
         timeout=timeout_seconds,
     )
+    daily_log = FunctionNode(
+        func=project_daily_log,
+        name="project_daily_log",
+        timeout=timeout_seconds,
+    )
+    activity = FunctionNode(func=emit_activity, name="emit_activity", timeout=timeout_seconds)
     return Workflow(
         name="daily_site_update_workflow",
         state_schema=SiteUpdateWorkflowState,
@@ -194,8 +226,8 @@ def build_site_update_workflow(
             (progress, branch_join),
             (blocker, branch_join),
             (material, branch_join),
-            (branch_join, merge, execute_node),
-            (execute_node, finalize),
+            (branch_join, merge, compose, policy, execute_node),
+            (execute_node, daily_log, activity, finalize),
         ],
     )
 

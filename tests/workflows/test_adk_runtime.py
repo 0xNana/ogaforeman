@@ -15,6 +15,10 @@ def test_site_update_graph_contains_native_fanout_and_join() -> None:
         "material_node",
         "merge_branch_results",
         "merge_actions",
+        "compose_actions",
+        "evaluate_policy",
+        "project_daily_log",
+        "emit_activity",
     } <= names
 
     branch_edges = [
