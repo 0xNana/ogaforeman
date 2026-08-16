@@ -242,11 +242,24 @@ async def process_event_async(
                 "worker_events_total",
                 labels={"workflow": _workflow_label(event), "status_class": "5xx"},
             )
+            failure_level = (
+                logging.WARNING if getattr(exc, "suppress_traceback", False) else logging.ERROR
+            )
+            failure_event = (
+                "event_processing_expected_failure"
+                if getattr(exc, "suppress_traceback", False)
+                else "event_processing_failed"
+            )
+            failure_message = (
+                "expected event processing failure"
+                if getattr(exc, "suppress_traceback", False)
+                else "event processing failed"
+            )
             log_event(
                 logger,
-                logging.ERROR,
-                "event_processing_failed",
-                "event processing failed",
+                failure_level,
+                failure_event,
+                failure_message,
                 status="failed",
                 error_code=type(exc).__name__,
             )

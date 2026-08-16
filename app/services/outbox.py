@@ -75,7 +75,10 @@ class OutboxService:
             handler(message)
         except Exception as exc:
             error_summary = str(exc)[:5_000]
-            logger.exception("Outbox message %s failed", message_id)
+            if getattr(exc, "suppress_traceback", False):
+                logger.warning("Outbox message %s failed: %s", message_id, error_summary)
+            else:
+                logger.exception("Outbox message %s failed", message_id)
 
             def _fail(repo: ProjectRepository[OutboxMessage]) -> OutboxMessage:
                 msg = repo.require(project_id, message_id)

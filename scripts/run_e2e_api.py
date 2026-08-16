@@ -69,6 +69,12 @@ ACTOR_ID = "usr_playwright123"
 NOW = datetime(2026, 8, 8, 9, 45, tzinfo=UTC)
 
 
+class ExpectedE2EProcessingFailure(RuntimeError):
+    """Negative-path model failure that should not print a traceback in E2E logs."""
+
+    suppress_traceback = True
+
+
 class LocalE2EStorage:
     def __init__(self) -> None:
         self._contracts: dict[str, tuple[str, str, int]] = {}
@@ -193,7 +199,9 @@ class DeterministicE2ESiteInterpreter:
                 ]
             )
         if not text.strip():
-            raise RuntimeError("the deterministic model received no interpretable evidence")
+            raise ExpectedE2EProcessingFailure(
+                "the deterministic model received no interpretable evidence"
+            )
         return ExtractedFactSet(
             tasks=[
                 TaskCompletionFact(
