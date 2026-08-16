@@ -20,7 +20,11 @@ from app.domain.authorization import (
 )
 from app.domain.activity import MutationContext, WorkflowActivityAction
 from app.agents.interpreter import MediaEvidence
-from app.agents.adk_runtime import build_site_update_workflow, create_session_service
+from app.agents.adk_runtime import (
+    build_site_update_workflow,
+    create_session_service,
+    session_app_name,
+)
 from app.domain.enums import ActorType, AgentRunStatus, AttachmentUploadStatus, ProcessingStatus
 from app.domain.events import EventActorType, EventSource, EventType, ProjectEvent
 from app.domain.models import AgentRun, Attachment, ProjectMember, SiteUpdate
@@ -212,7 +216,7 @@ class SiteUpdateEventExecutor:
             # Scope the ADK session namespace to the canonical run. This keeps
             # independent project runs isolated while allowing retries to
             # resume the exact same ADK session.
-            app_name=f"agents-{id(self._store)}-{run_id}",
+            app_name=session_app_name(self._settings, self._store),
             agent=agent,
             session_service=create_session_service(self._settings),
             auto_create_session=True,

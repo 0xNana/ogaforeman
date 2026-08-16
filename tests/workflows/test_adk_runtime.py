@@ -1,4 +1,5 @@
-from app.agents.adk_runtime import build_site_update_workflow
+from app.agents.adk_runtime import build_site_update_workflow, session_app_name
+from app.config.settings import RuntimeEnvironment, Settings
 
 
 def test_site_update_graph_contains_native_fanout_and_join() -> None:
@@ -31,3 +32,10 @@ def test_site_update_graph_contains_native_fanout_and_join() -> None:
         "blocker_node",
         "material_node",
     }
+
+
+def test_deployed_adk_namespace_survives_repository_reconstruction() -> None:
+    settings = Settings(_env_file=None)
+    settings.oga_env = RuntimeEnvironment.STAGING
+    settings.google_cloud_project = "oga-project"
+    assert session_app_name(settings, object()) == "agents-oga-project"

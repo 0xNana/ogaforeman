@@ -73,6 +73,25 @@ def create_session_service(settings: Settings) -> BaseSessionService:
     )
 
 
+def session_app_name(settings: Settings, store: object) -> str:
+    """Return a stable ADK app namespace for session lookup.
+
+    Production restarts reconstruct repository objects, so their Python
+    identity must never be part of an ADK session key. Local tests use store
+    identity only to prevent one test's SQLite session history contaminating
+    another test.
+    """
+
+    if settings.oga_env in {
+        RuntimeEnvironment.PREVIEW,
+        RuntimeEnvironment.STAGING,
+        RuntimeEnvironment.PRODUCTION,
+    }:
+        project = settings.google_cloud_project or "oga"
+        return f"agents-{project}"
+    return f"agents-local-{id(store)}"
+
+
 def build_site_update_workflow(
     execute: Callable[[], Awaitable[dict[str, Any]]],
     *,
@@ -244,4 +263,4 @@ def build_site_update_workflow(
     )
 
 
-__all__ = ["build_site_update_workflow", "create_session_service"]
+__all__ = ["build_site_update_workflow", "create_session_service", "session_app_name"]
