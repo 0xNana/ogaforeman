@@ -1,0 +1,126 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/client-name: gcloud
+    run.googleapis.com/client-version: 580.0.0
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/maxScale: '20'
+    run.googleapis.com/operation-id: 9e5382c8-eb69-4af4-bce0-d2a122b7fdce
+    run.googleapis.com/urls: '["https://oga-api-staging-891773048332.europe-west1.run.app","https://oga-api-staging-dc62gfsg7a-ew.a.run.app"]'
+    serving.knative.dev/creator: hellodaries@gmail.com
+    serving.knative.dev/lastModifier: hellodaries@gmail.com
+  creationTimestamp: '2026-08-09T01:56:05.335473Z'
+  generation: 39
+  labels:
+    cloud.googleapis.com/location: europe-west1
+  name: oga-api-staging
+  namespace: '891773048332'
+  resourceVersion: AAZZI/lews4
+  selfLink: /apis/serving.knative.dev/v1/namespaces/891773048332/services/oga-api-staging
+  uid: 0a805416-0ef7-41bb-81f0-ef2b06271c0b
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '20'
+        run.googleapis.com/client-name: gcloud
+        run.googleapis.com/client-version: 580.0.0
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/startup-cpu-boost: 'true'
+      labels:
+        client.knative.dev/nonce: zaqtpabrkn
+        run.googleapis.com/startupProbeType: Custom
+    spec:
+      containerConcurrency: 40
+      containers:
+      - env:
+        - name: OGA_ENV
+          value: staging
+        - name: DEMO_MODE
+          value: 'false'
+        - name: USE_FAKE_MODEL
+          value: 'false'
+        - name: DEFAULT_PROJECT_TIMEZONE
+          value: Africa/Accra
+        - name: GOOGLE_CLOUD_PROJECT
+          value: ogaforeman-cloud-2026
+        - name: GOOGLE_CLOUD_REGION
+          value: europe-west1
+        - name: FIRESTORE_DATABASE
+          value: (default)
+        - name: MEDIA_BUCKET
+          value: ogaforeman-cloud-2026-oga-media
+        - name: STORAGE_SIGNING_SERVICE_ACCOUNT
+          value: oga-api-staging@ogaforeman-cloud-2026.iam.gserviceaccount.com
+        - name: PUBSUB_SITE_EVENTS_TOPIC
+          value: oga-site-events-staging
+        - name: PUBSUB_DEAD_LETTER_TOPIC
+          value: oga-dead-letter-staging
+        - name: PUBSUB_WORKER_SUBSCRIPTION
+          value: oga-worker-staging
+        - name: GEMINI_MODEL_ID
+          value: gemini-3.6-flash
+        - name: GEMINI_LOCATION
+          value: global
+        - name: AUTH_ISSUER
+          value: https://securetoken.google.com/ogaforeman-cloud-2026
+        - name: AUTH_AUDIENCE
+          value: ogaforeman-cloud-2026
+        - name: CORS_ALLOWED_ORIGINS
+          value: '["http://127.0.0.1:3000","http://localhost:3000","https://ogaforeman-cloud-2026.web.app","https://ogaforeman-cloud-2026.firebaseapp.com"]'
+        - name: CONVERSATION_PROPOSAL_SIGNING_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: oga-conversation-proposal-signing-key-staging
+        image: europe-west1-docker.pkg.dev/ogaforeman-cloud-2026/oga-foreman/oga-foreman:3129c3902212
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+        ports:
+        - containerPort: 8080
+          name: http1
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        startupProbe:
+          failureThreshold: 12
+          httpGet:
+            path: /health/ready
+            port: 8080
+          periodSeconds: 5
+          timeoutSeconds: 5
+      serviceAccountName: oga-api-staging@ogaforeman-cloud-2026.iam.gserviceaccount.com
+      timeoutSeconds: 300
+  traffic:
+  - latestRevision: true
+    percent: 100
+status:
+  address:
+    url: https://oga-api-staging-dc62gfsg7a-ew.a.run.app
+  conditions:
+  - lastTransitionTime: '2026-08-16T06:15:02.728398Z'
+    status: 'True'
+    type: Ready
+  - lastTransitionTime: '2026-08-16T06:14:41.035309Z'
+    status: 'True'
+    type: ConfigurationsReady
+  - lastTransitionTime: '2026-08-16T06:15:02.694921Z'
+    status: 'True'
+    type: RoutesReady
+  latestCreatedRevisionName: oga-api-staging-00037-dvz
+  latestReadyRevisionName: oga-api-staging-00037-dvz
+  observedGeneration: 39
+  traffic:
+  - latestRevision: true
+    percent: 100
+    revisionName: oga-api-staging-00037-dvz
+  url: https://oga-api-staging-dc62gfsg7a-ew.a.run.app

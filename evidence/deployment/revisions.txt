@@ -1,0 +1,258 @@
+✔
+REVISION: oga-api-staging-00037-dvz
+ACTIVE: yes
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-16 06:14:40 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+X
+REVISION: oga-api-staging-00036-9jr
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-16 06:00:07 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00035-zlh
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 17:49:04 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00034-gtq
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 16:57:04 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00033-jz9
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 15:33:03 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00032-7r2
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 14:24:12 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00031-qs8
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 13:03:20 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00030-pdb
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 11:30:51 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00029-x5f
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 03:26:59 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00028-x7l
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 03:08:43 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00027-n2x
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-15 01:35:09 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00026-wlf
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-14 23:50:49 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00025-sp4
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-14 21:57:41 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00024-8r6
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-14 20:26:28 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00023-4rx
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-13 22:08:34 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00022-fsz
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-13 21:33:51 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00021-xkg
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-13 18:21:52 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00020-z9w
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-13 16:17:48 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00019-pnm
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-13 15:30:08 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00018-qcp
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-13 14:55:41 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00017-s5g
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-13 11:01:13 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00016-gwh
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-11 11:21:04 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00015-z7w
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-10 21:38:37 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00014-csv
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-10 03:53:46 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00013-5cg
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-10 03:29:11 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00012-55l
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 23:38:21 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00011-fll
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 18:57:41 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00010-4j7
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 18:35:21 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00009-xtd
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 18:07:52 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00008-6w7
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 17:07:50 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00007-wds
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 16:28:12 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00006-zq4
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 10:55:50 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00005-lk9
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 04:53:16 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00004-jfv
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 04:09:43 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00003-hfp
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 03:58:37 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-rollback-probe
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 02:08:45 UTC
+DEPLOYED BY: hellodaries@gmail.com
+
+✔
+REVISION: oga-api-staging-00001-xh7
+ACTIVE:
+SERVICE: oga-api-staging
+DEPLOYED: 2026-08-09 01:56:05 UTC
+DEPLOYED BY: hellodaries@gmail.com
