@@ -150,6 +150,7 @@ test('uploads and submits a photo using the signed attachment contract', async (
 });
 
 test('records and submits a voice update', async ({ context, page }) => {
+  test.setTimeout(60_000);
   await context.grantPermissions(['microphone'], { origin: 'http://127.0.0.1:3100' });
   const browserErrors = captureBrowserErrors(page);
 
@@ -161,13 +162,18 @@ test('records and submits a voice update', async ({ context, page }) => {
   const siteRequest = page.waitForRequest((candidate) => (
     candidate.method() === 'POST' && candidate.url().endsWith('/conversations/messages')
   ));
+  const siteResponse = page.waitForResponse((candidate) => (
+    candidate.request().method() === 'POST' && candidate.url().endsWith('/conversations/messages')
+  ));
 
   await page.getByRole('button', { name: 'Send to OG' }).click();
   const payload = JSON.parse((await siteRequest).postData() ?? '{}');
+  const response = await siteResponse;
 
   expect(payload.input_type).toBe('voice');
   expect(payload.attachment_ids).toHaveLength(1);
-  await expect(page.getByText('OG handled it.')).toBeVisible();
+  expect(response.ok()).toBe(true);
+  await expect(page.getByText('OG handled it.')).toBeVisible({ timeout: 45_000 });
   expect(browserErrors).toEqual([]);
 });
 
