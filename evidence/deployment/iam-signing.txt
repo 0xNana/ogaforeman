@@ -1,0 +1,24 @@
+IAM SIGNING CONFIGURATION
+=========================
+Captured: 2026-08-16
+Project: ogaforeman-cloud-2026
+Active gcloud principal: hellodaries@gmail.com
+
+IAM Credentials API:
+  iamcredentials.googleapis.com: ENABLED
+
+Signing target:
+  SIGN_TARGET_SA=oga-api-staging@ogaforeman-cloud-2026.iam.gserviceaccount.com
+
+Smoke operator:
+  SMOKE_SA=hellodaries@gmail.com
+  Note: this is the active operator user, not a dedicated service account.
+
+Signing-target IAM policy observed:
+  roles/iam.serviceAccountTokenCreator
+    serviceAccount:oga-api-staging@ogaforeman-cloud-2026.iam.gserviceaccount.com
+
+Gate status:
+  The IAM Credentials API is enabled. The smoke operator still needs a
+  narrowly scoped roles/iam.serviceAccountTokenCreator binding on the signing
+  target before authenticated signing smoke can pass.
