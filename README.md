@@ -1,23 +1,28 @@
-# Oga Foreman
+# OG Foreman
 
-Tell Oga what happened. Oga handles the follow-through.
+Tell OG what happened. OG handles the follow-through.
 
-Oga Foreman is an autonomous construction-site coordinator for voice notes,
+OG Foreman is a construction-site coordinator for voice notes,
 photos, short messages, and operational events. The product target is simple:
 turn messy site updates into verified progress, blockers, material requests,
 reports, approvals, and follow-ups without becoming another dense dashboard.
 
 ## Current release status
 
-The repository contains a substantial V1 implementation and the Phase 8 release
-tooling, but it is **not production-ready yet**. All 13 local
-production-readiness controls pass. The site-update API now persists intake and
-outbox state, while the claimed worker routes through `OgaCoordinator`, executes
-the Daily Site Update through an ADK custom agent, and applies typed authorized
-mutations. The canonical mixed update now persists task progress, blockers and delay risk,
-material stock and its approval-gated request, the daily report, activity, and
-run state through `/api/v1`. Remaining blockers are live Gemini evaluation,
-real Firebase browser evidence, and staging operations.
+The repository contains the implemented V1 workflows and the conversational OG
+experience. Phases 1–17 are complete locally: the authenticated API and Next.js
+UI route text, voice, photo, and attachment input through the shared OG composer;
+the worker coordinates durable workflows; and typed, authorized services persist
+tasks, issues, materials, requests, approvals, reports, runs, and ActivityEvents.
+The conversational benchmark covers 18 categories, and the local verification
+matrix includes unit, contract, integration, production-readiness, evaluation,
+and browser checks.
+
+This is a locally verified release candidate, not a fully released production
+deployment. External release gates remain for staging IAM/signing, monitoring
+notification evidence, live Gemini evaluation, and human security/safety/scope
+review. See [Implementation Status](docs/STATUS.md) and
+[Production Readiness](docs/PRODUCTION_READINESS.md) before deploying.
 
 Staging deployment, rollback, alert, trace, backup, and isolated-restore evidence
 also require a real Google Cloud environment. See
