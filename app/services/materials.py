@@ -193,10 +193,12 @@ class MaterialService:
         access: ProjectAccessContext,
         command: CreateMaterialCommand,
         context: MutationContext,
+        *,
+        permission: ProjectPermission = ProjectPermission.MANAGE,
     ) -> MaterialCreation:
         ensure_project_scope(access, command.project_id)
         ensure_project_scope(access, context.project_id)
-        ensure_permission(access, ProjectPermission.MANAGE)
+        ensure_permission(access, permission)
         if context.actor_type is not ActorType.USER or context.actor_id != access.actor.user_id:
             raise PermissionError("material setup requires the authorized user actor")
         normalized_name = normalize_material_name(command.name)

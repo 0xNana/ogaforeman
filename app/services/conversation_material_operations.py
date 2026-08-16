@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.domain.activity import MutationContext
-from app.domain.authorization import ProjectAccessContext
+from app.domain.authorization import ProjectAccessContext, ProjectPermission
 from app.domain.conversation import (
     ConversationMaterialCommand,
     EntityKind,
@@ -66,11 +66,17 @@ class ConversationMaterialService:
                     available_quantity=command.quantity or Decimal("0"),
                 ),
                 context,
+                permission=(
+                    ProjectPermission.OPERATE
+                    if command.inventory_creation
+                    else ProjectPermission.MANAGE
+                ),
             )
             return ConversationMaterialResult(
                 created.material,
                 created.activity.id,
-                f"Done. I created {created.material.name}.",
+                f"Done. I created {created.material.name} and recorded "
+                f"{created.material.available_quantity} {created.material.unit} on site.",
                 created.duplicate,
             )
 

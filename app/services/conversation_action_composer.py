@@ -69,6 +69,7 @@ class MaterialActionInterpretation(_Interpretation):
     reason: str | None = Field(default=None, min_length=1, max_length=5_000)
     delivery_complete: bool = False
     requires_material_risk_workflow: bool = False
+    inventory_creation: bool = False
 
 
 class IssueActionInterpretation(_Interpretation):
@@ -191,6 +192,8 @@ class ActionComposer:
             if interpretation.kind == "schedule"
             else {mutation}
         )
+        if isinstance(interpretation, MaterialActionInterpretation) and interpretation.inventory_creation:
+            allowed_policy_kinds.add(MutationKind.MATERIAL_QUANTITY)
         if policy_request.kind not in allowed_policy_kinds:
             raise ValueError("mutation policy does not match the composed command")
         mutation = policy_request.kind
@@ -295,6 +298,7 @@ class ActionComposer:
             reason=value.reason,
             delivery_complete=value.delivery_complete,
             requires_material_risk_workflow=value.requires_material_risk_workflow,
+            inventory_creation=value.inventory_creation,
             expected_version=version,
             expected_material_request_version=request_version,
         )
@@ -564,7 +568,9 @@ def _validate_task(command: ConversationTaskCommand) -> None:
 
 def _validate_material(command: ConversationMaterialCommand) -> None:
     allowed = {
-        MaterialOperation.CREATE: {"operation", "name", "aliases", "quantity", "unit"},
+        MaterialOperation.CREATE: {
+            "operation", "name", "aliases", "quantity", "unit", "inventory_creation"
+        },
         MaterialOperation.SET_ON_SITE: {
             "operation",
             "material",

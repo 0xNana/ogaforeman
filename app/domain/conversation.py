@@ -451,6 +451,7 @@ class ConversationMaterialCommand(BaseModel):
     reason: str | None = Field(default=None, min_length=1, max_length=5_000)
     delivery_complete: bool = False
     requires_material_risk_workflow: bool = False
+    inventory_creation: bool = False
     expected_version: int | None = Field(default=None, ge=0)
     expected_material_request_version: int | None = Field(default=None, ge=0)
 

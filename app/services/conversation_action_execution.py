@@ -217,6 +217,9 @@ class ConversationActionExecutionService:
                 mutation_performed=False,
             )
         resolutions = self._resolve(access, interpretation)
+        interpretation, resolutions = _prepare_missing_material_creation(
+            interpretation, resolutions
+        )
         unsafe_resolution = next(
             (
                 resolution
@@ -566,6 +569,8 @@ def _mutation_kind(
         )
     if isinstance(interpretation, MaterialActionInterpretation):
         if interpretation.operation is MaterialOperation.CREATE:
+            if interpretation.inventory_creation:
+                return MutationKind.MATERIAL_QUANTITY
             return MutationKind.MATERIAL_CREATE
         if interpretation.operation is MaterialOperation.RECORD_DELIVERY:
             return MutationKind.MATERIAL_DELIVERY
@@ -589,6 +594,45 @@ def _mutation_kind(
     if isinstance(interpretation, ScheduleActionInterpretation):
         return MutationKind.SCHEDULE_DATES
     return MutationKind.MATERIAL_PURCHASE
+
+
+def _prepare_missing_material_creation(
+    interpretation: ActionInterpretation,
+    resolutions: tuple[EntityResolution, ...],
+) -> tuple[ActionInterpretation, tuple[EntityResolution, ...]]:
+    """Create a typed material only for complete, explicit inventory statements."""
+    if not isinstance(interpretation, MaterialActionInterpretation):
+        return interpretation, resolutions
+    if interpretation.operation not in {
+        MaterialOperation.SET_ON_SITE,
+        MaterialOperation.ADJUST_ON_SITE,
+    }:
+        return interpretation, resolutions
+    material = next((item for item in resolutions if item.kind is EntityKind.MATERIAL), None)
+    if material is None or material.status is not EntityResolutionStatus.NOT_FOUND:
+        return interpretation, resolutions
+    name = interpretation.name or interpretation.material_reference
+    quantity = (
+        interpretation.quantity
+        if interpretation.operation is MaterialOperation.SET_ON_SITE
+        else interpretation.quantity_delta
+    )
+    if not name or quantity is None or interpretation.unit is None or quantity < 0:
+        return interpretation, resolutions
+    return (
+        interpretation.model_copy(
+            update={
+                "operation": MaterialOperation.CREATE,
+                "name": name,
+                "quantity": quantity,
+                "quantity_delta": None,
+                "material_reference": None,
+                "reason": None,
+                "inventory_creation": True,
+            }
+        ),
+        tuple(item for item in resolutions if item is not material),
+    )
 
 
 def _same_pending(left: object, right: object) -> bool:

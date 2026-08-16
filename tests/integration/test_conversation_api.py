@@ -512,6 +512,84 @@ async def test_malformed_action_interpretation_is_recoverable_without_mutation()
 
 
 @pytest.mark.asyncio
+async def test_missing_inventory_material_is_created_through_typed_service() -> None:
+    app, store = make_app()
+
+    class MissingMaterialInterpreter:
+        async def interpret(self, message: str, *, context: object) -> object:
+            return MaterialActionInterpretation(
+                operation=MaterialOperation.ADJUST_ON_SITE,
+                material_reference="tile adhesive",
+                quantity_delta=Decimal("20"),
+                unit="bags",
+                reason="Initial inventory reported by user.",
+            )
+
+    app.state.action_interpreter = MissingMaterialInterpreter()
+    app.state.intent_classifier._responses["add 20 bags of tile adhesive to inventory"] = (
+        IntentDecision(
+            intent=IntentType.PROJECT_MUTATION,
+            confidence=0.99,
+            requires_project_context=True,
+            requires_mutation=True,
+            reason_code="material_quantity_adjustment",
+        )
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "add 20 bags of tile adhesive to inventory"},
+            headers={"Idempotency-Key": "conversation:create-material:1"},
+        )
+
+    assert response.status_code == 200
+    created = [
+        item
+        for item in store.repository(Material).list(PROJECT_ID)
+        if item.normalized_name == "tile adhesive"
+    ]
+    assert len(created) == 1
+    assert created[0].available_quantity == Decimal("20")
+    events = store.repository(ActivityEvent).list(PROJECT_ID)
+    assert any(event.action == "material.created" and event.entity_id == created[0].id for event in events)
+
+
+@pytest.mark.asyncio
+async def test_missing_inventory_material_without_quantity_clarifies() -> None:
+    app, store = make_app()
+
+    class IncompleteMaterialInterpreter:
+        async def interpret(self, message: str, *, context: object) -> object:
+            return MaterialActionInterpretation(
+                operation=MaterialOperation.ADJUST_ON_SITE,
+                material_reference="tile adhesive",
+            )
+
+    app.state.action_interpreter = IncompleteMaterialInterpreter()
+    app.state.intent_classifier._responses["add tile adhesive"] = IntentDecision(
+        intent=IntentType.PROJECT_MUTATION,
+        confidence=0.99,
+        requires_project_context=True,
+        requires_mutation=True,
+        reason_code="material_quantity_adjustment",
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "add tile adhesive"},
+            headers={"Idempotency-Key": "conversation:create-material:incomplete"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kind"] == "clarification"
+    assert not any(item.normalized_name == "tile adhesive" for item in store.repository(Material).list(PROJECT_ID))
+
+
+@pytest.mark.asyncio
 async def test_project_setup_question_guides_a_minimal_project_without_fake_counts() -> None:
     app, store = make_app()
     for model in (Task, Issue, Material):
