@@ -42,7 +42,7 @@ from app.services.tasks import TaskService
 from app.services.workflow_audit import WorkflowAuditService
 from app.tools.materials import MaterialTools
 from app.tools.tasks import TaskTools
-from app.workflows.runtime import RuntimeManager, run_id_for_event
+from app.workflows.runtime import run_id_for_event
 
 
 logger = logging.getLogger("ogaforeman.agents.site_update")
@@ -123,7 +123,6 @@ class SiteUpdateEventExecutor:
                 run_id=run_id,
                 attempt=claim_attempt,
             )
-            runtime = RuntimeManager(self._store)
             service = SiteUpdateService(
                 interpreter=self._interpreter,
                 context_service=ContextService(ContextRepository(self._store)),
@@ -132,7 +131,6 @@ class SiteUpdateEventExecutor:
                 issue_service=IssueService(self._store),
                 material_request_service=MaterialRequestService(self._store),
                 report_service=ReportService(self._store),
-                runtime_manager=runtime,
                 workflow_audit=WorkflowAuditService(self._store),
             )
             result = await service.process_update(

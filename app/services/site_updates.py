@@ -79,8 +79,8 @@ class SiteUpdateService:
         issue_service: IssueService,
         material_request_service: MaterialRequestService,
         report_service: ReportService,
-        runtime_manager: RuntimeManager,
         workflow_audit: WorkflowAuditService,
+        runtime_manager: RuntimeManager | None = None,
     ) -> None:
         self._interpreter = interpreter
         self._context_service = context_service
@@ -89,7 +89,10 @@ class SiteUpdateService:
         self._issues = issue_service
         self._material_requests = material_request_service
         self._reports = report_service
-        self._runtime = runtime_manager
+        # Kept as an injection-compatible argument for legacy callers. Native
+        # ADK execution owns workflow checkpoints; this service never advances
+        # an AgentRun cursor.
+        del runtime_manager
         self._workflow_audit = workflow_audit
 
     async def process_update(
@@ -529,7 +532,6 @@ class SiteUpdateService:
                 "report:daily-projection",
             ),
         )
-        self._runtime.update_checkpoint(access.project_id, run_id, "report_projected")
         summary = _site_update_summary(tasks_updated, issues_created, materials_updated)
         if schedule_risk_summaries:
             summary = f"{summary} {_schedule_response_summary(schedule_risk_summaries)}"
