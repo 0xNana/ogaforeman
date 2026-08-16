@@ -1,4 +1,9 @@
-"""Durable agent run and checkpoint management."""
+"""Legacy workflow cursor retained for non-ADK compatibility paths.
+
+Native site-update execution must not use this module. ADK owns workflow
+execution state; this adapter remains only until the older standalone workflow
+entry points are migrated.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +17,7 @@ from app.repositories.runs import AgentRunRepository
 
 
 class RuntimeManager:
-    """Manages the durable lifecycle and checkpoints of an AgentRun."""
+    """Deprecated compatibility cursor for legacy workflow entry points."""
 
     def __init__(self, store: RepositoryStore) -> None:
         self._runs = AgentRunRepository(store)
