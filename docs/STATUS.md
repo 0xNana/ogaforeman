@@ -99,6 +99,14 @@ configured model, or human release review. The canonical evidence checklist is
 
 ## Local verification history
 
+Native ADK migration Phase 16–19 verification on 2026-08-16:
+
+- production-worker multimodal, conversation-routing, native workflow, and run-API
+  correlation regressions: 11 passed
+- Ruff checks for the ADK runtime, worker bridge, and run projection: passed
+- live-cloud voice/photo execution remains a release gate requiring configured
+  Gemini credentials and private media access
+
 Conversational Phase 16 verification on 2026-08-14:
 
 - category-complete conversational fixture eval: 18/18 passed at every locked threshold

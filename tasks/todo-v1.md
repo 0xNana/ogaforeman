@@ -193,6 +193,16 @@ Vertical slice gate:
 - [x] Duplicate replay and Firestore client restart are covered through the
   wired site-update worker path.
 
+ADK migration Phase 16–19 release gates:
+
+- [ ] Live deployed voice/photo execution with production Gemini and private
+  media credentials is verified end to end.
+- [x] Conversational site updates reuse the canonical intake and native ADK
+  workflow path.
+- [x] Agent-run projections expose authorized ADK correlation identifiers while
+  keeping ADK events separate from domain ActivityEvents.
+- [x] ADR-001 records the ADK orchestration boundary and supersession rule.
+
 ## Materials, approvals, blockers, briefs, and events
 
 - [x] M-01 Shortage calculation and request deduplication pass service/workflow tests.

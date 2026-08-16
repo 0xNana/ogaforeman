@@ -6,7 +6,7 @@ provides the graph-based `google.adk.workflow.Workflow` API and the durable
 primitives are deprecated in favor of `Workflow`.
 
 The Daily Site Update worker now constructs a native ADK graph with explicit
-`load_site_update`, `execute_site_update`, and `finalize_site_update` nodes in
+`receive_input`, `execute_site_update`, and `finalize_site_update` nodes in
 `app/agents/adk_runtime.py`. ADK owns graph scheduling, event history, retry
 configuration, and resumable session execution. The execute node calls the
 application boundary, where authorization, typed tools, Firestore mutations,
