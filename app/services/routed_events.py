@@ -533,10 +533,25 @@ class RoutedEventExecutor:
             for task in sorted(tasks, key=lambda item: item.id)
             if task.status in {TaskStatus.PLANNED, TaskStatus.IN_PROGRESS}
         ][:3]
+        in_progress = [
+            ReportFact(
+                summary=f"{task.title} is in progress.",
+                source_refs=[event.event_id, task.id],
+                metadata={"task_id": task.id},
+            )
+            for task in sorted(tasks, key=lambda item: item.id)
+            if task.status is TaskStatus.IN_PROGRESS
+        ]
         merged_completed = _merge_facts(current.completed_work if current else (), completed)
         merged_blockers = _merge_facts(current.active_blockers if current else (), blockers)
         merged_materials = _merge_facts(current.material_risks if current else (), material_risks)
         merged_focus = _merge_facts(current.next_focus if current else (), next_focus)
+        retained_in_progress = [
+            fact
+            for fact in (current.in_progress_work if current else ())
+            if "task_id" not in fact.metadata
+        ]
+        merged_in_progress = _merge_facts(retained_in_progress, in_progress)
         summary = (
             f"Daily brief: {len(merged_completed)} achievements, "
             f"{len(merged_blockers)} blockers, {len(merged_materials)} material risks, "
@@ -548,9 +563,15 @@ class RoutedEventExecutor:
             report_date=report_date,
             summary=summary,
             completed_work=merged_completed,
+            in_progress_work=merged_in_progress,
             active_blockers=merged_blockers,
             material_risks=merged_materials,
             next_focus=merged_focus,
+            crew_summary=current.crew_summary if current else None,
+            weather_summary=current.weather_summary if current else None,
+            deliveries=list(current.deliveries) if current else [],
+            inspections=list(current.inspections) if current else [],
+            photo_refs=list(current.photo_refs) if current else [],
             source_update_ids=list(current.source_update_ids) if current else [],
             status=current.status if current else ReportStatus.DRAFT,
             version=current.version if current else 0,

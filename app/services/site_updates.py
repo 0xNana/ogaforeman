@@ -499,6 +499,17 @@ class SiteUpdateService:
                     issues_created += int(not delay_issue_change.duplicate)
                     active_blockers.append(_issue_report_fact(site_update, delay_issue))
 
+        current_context = self._context_service.get_context(access)
+        in_progress_work = [
+            ReportFact(
+                summary=f"{task.title} is in progress.",
+                source_refs=[site_update.id, task.id],
+                metadata={"task_id": task.id},
+            )
+            for task in current_context.active_tasks
+            if task.status is TaskStatus.IN_PROGRESS
+        ]
+        photo_refs = [image.attachment_id for image in images]
         report = self._reports.project_site_update(
             access,
             site_update,
@@ -506,6 +517,8 @@ class SiteUpdateService:
             active_blockers=active_blockers,
             material_risks=material_risks,
             next_focus=next_focus,
+            in_progress_work=in_progress_work,
+            photo_refs=photo_refs,
             context=_mutation_context(
                 access,
                 site_update,

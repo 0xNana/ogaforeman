@@ -78,6 +78,10 @@ class ReportService:
         active_blockers: Sequence[ReportFact],
         material_risks: Sequence[ReportFact],
         next_focus: Sequence[ReportFact],
+        in_progress_work: Sequence[ReportFact] = (),
+        deliveries: Sequence[ReportFact] = (),
+        inspections: Sequence[ReportFact] = (),
+        photo_refs: Sequence[str] = (),
         context: MutationContext,
     ) -> DailyReport:
         ensure_project_scope(access, site_update.project_id)
@@ -92,6 +96,10 @@ class ReportService:
                     "active_blockers": [fact.model_dump(mode="json") for fact in active_blockers],
                     "material_risks": [fact.model_dump(mode="json") for fact in material_risks],
                     "next_focus": [fact.model_dump(mode="json") for fact in next_focus],
+                    "in_progress_work": [fact.model_dump(mode="json") for fact in in_progress_work],
+                    "deliveries": [fact.model_dump(mode="json") for fact in deliveries],
+                    "inspections": [fact.model_dump(mode="json") for fact in inspections],
+                    "photo_refs": list(photo_refs),
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -129,6 +137,10 @@ class ReportService:
                     "active_blocker_count": len(active_blockers),
                     "material_risk_count": len(material_risks),
                     "next_focus_count": len(next_focus),
+                    "in_progress_count": len(in_progress_work),
+                    "delivery_count": len(deliveries),
+                    "inspection_count": len(inspections),
+                    "photo_count": len(photo_refs),
                 },
             ),
             lambda session: _apply_site_update_projection(
@@ -141,6 +153,10 @@ class ReportService:
                 active_blockers,
                 material_risks,
                 next_focus,
+                in_progress_work,
+                deliveries,
+                inspections,
+                photo_refs,
                 context.occurred_at,
             ),
             replay=lambda session, _activity: session.repository(DailyReport).require(
@@ -294,6 +310,10 @@ def _apply_site_update_projection(
     active_blockers: Sequence[ReportFact],
     material_risks: Sequence[ReportFact],
     next_focus: Sequence[ReportFact],
+    in_progress_work: Sequence[ReportFact],
+    deliveries: Sequence[ReportFact],
+    inspections: Sequence[ReportFact],
+    photo_refs: Sequence[str],
     occurred_at: datetime,
 ) -> DailyReport:
     reports = session.repository(DailyReport)
@@ -307,6 +327,13 @@ def _apply_site_update_projection(
     merged_blockers = _merge_facts(current.active_blockers if current else (), active_blockers)
     merged_materials = _merge_facts(current.material_risks if current else (), material_risks)
     merged_focus = _merge_facts(current.next_focus if current else (), next_focus)
+    merged_in_progress = _replace_in_progress_task_facts(
+        current.in_progress_work if current else (), in_progress_work
+    )
+    merged_deliveries = _merge_facts(current.deliveries if current else (), deliveries)
+    merged_inspections = _merge_facts(current.inspections if current else (), inspections)
+    existing_photo_refs = current.photo_refs if current else ()
+    merged_photo_refs = list(dict.fromkeys((*existing_photo_refs, *photo_refs)))
     summary = (
         f"Daily report: {len(merged_completed)} completed, "
         f"{len(merged_blockers)} active risks, {len(merged_materials)} material risks, "
@@ -317,9 +344,15 @@ def _apply_site_update_projection(
         project_id=project_id,
         report_date=report_date,
         summary=summary,
+        crew_summary=current.crew_summary if current else None,
+        weather_summary=current.weather_summary if current else None,
         completed_work=merged_completed,
         active_blockers=merged_blockers,
         material_risks=merged_materials,
+        in_progress_work=merged_in_progress,
+        deliveries=merged_deliveries,
+        inspections=merged_inspections,
+        photo_refs=merged_photo_refs,
         next_focus=merged_focus,
         source_update_ids=source_update_ids,
         status=current.status if current is not None else ReportStatus.DRAFT,
@@ -344,3 +377,11 @@ def _merge_facts(
         if fact not in merged:
             merged.append(fact)
     return merged
+
+
+def _replace_in_progress_task_facts(
+    existing: Sequence[ReportFact], incoming: Sequence[ReportFact]
+) -> list[ReportFact]:
+    """Refresh task-derived progress while retaining manually authored facts."""
+    retained = [fact for fact in existing if "task_id" not in fact.metadata]
+    return _merge_facts(retained, incoming)
