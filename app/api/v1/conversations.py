@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -14,13 +16,27 @@ from app.domain.conversation import (
     ConversationContext,
     EntityKind,
     EntityResolutionStatus,
+    IntentDecision,
     IntentDestination,
+    IntentRoute,
+    IntentType,
+    MaterialOperation,
     PendingConversationCommand,
     ProjectSetupStatus,
     SiteUpdateRouteCommand,
 )
+from app.domain.clarification import (
+    ClarificationKind,
+    ClarificationResolutionType,
+    ClarificationStatus,
+    PendingClarification,
+)
+from app.services.conversation_action_composer import (
+    MaterialActionInterpretation,
+    PurchaseActionInterpretation,
+    ambiguous_material_quantity_phrase,
+)
 from app.services.conversation_action_execution import ConversationActionExecutionService
-from app.services.conversation_action_composer import ambiguous_material_quantity_phrase
 from app.services.conversation_advice import ConversationAdviceService, plan_advice_query
 from app.services.conversation_context import ProjectContextService, plan_context_query
 from app.services.conversation_confirmation import ConversationConfirmationService
@@ -340,20 +356,83 @@ async def send_message(
         runtime.store, ConversationEntityResolver(runtime.store)
     )
     memory = memory_service.load(access)
-    classifier = getattr(request.app.state, "intent_classifier", None)
-    if classifier is None or not hasattr(classifier, "classify"):
-        raise ApiError(
-            "DEPENDENCY_UNAVAILABLE", "OG conversation is temporarily unavailable.", status_code=503
+
+    clarification_interpretation = None
+    if (
+        memory.active_clarification is not None
+        and memory.active_clarification.status == ClarificationStatus.PENDING
+    ):
+        if (
+            memory.active_clarification.expires_at
+            and memory.active_clarification.expires_at <= datetime.now(UTC)
+        ):
+            memory_service.clear_active_clarification(access)
+            return ConversationMessageResponse(
+                kind="clarification",
+                text="That question expired. Please restate what you want me to do.",
+                intent=IntentType.CLARIFICATION_RESPONSE.value,
+            )
+
+        resolver = getattr(request.app.state, "clarification_resolver", None)
+        if resolver is None or not hasattr(resolver, "resolve"):
+            raise ApiError(
+                "DEPENDENCY_UNAVAILABLE",
+                "OG conversation is temporarily unavailable.",
+                status_code=503,
+            )
+
+        decision = await resolver.resolve(
+            payload.message, clarification=memory.active_clarification
         )
-    route = await IntentRoutingService(classifier).route(
-        payload.message,
-        context=ConversationContext(
-            has_active_project=True,
-            has_pending_clarification=memory.pending_clarification is not None,
-            # Legacy raw confirmation text is never executable server state.
-            has_pending_confirmation=False,
-        ),
-    )
+        if decision.resolution == ClarificationResolutionType.AMBIGUOUS:
+            return ConversationMessageResponse(
+                kind="clarification",
+                text=memory.pending_clarification or "Could you clarify what you mean?",
+                intent=IntentType.CLARIFICATION_RESPONSE.value,
+            )
+
+        if decision.resolution == ClarificationResolutionType.INVENTORY_INCREMENT:
+            clarification_interpretation = MaterialActionInterpretation(
+                operation=MaterialOperation.ADJUST_ON_SITE,
+                material_reference=memory.active_clarification.entity_reference,
+                quantity_delta=memory.active_clarification.quantity,
+                unit=memory.active_clarification.unit,
+            )
+        else:
+            clarification_interpretation = PurchaseActionInterpretation(
+                material_reference=memory.active_clarification.entity_reference,
+                quantity=memory.active_clarification.quantity,
+                unit=memory.active_clarification.unit,
+                reason="Requested via conversation clarification",
+            )
+
+        memory_service.clear_active_clarification(access)
+
+        route = IntentRoute(
+            decision=IntentDecision(
+                intent=IntentType.PROJECT_MUTATION,
+                confidence=1.0,
+                reason_code="clarification_resolution",
+            ),
+            destination=IntentDestination.PROJECT_ACTION,
+        )
+    else:
+        classifier = getattr(request.app.state, "intent_classifier", None)
+        if classifier is None or not hasattr(classifier, "classify"):
+            raise ApiError(
+                "DEPENDENCY_UNAVAILABLE",
+                "OG conversation is temporarily unavailable.",
+                status_code=503,
+            )
+        route = await IntentRoutingService(classifier).route(
+            payload.message,
+            context=ConversationContext(
+                has_active_project=True,
+                has_pending_clarification=memory.pending_clarification is not None,
+                # Legacy raw confirmation text is never executable server state.
+                has_pending_confirmation=False,
+            ),
+        )
     if (
         route.destination is IntentDestination.CASUAL_RESPONSE
         or route.destination is IntentDestination.PRODUCT_HELP
@@ -429,19 +508,36 @@ async def send_message(
             event_id=result.event_id,
         )
     if route.destination is IntentDestination.PROJECT_ACTION:
-        quantity_unit = ambiguous_material_quantity_phrase(payload.message)
-        if quantity_unit is not None:
-            quantity, unit = quantity_unit
-            clarification = (
-                f"Do you mean {quantity} {unit} arrived on site, or you want me to prepare a "
-                f"request for {quantity} {unit}?"
-            )
-            memory_service.remember_pending(access, clarification=clarification)
-            return ConversationMessageResponse(
-                kind="clarification",
-                text=clarification,
-                intent=route.decision.intent.value,
-            )
+        if clarification_interpretation is None:
+            quantity_unit_material = ambiguous_material_quantity_phrase(payload.message)
+            if quantity_unit_material is not None:
+                quantity, unit, material = quantity_unit_material
+                clarification = (
+                    f"Do you mean {quantity} {unit} arrived on site, or you want me to prepare a "
+                    f"request for {quantity} {unit}?"
+                )
+                from decimal import Decimal
+
+                pending_clarif = PendingClarification(
+                    kind=ClarificationKind.MATERIAL_OPERATION,
+                    entity_reference=material,
+                    quantity=Decimal(quantity),
+                    unit=unit,
+                    allowed_resolutions=(
+                        ClarificationResolutionType.INVENTORY_INCREMENT,
+                        ClarificationResolutionType.MATERIAL_REQUEST,
+                    ),
+                    created_at=datetime.now(UTC),
+                    expires_at=datetime.now(UTC) + timedelta(minutes=15),
+                )
+                memory_service.remember_pending(
+                    access, active_clarification=pending_clarif, clarification=clarification
+                )
+                return ConversationMessageResponse(
+                    kind="clarification",
+                    text=clarification,
+                    intent=route.decision.intent.value,
+                )
         access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
         key = require_idempotency_key(request)
         interpreter = getattr(request.app.state, "action_interpreter", None)
@@ -458,7 +554,12 @@ async def send_message(
             member_names=getattr(runtime, "project_member_names", None),
             schedules=getattr(request.app.state, "conversation_schedule_service", None),
             proposal_signing_key=_proposal_signing_key(request),
-        ).execute(access, payload.message, idempotency_key=key)
+        ).execute(
+            access,
+            payload.message,
+            idempotency_key=key,
+            clarification_interpretation=clarification_interpretation,
+        )
         return ConversationMessageResponse(
             kind=outcome.kind,
             text=outcome.text,

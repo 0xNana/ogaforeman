@@ -52,11 +52,11 @@ PROJECT_ID = "prj_composer123"
         ("20 bags of cement arrived", None),
         ("buy 20 bags", None),
         ("prepare a request for 20 bags", None),
-        ("add 20 bags of cement", ("20", "bags")),
+        ("add 20 bags of cement", ("20", "bags", "cement")),
     ],
 )
 def test_material_quantity_language_distinguishes_bare_addition(
-    message: str, expected: tuple[str, str] | None
+    message: str, expected: tuple[str, str, str] | None
 ) -> None:
     assert ambiguous_material_quantity_phrase(message) == expected
 

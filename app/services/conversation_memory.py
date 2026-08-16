@@ -33,6 +33,7 @@ from app.domain.conversation import (
     ScheduleChangeCommand,
     TaskOperation,
 )
+from app.domain.clarification import PendingClarification
 from app.domain.enums import ActorType, TaskStatus
 from app.domain.models import (
     ActivityEvent,
@@ -154,6 +155,7 @@ class ConversationMemoryService:
         access: ProjectAccessContext,
         *,
         clarification: str | None = None,
+        active_clarification: PendingClarification | None = None,
         confirmation: str | None = None,
         proposed_action: str | None = None,
     ) -> ConversationMemory:
@@ -161,6 +163,7 @@ class ConversationMemoryService:
         current = self.load(access)
         if (
             current.pending_clarification == clarification
+            and current.active_clarification == active_clarification
             and current.pending_confirmation == confirmation
             and current.recent_proposed_action == proposed_action
         ):
@@ -168,8 +171,28 @@ class ConversationMemoryService:
         saved = current.model_copy(
             update={
                 "pending_clarification": clarification,
+                "active_clarification": active_clarification,
                 "pending_confirmation": confirmation,
                 "recent_proposed_action": proposed_action,
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        if repository.get(access.project_id, current.id) is None:
+            return repository.create(saved)
+        return repository.save(saved, expected_version=current.version)
+
+    def clear_active_clarification(
+        self,
+        access: ProjectAccessContext,
+    ) -> ConversationMemory:
+        repository = self._store.repository(ConversationMemory)
+        current = self.load(access)
+        if current.active_clarification is None and current.pending_clarification is None:
+            return current
+        saved = current.model_copy(
+            update={
+                "pending_clarification": None,
+                "active_clarification": None,
                 "updated_at": datetime.now(UTC),
             }
         )

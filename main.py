@@ -17,7 +17,11 @@ from app.api.v1.router import api_router
 from app.config import get_settings
 from app.infrastructure.pubsub import PubSubClient
 from app.infrastructure.storage import create_storage_adapter
-from app.infrastructure.gemini import GeminiActionInterpreter, GeminiIntentClassifier
+from app.infrastructure.gemini import (
+    GeminiActionInterpreter,
+    GeminiIntentClassifier,
+    GeminiClarificationResolver,
+)
 from app.services.attachments import AttachmentService
 from app.observability.logging import configure_logging
 from app.observability.tracing import cloud_trace_exporter
@@ -46,6 +50,7 @@ if settings.auth_audience:
     if not settings.use_fake_model:
         app.state.intent_classifier = GeminiIntentClassifier(settings)
         app.state.action_interpreter = GeminiActionInterpreter(settings)
+        app.state.clarification_resolver = GeminiClarificationResolver(settings)
         if settings.conversation_proposal_signing_key is not None:
             app.state.conversation_proposal_signing_key = (
                 settings.conversation_proposal_signing_key.get_secret_value().encode()

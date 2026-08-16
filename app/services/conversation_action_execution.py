@@ -158,6 +158,7 @@ class ConversationActionExecutionService:
         message: str,
         *,
         idempotency_key: str,
+        clarification_interpretation: ActionInterpretation | None = None,
     ) -> ConversationActionOutcome:
         existing_memory = self._memory.load(access)
         existing = existing_memory.pending_command
@@ -197,7 +198,9 @@ class ConversationActionExecutionService:
             access, ContextQuery(domains=_ACTION_DOMAINS, focus=ContextFocus.ALL)
         )
         try:
-            interpretation = await self._interpreter.interpret(message, context=snapshot)
+            interpretation = clarification_interpretation or await self._interpreter.interpret(
+                message, context=snapshot
+            )
         except (ValidationError, ValueError, TypeError) as exc:
             # A malformed model response is recoverable conversationally.  It
             # must never reach the client as a Pydantic traceback, and no

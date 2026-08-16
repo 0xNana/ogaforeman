@@ -18,6 +18,8 @@ from app.services.conversation_action_composer import (
     ActionInterpretation,
     ActionInterpretationEnvelope,
 )
+from app.domain.clarification import PendingClarification, ClarificationResolutionType
+from pydantic import BaseModel
 
 
 def create_gemini_client(settings: Settings, *, prefer_vertex: bool = False) -> genai.Client:
@@ -192,9 +194,51 @@ class GeminiActionInterpreter:
         return ActionInterpretationEnvelope.model_validate_json(response.text).action
 
 
+class ClarificationDecision(BaseModel):
+    resolution: ClarificationResolutionType
+    confidence: float
+
+
+class GeminiClarificationResolver:
+    def __init__(self, settings: Settings | None = None) -> None:
+        runtime = settings or Settings()
+        if not runtime.gemini_model_id:
+            raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
+        self._client = create_gemini_client(runtime)
+        self._model_name = runtime.gemini_model_id
+
+    async def resolve(
+        self,
+        message: str,
+        *,
+        clarification: PendingClarification,
+    ) -> ClarificationDecision:
+        prompt = (
+            "You are evaluating a user's response to a clarification question.\n"
+            "Map their response to one of the allowed resolutions, or AMBIGUOUS if unclear.\n\n"
+            f"Context:\n{clarification.model_dump_json()}\n\n"
+            f"User response:\n{message}"
+        )
+        response = await self._client.aio.models.generate_content(
+            model=self._model_name,
+            contents=[types.Part.from_text(text=prompt)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=ClarificationDecision,
+                temperature=0.0,
+            ),
+        )
+        if not response.text:
+            return ClarificationDecision(
+                resolution=ClarificationResolutionType.AMBIGUOUS, confidence=0.0
+            )
+        return ClarificationDecision.model_validate_json(response.text)
+
+
 __all__ = [
     "GeminiActionInterpreter",
     "GeminiIntentClassifier",
     "GeminiSiteInterpreter",
+    "GeminiClarificationResolver",
     "create_gemini_client",
 ]

@@ -698,7 +698,7 @@ _AMBIGUOUS_MATERIAL_QUANTITY = re.compile(
 )
 
 
-def ambiguous_material_quantity_phrase(message: str) -> tuple[str, str] | None:
+def ambiguous_material_quantity_phrase(message: str) -> tuple[str, str, str] | None:
     """Extract quantity and unit from additive stock wording lacking clear semantics."""
 
     normalized = " ".join(message.casefold().split()).rstrip("?!. ")
@@ -720,7 +720,7 @@ def ambiguous_material_quantity_phrase(message: str) -> tuple[str, str] | None:
         or " received " in padded
     ):
         return None
-    return match.group("quantity"), match.group("unit")
+    return match.group("quantity"), match.group("unit"), match.group("material")
 
 
 __all__ = [
