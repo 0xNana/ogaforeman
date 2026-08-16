@@ -6,7 +6,9 @@ const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
-  output: 'standalone',
+  // Playwright uses an isolated distDir and `next start`; standalone output
+  // is retained for the default production build used by the container.
+  output: process.env.NEXT_DIST_DIR ? undefined : 'standalone',
   outputFileTracingRoot: frontendRoot,
   turbopack: {
     root: frontendRoot,
