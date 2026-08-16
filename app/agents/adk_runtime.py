@@ -26,6 +26,10 @@ class SiteUpdateWorkflowState(BaseModel):
     stage: str = "created"
     stage_history: list[str] = Field(default_factory=list)
     branches_completed: list[str] = Field(default_factory=list)
+    branch_results: dict[str, dict[str, str]] = Field(default_factory=dict)
+    progress_ready: bool = False
+    blocker_ready: bool = False
+    material_ready: bool = False
     result: dict[str, Any] | None = None
 
 
@@ -127,25 +131,33 @@ def build_site_update_workflow(
             )
         return result
 
+    def _complete_branch(ctx: Context, branch: str) -> dict[str, str]:
+        ctx.state[f"{branch}_ready"] = True
+        return {"status": "ready", "branch": branch}
+
     async def progress_node(ctx: Context) -> dict[str, str]:
-        branches = list(ctx.state.get("branches_completed", []))
-        branches.append("progress")
-        ctx.state["branches_completed"] = branches
-        return {"branch": "progress"}
+        return _complete_branch(ctx, "progress")
 
     async def blocker_node(ctx: Context) -> dict[str, str]:
-        branches = list(ctx.state.get("branches_completed", []))
-        branches.append("blocker")
-        ctx.state["branches_completed"] = branches
-        return {"branch": "blocker"}
+        return _complete_branch(ctx, "blocker")
 
     async def material_node(ctx: Context) -> dict[str, str]:
-        branches = list(ctx.state.get("branches_completed", []))
-        branches.append("material")
-        ctx.state["branches_completed"] = branches
-        return {"branch": "material"}
+        return _complete_branch(ctx, "material")
 
     async def merge_actions(ctx: Context) -> dict[str, str]:
+        expected = {"progress", "blocker", "material"}
+        completed = {
+            branch
+            for branch in expected
+            if ctx.state.get(f"{branch}_ready", False)
+        }
+        missing = expected - completed
+        if missing:
+            raise RuntimeError(f"ADK fan-in missing branches: {sorted(missing)}")
+        ctx.state["branches_completed"] = sorted(completed)
+        ctx.state["branch_results"] = {
+            branch: {"status": "ready", "branch": branch} for branch in sorted(completed)
+        }
         history = list(ctx.state.get("stage_history", []))
         history.append("merge_actions")
         ctx.state["stage_history"] = history
