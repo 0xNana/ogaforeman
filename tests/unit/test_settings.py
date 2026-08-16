@@ -81,6 +81,14 @@ def test_complete_production_configuration_is_valid() -> None:
     assert settings.cors_allowed_origins == ("https://oga-production.web.app",)
 
 
+def test_deployed_environment_rejects_local_adk_database_sessions() -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config["adk_session_backend"] = "database"
+
+    with pytest.raises(ValidationError, match="Vertex AI ADK sessions"):
+        Settings(_env_file=None, firestore_emulator_host=None, **config)
+
+
 @pytest.mark.parametrize(
     "origin",
     [

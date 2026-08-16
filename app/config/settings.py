@@ -147,6 +147,11 @@ class Settings(BaseSettings):
             RuntimeEnvironment.STAGING,
             RuntimeEnvironment.PRODUCTION,
         }:
+            if self.adk_session_backend == "database":
+                raise ValueError(
+                    "deployed environments require Vertex AI ADK sessions; "
+                    "ADK_SESSION_BACKEND=database is local/test only"
+                )
             if self.firestore_emulator_host:
                 raise ValueError("deployed environments cannot use FIRESTORE_EMULATOR_HOST")
             required_fields = (
