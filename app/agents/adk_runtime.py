@@ -14,8 +14,17 @@ from typing import Any
 from google.adk.sessions import BaseSessionService
 from google.adk.events import RequestInput
 from google.adk.workflow import FunctionNode, START, Workflow
+from google.adk.agents.context import Context
+from pydantic import BaseModel
 
 from app.config.settings import RuntimeEnvironment, Settings
+
+
+class SiteUpdateWorkflowState(BaseModel):
+    """Serializable state owned by the native ADK site-update graph."""
+
+    stage: str = "created"
+    result: dict[str, Any] | None = None
 
 
 def create_session_service(settings: Settings) -> BaseSessionService:
@@ -71,11 +80,15 @@ def build_site_update_workflow(
     reintroducing a second orchestration loop.
     """
 
-    async def load_site_update() -> dict[str, str]:
+    async def load_site_update(ctx: Context) -> dict[str, str]:
+        ctx.state["stage"] = "loaded"
         return {"stage": "loaded"}
 
-    async def execute_site_update() -> Any:
+    async def execute_site_update(ctx: Context) -> Any:
         result = await execute()
+        if isinstance(result, dict):
+            ctx.state["stage"] = "executed"
+            ctx.state["result"] = result
         if result.get("has_clarifications") or result.get("has_safety_stops"):
             return RequestInput(
                 interrupt_id=(
@@ -94,6 +107,10 @@ def build_site_update_workflow(
             )
         return result
 
+    async def finalize_site_update(ctx: Context) -> dict[str, Any]:
+        ctx.state["stage"] = "finalized"
+        return ctx.state.get("result") or {}
+
     load = FunctionNode(func=load_site_update, name="load_site_update", timeout=timeout_seconds)
     execute_node = FunctionNode(
         func=execute_site_update,
@@ -101,10 +118,17 @@ def build_site_update_workflow(
         rerun_on_resume=True,
         timeout=timeout_seconds,
     )
+    finalize = FunctionNode(
+        func=finalize_site_update,
+        name="finalize_site_update",
+        timeout=timeout_seconds,
+    )
     return Workflow(
         name="daily_site_update_workflow",
+        state_schema=SiteUpdateWorkflowState,
         edges=[
             (START, load, execute_node),
+            (execute_node, finalize),
         ],
     )
 
