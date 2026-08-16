@@ -330,19 +330,22 @@ def activity_projection(activity: ActivityEvent, timezone: ZoneInfo) -> dict[str
 
 
 def report_projection(report: DailyReport) -> dict[str, object]:
+    blockers = _true_blockers(report.active_blockers)
+    risks = [fact.summary for fact in (*report.active_blockers, *report.material_risks)]
     return {
         "date": report.report_date.strftime("%A, %-d %B"),
         "completed": [fact.summary for fact in report.completed_work],
         "inProgress": [fact.summary for fact in report.in_progress_work],
-        "blocked": [fact.summary for fact in report.active_blockers],
+        "blocked": [fact.summary for fact in blockers],
         "materials": [fact.summary for fact in report.material_risks],
         "tomorrow": [fact.summary for fact in report.next_focus],
-        "risks": [fact.summary for fact in (*report.active_blockers, *report.material_risks)],
+        "risks": risks,
         "photos": list(report.photo_refs),
     }
 
 
 def daily_log_projection(report: DailyReport) -> dict[str, object]:
+    blockers = _true_blockers(report.active_blockers)
     return {
         "id": report.id,
         "date": report.report_date.strftime("%A, %-d %B"),
@@ -352,7 +355,7 @@ def daily_log_projection(report: DailyReport) -> dict[str, object]:
         "weather": report.weather_summary,
         "completed": [fact.summary for fact in report.completed_work],
         "inProgress": [fact.summary for fact in report.in_progress_work],
-        "blocked": [fact.summary for fact in report.active_blockers],
+        "blocked": [fact.summary for fact in blockers],
         "materials": [fact.summary for fact in report.material_risks],
         "deliveries": [fact.summary for fact in report.deliveries],
         "inspections": [fact.summary for fact in report.inspections],
@@ -363,6 +366,12 @@ def daily_log_projection(report: DailyReport) -> dict[str, object]:
         "status": report.status.value.upper(),
         "version": report.version,
     }
+
+
+def _true_blockers(facts: Sequence[Any]) -> list[Any]:
+    """Keep schedule/material delay risks out of the task-blocker presentation."""
+
+    return [fact for fact in facts if fact.metadata.get("issue_type") != "delay_risk"]
 
 
 def photo_projection(
