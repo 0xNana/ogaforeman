@@ -22,6 +22,7 @@ frontend/.next/
 frontend/.next-playwright/
 frontend/next-env.d.ts
 frontend/.adk/
+.adk/
 
 # Environment and credentials
 .env

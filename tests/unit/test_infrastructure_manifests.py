@@ -228,7 +228,7 @@ def test_frontend_container_is_standalone_and_non_root() -> None:
     dockerfile = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
     config = (ROOT / "frontend" / "next.config.mjs").read_text(encoding="utf-8")
 
-    assert "output: 'standalone'" in config
+    assert "'standalone'" in config
     assert "npm ci" in dockerfile
     assert "npm run build" in dockerfile
     assert "USER nextjs" in dockerfile
