@@ -43,6 +43,9 @@ class SiteUpdateExecutionStateService:
         run_id: str,
         trace_id: str,
         attempt: int,
+        adk_session_id: str | None = None,
+        adk_invocation_id: str | None = None,
+        adk_workflow_id: str | None = None,
     ) -> SiteUpdateExecutionState:
         if attempt < 1:
             raise ValueError("attempt must be positive")
@@ -93,6 +96,9 @@ class SiteUpdateExecutionStateService:
                         "pending_actions": [],
                         "error_code": None,
                         "error_summary": None,
+                        "adk_session_id": adk_session_id or run.adk_session_id,
+                        "adk_invocation_id": adk_invocation_id or run.adk_invocation_id,
+                        "adk_workflow_id": adk_workflow_id or run.adk_workflow_id,
                         "updated_at": now,
                     }
                 ),

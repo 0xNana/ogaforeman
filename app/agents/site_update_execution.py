@@ -94,6 +94,8 @@ class SiteUpdateEventExecutor:
 
         run_id = run.id
         trace_id = run.trace_id
+        adk_app_name = session_app_name(self._settings, self._store)
+        adk_session_id = f"{run_id}-attempt-{claim_attempt}"
 
         async def workflow() -> dict[str, Any]:
             started = self._state.start_attempt(
@@ -103,6 +105,9 @@ class SiteUpdateEventExecutor:
                 run_id=run_id,
                 trace_id=trace_id,
                 attempt=claim_attempt,
+                adk_session_id=f"{adk_app_name}/{adk_session_id}",
+                adk_invocation_id=event.event_id,
+                adk_workflow_id="daily_site_update_workflow",
             )
             enriched_update, images = await self._prepare_media(
                 started.update,
@@ -216,7 +221,7 @@ class SiteUpdateEventExecutor:
             # Scope the ADK session namespace to the canonical run. This keeps
             # independent project runs isolated while allowing retries to
             # resume the exact same ADK session.
-            app_name=session_app_name(self._settings, self._store),
+            app_name=adk_app_name,
             agent=agent,
             session_service=create_session_service(self._settings),
             auto_create_session=True,
@@ -226,7 +231,7 @@ class SiteUpdateEventExecutor:
             async with asyncio.timeout(self._settings.agent_workflow_timeout_seconds):
                 async for agent_event in runner.run_async(
                     user_id=access.actor.user_id,
-                    session_id=f"{run_id}-attempt-{claim_attempt}",
+                    session_id=adk_session_id,
                     invocation_id=event.event_id,
                     new_message=types.Content(
                         role="user",

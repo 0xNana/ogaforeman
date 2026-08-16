@@ -14,6 +14,7 @@ from pydantic import (
 )
 
 from .conversation import PendingConversationCommand
+from .clarification import PendingClarification
 
 from .enums import (
     ActorType,
@@ -97,6 +98,7 @@ class ConversationMemory(DomainModel):
     recent_topic: str | None = Field(default=None, max_length=160)
     pending_clarification: str | None = Field(default=None, max_length=500)
     pending_confirmation: str | None = Field(default=None, max_length=500)
+    active_clarification: PendingClarification | None = None
     pending_approval_id: CanonicalId | None = None
     pending_command: PendingConversationCommand | None = None
     recent_proposed_action: str | None = Field(default=None, max_length=500)
@@ -458,6 +460,9 @@ class AgentRun(DomainModel):
     updated_at: AwareDatetime = Field(default_factory=utc_now)
     completed_at: AwareDatetime | None = None
     trace_id: str = Field(min_length=1, max_length=256)
+    adk_session_id: str | None = Field(default=None, max_length=512)
+    adk_invocation_id: str | None = Field(default=None, max_length=256)
+    adk_workflow_id: str | None = Field(default=None, max_length=256)
     result_summary: str | None = Field(default=None, max_length=5_000)
     pending_actions: list[NonEmptyText] = Field(default_factory=list, max_length=200)
     error_code: str | None = Field(default=None, max_length=128)
