@@ -13,7 +13,7 @@ from typing import Any
 
 from google.adk.sessions import BaseSessionService
 from google.adk.events import RequestInput
-from google.adk.workflow import FunctionNode, START, Workflow
+from google.adk.workflow import FunctionNode, JoinNode, START, Workflow
 from google.adk.agents.context import Context
 from pydantic import BaseModel, Field
 
@@ -25,6 +25,7 @@ class SiteUpdateWorkflowState(BaseModel):
 
     stage: str = "created"
     stage_history: list[str] = Field(default_factory=list)
+    branches_completed: list[str] = Field(default_factory=list)
     result: dict[str, Any] | None = None
 
 
@@ -126,6 +127,30 @@ def build_site_update_workflow(
             )
         return result
 
+    async def progress_node(ctx: Context) -> dict[str, str]:
+        branches = list(ctx.state.get("branches_completed", []))
+        branches.append("progress")
+        ctx.state["branches_completed"] = branches
+        return {"branch": "progress"}
+
+    async def blocker_node(ctx: Context) -> dict[str, str]:
+        branches = list(ctx.state.get("branches_completed", []))
+        branches.append("blocker")
+        ctx.state["branches_completed"] = branches
+        return {"branch": "blocker"}
+
+    async def material_node(ctx: Context) -> dict[str, str]:
+        branches = list(ctx.state.get("branches_completed", []))
+        branches.append("material")
+        ctx.state["branches_completed"] = branches
+        return {"branch": "material"}
+
+    async def merge_actions(ctx: Context) -> dict[str, str]:
+        history = list(ctx.state.get("stage_history", []))
+        history.append("merge_actions")
+        ctx.state["stage_history"] = history
+        return {"stage": "merged"}
+
     async def finalize_site_update(ctx: Context) -> dict[str, Any]:
         ctx.state["stage"] = "completed"
         history = list(ctx.state.get("stage_history", []))
@@ -144,6 +169,11 @@ def build_site_update_workflow(
         name="interpret_and_route",
         timeout=timeout_seconds,
     )
+    progress = FunctionNode(func=progress_node, name="progress_node", timeout=timeout_seconds)
+    blocker = FunctionNode(func=blocker_node, name="blocker_node", timeout=timeout_seconds)
+    material = FunctionNode(func=material_node, name="material_node", timeout=timeout_seconds)
+    branch_join = JoinNode(name="merge_branch_results")
+    merge = FunctionNode(func=merge_actions, name="merge_actions", timeout=timeout_seconds)
     execute_node = FunctionNode(
         func=execute_site_update,
         name="execute_site_update",
@@ -159,7 +189,12 @@ def build_site_update_workflow(
         name="daily_site_update_workflow",
         state_schema=SiteUpdateWorkflowState,
         edges=[
-            (START, receive, prepare, interpret, execute_node),
+            (START, receive, prepare, interpret),
+            (interpret, (progress, blocker, material)),
+            (progress, branch_join),
+            (blocker, branch_join),
+            (material, branch_join),
+            (branch_join, merge, execute_node),
             (execute_node, finalize),
         ],
     )
