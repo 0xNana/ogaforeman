@@ -1,0 +1,6 @@
+database: projects/ogaforeman-cloud-2026/databases/(default)
+databaseUid: a4bd376c-3fb4-4fcb-ae83-523030d8fa8c
+expireTime: '2026-09-14T02:18:12.067830Z'
+name: projects/ogaforeman-cloud-2026/locations/europe-west1/backups/21ce86bd-d060-43b2-9a55-c7346ef972a2
+snapshotTime: '2026-08-15T02:18:12.067830Z'
+state: READY

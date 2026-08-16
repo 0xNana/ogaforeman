@@ -1,0 +1,22 @@
+appEngineIntegrationMode: DISABLED
+concurrencyMode: PESSIMISTIC
+createTime: '2026-08-16T08:14:38.712318Z'
+databaseEdition: STANDARD
+deleteProtectionState: DELETE_PROTECTION_ENABLED
+earliestVersionTime: '2026-08-16T08:18:21.446365Z'
+etag: IOfy+JLbpJYDMOeHyYLbpJYD
+freeTier: false
+locationId: europe-west1
+name: projects/ogaforeman-cloud-2026/databases/oga-restore-20260816
+pointInTimeRecoveryEnablement: POINT_IN_TIME_RECOVERY_DISABLED
+realtimeUpdatesMode: REALTIME_UPDATES_MODE_ENABLED
+sourceInfo:
+  backup:
+    backup: projects/ogaforeman-cloud-2026/locations/europe-west1/backups/21ce86bd-d060-43b2-9a55-c7346ef972a2
+    snapshotTime: '2026-08-15T02:18:12.067830Z'
+  operation: projects/ogaforeman-cloud-2026/databases/oga-restore-20260816/operations/bS1X1aWVJb9bQUjQDOSUuxAqMXRzZXctZXBvcnVlDCIKECIa
+  progress: IN_PROGRESS
+type: FIRESTORE_NATIVE
+uid: bb94e40c-d048-415b-bf25-95a5d5572d6d
+updateTime: '2026-08-16T08:14:38.712318Z'
+versionRetentionPeriod: 3600s
