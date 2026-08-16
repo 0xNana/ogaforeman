@@ -553,7 +553,9 @@ async def test_missing_inventory_material_is_created_through_typed_service() -> 
     assert len(created) == 1
     assert created[0].available_quantity == Decimal("20")
     events = store.repository(ActivityEvent).list(PROJECT_ID)
-    assert any(event.action == "material.created" and event.entity_id == created[0].id for event in events)
+    assert any(
+        event.action == "material.created" and event.entity_id == created[0].id for event in events
+    )
 
 
 @pytest.mark.asyncio
@@ -586,7 +588,10 @@ async def test_missing_inventory_material_without_quantity_clarifies() -> None:
 
     assert response.status_code == 200
     assert response.json()["kind"] == "clarification"
-    assert not any(item.normalized_name == "tile adhesive" for item in store.repository(Material).list(PROJECT_ID))
+    assert not any(
+        item.normalized_name == "tile adhesive"
+        for item in store.repository(Material).list(PROJECT_ID)
+    )
 
 
 @pytest.mark.asyncio

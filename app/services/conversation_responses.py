@@ -126,7 +126,9 @@ def _overview(context: ConversationalProjectContext) -> ConversationReply:
         task for task in blocked if not any(task.id in issue.task_ids for issue in context.issues)
     ]
     if blocked_without_issue:
-        parts.append("Blocked: " + ", ".join(task.title for task in blocked_without_issue[:3]) + ".")
+        parts.append(
+            "Blocked: " + ", ".join(task.title for task in blocked_without_issue[:3]) + "."
+        )
         refs.extend(task.id for task in blocked_without_issue[:3])
     if upcoming:
         parts.append("Next: " + ", ".join(task.title for task in upcoming[:3]) + ".")
@@ -166,7 +168,7 @@ def _entity_status(context: ConversationalProjectContext) -> ConversationReply:
         status = task.status.replace("_", " ")
         text = f"{task.title} is {status}."
         if task.completion_percent:
-            text += f" It is { _quantity(task.completion_percent) }% complete."
+            text += f" It is {_quantity(task.completion_percent)}% complete."
         if task.assignee_name:
             text += f" {task.assignee_name} is assigned."
         if task.actual_completion:

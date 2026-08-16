@@ -192,7 +192,10 @@ class ActionComposer:
             if interpretation.kind == "schedule"
             else {mutation}
         )
-        if isinstance(interpretation, MaterialActionInterpretation) and interpretation.inventory_creation:
+        if (
+            isinstance(interpretation, MaterialActionInterpretation)
+            and interpretation.inventory_creation
+        ):
             allowed_policy_kinds.add(MutationKind.MATERIAL_QUANTITY)
         if policy_request.kind not in allowed_policy_kinds:
             raise ValueError("mutation policy does not match the composed command")
@@ -569,7 +572,12 @@ def _validate_task(command: ConversationTaskCommand) -> None:
 def _validate_material(command: ConversationMaterialCommand) -> None:
     allowed = {
         MaterialOperation.CREATE: {
-            "operation", "name", "aliases", "quantity", "unit", "inventory_creation"
+            "operation",
+            "name",
+            "aliases",
+            "quantity",
+            "unit",
+            "inventory_creation",
         },
         MaterialOperation.SET_ON_SITE: {
             "operation",

@@ -68,9 +68,32 @@ _GENERAL_DOMAINS = (
 )
 _STOP_WORDS = frozenset(
     {
-        "what", "whats", "what's", "who", "owns", "why", "is", "are", "the", "at", "us",
-        "how", "about", "happening", "with", "where", "we", "our", "project", "current",
-        "status", "going", "on", "for", "me", "tell",
+        "what",
+        "whats",
+        "what's",
+        "who",
+        "owns",
+        "why",
+        "is",
+        "are",
+        "the",
+        "at",
+        "us",
+        "how",
+        "about",
+        "happening",
+        "with",
+        "where",
+        "we",
+        "our",
+        "project",
+        "current",
+        "status",
+        "going",
+        "on",
+        "for",
+        "me",
+        "tell",
     }
 )
 
