@@ -17,8 +17,9 @@ Smoke operator:
 Signing-target IAM policy observed:
   roles/iam.serviceAccountTokenCreator
     serviceAccount:oga-api-staging@ogaforeman-cloud-2026.iam.gserviceaccount.com
+    user:hellodaries@gmail.com
 
 Gate status:
-  The IAM Credentials API is enabled. The smoke operator still needs a
+  The IAM Credentials API is enabled and the smoke operator now has the
   narrowly scoped roles/iam.serviceAccountTokenCreator binding on the signing
-  target before authenticated signing smoke can pass.
+  target. Authenticated signing smoke may proceed.
