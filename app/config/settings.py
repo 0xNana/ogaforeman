@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     event_claim_lease_seconds: int = Field(default=60, ge=30, le=600)
     event_claim_max_attempts: int = Field(default=3, ge=1, le=10)
     agent_workflow_timeout_seconds: int = Field(default=45, ge=5, le=300)
+    adk_session_backend: str = "auto"
+    adk_session_database_url: str = "sqlite+aiosqlite:///./.adk/sessions.db"
+    adk_agent_engine_id: str | None = None
 
     auth_issuer: str | None = None
     auth_audience: str | None = None
@@ -167,6 +170,8 @@ class Settings(BaseSettings):
             ]
             if missing_fields:
                 raise ValueError("Deployed environments require: " + ", ".join(missing_fields))
+        if self.adk_session_backend not in {"auto", "database", "vertex_ai"}:
+            raise ValueError("ADK_SESSION_BACKEND must be auto, database, or vertex_ai")
 
         return self
 

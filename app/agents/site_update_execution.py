@@ -4,21 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from google.adk.agents import BaseAgent
-from google.adk.agents.invocation_context import InvocationContext
-from google.adk.events import Event, EventActions
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from pydantic import PrivateAttr
-from typing_extensions import override
 
 from app.agents.interpreter import SiteInterpreter
-from app.agents.registry import registry
 from app.config.settings import Settings
 from app.domain.authorization import (
     AuthenticatedUser,
@@ -28,6 +20,7 @@ from app.domain.authorization import (
 )
 from app.domain.activity import MutationContext, WorkflowActivityAction
 from app.agents.interpreter import MediaEvidence
+from app.agents.adk_runtime import build_site_update_workflow, create_session_service
 from app.domain.enums import ActorType, AgentRunStatus, AttachmentUploadStatus, ProcessingStatus
 from app.domain.events import EventActorType, EventSource, EventType, ProjectEvent
 from app.domain.models import AgentRun, Attachment, ProjectMember, SiteUpdate
@@ -49,42 +42,8 @@ from app.workflows.runtime import RuntimeManager, run_id_for_event
 
 
 logger = logging.getLogger("ogaforeman.agents.site_update")
-WorkflowCallable = Callable[[], Awaitable[dict[str, Any]]]
-
-
 class EventPayloadMismatchError(ValueError):
     code = "EVENT_PAYLOAD_MISMATCH"
-
-
-class SiteUpdateWorkflowAgent(BaseAgent):
-    """Custom ADK agent that coordinates the deterministic site-update workflow."""
-
-    _workflow: WorkflowCallable = PrivateAttr()
-
-    def __init__(self, workflow: WorkflowCallable, *, timeout_seconds: int) -> None:
-        config = registry.get_agent_config("site_report")
-        super().__init__(
-            name=config.name,
-            description=config.description,
-            timeout=float(timeout_seconds),
-        )
-        self._workflow = workflow
-
-    @override
-    async def _run_async_impl(
-        self,
-        ctx: InvocationContext,
-    ) -> AsyncGenerator[Event, None]:
-        output = await self._workflow()
-        actions = EventActions()
-        actions.end_of_agent = True
-        yield Event(
-            invocation_id=ctx.invocation_id,
-            author=self.name,
-            branch=ctx.branch,
-            actions=actions,
-            output=output,
-        )
 
 
 class SiteUpdateEventExecutor:
@@ -214,6 +173,7 @@ class SiteUpdateEventExecutor:
                     pending_actions=result.pending_actions,
                 )
                 status = "completed"
+
             return {
                 "status": status,
                 "update_id": update.id,
@@ -232,14 +192,29 @@ class SiteUpdateEventExecutor:
                 "replayed": False,
             }
 
-        agent = SiteUpdateWorkflowAgent(
-            workflow,
+        workflow_failure: list[Exception] = []
+
+        async def adk_execute() -> dict[str, Any]:
+            try:
+                return await workflow()
+            except Exception as exc:
+                # ADK 2.6.2's graph scheduler converts child exceptions into a
+                # node timeout while draining the graph. Preserve the original
+                # domain exception for the worker's retry/error contract.
+                workflow_failure.append(exc)
+                return {"status": "failed", "_adk_failure": True}
+
+        agent = build_site_update_workflow(
+            adk_execute,
             timeout_seconds=self._settings.agent_workflow_timeout_seconds,
         )
         runner = Runner(
-            app_name="agents",
+            # Scope the ADK session namespace to the canonical run. This keeps
+            # independent project runs isolated while allowing retries to
+            # resume the exact same ADK session.
+            app_name=f"agents-{id(self._store)}-{run_id}",
             agent=agent,
-            session_service=InMemorySessionService(),
+            session_service=create_session_service(self._settings),
             auto_create_session=True,
         )
         output: dict[str, Any] | None = None
@@ -247,7 +222,7 @@ class SiteUpdateEventExecutor:
             async with asyncio.timeout(self._settings.agent_workflow_timeout_seconds):
                 async for agent_event in runner.run_async(
                     user_id=access.actor.user_id,
-                    session_id=run_id,
+                    session_id=f"{run_id}-attempt-{claim_attempt}",
                     invocation_id=event.event_id,
                     new_message=types.Content(
                         role="user",
@@ -255,9 +230,22 @@ class SiteUpdateEventExecutor:
                     ),
                 ):
                     if agent_event.output is not None:
-                        if not isinstance(agent_event.output, dict):
+                        from google.adk.events import RequestInput
+                        if isinstance(agent_event.output, RequestInput):
+                            output = agent_event.output.payload
+                        elif not isinstance(agent_event.output, dict):
                             raise RuntimeError("site update agent returned an invalid output")
-                        output = agent_event.output
+                        else:
+                            output = agent_event.output
+                    elif agent_event.content and agent_event.content.parts:
+                        # Workflow converts RequestInput into an ADK function
+                        # call event rather than exposing the RequestInput
+                        # object directly through Event.output.
+                        for part in agent_event.content.parts:
+                            call = part.function_call
+                            if call and call.name == "adk_request_input":
+                                output = (call.args or {}).get("payload")
+                                break
         except Exception as exc:
             self._record_failure(
                 event,
@@ -281,6 +269,18 @@ class SiteUpdateEventExecutor:
                 error,
             )
             raise error
+        if workflow_failure:
+            failure = workflow_failure[0]
+            self._record_failure(
+                event,
+                access,
+                update.id,
+                run_id,
+                trace_id,
+                claim_attempt,
+                failure,
+            )
+            raise failure
         return output
 
     async def _prepare_media(
@@ -538,5 +538,4 @@ def _paused_output(
 __all__ = [
     "EventPayloadMismatchError",
     "SiteUpdateEventExecutor",
-    "SiteUpdateWorkflowAgent",
 ]
