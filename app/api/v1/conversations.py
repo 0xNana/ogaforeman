@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -32,6 +33,7 @@ from app.domain.clarification import (
     PendingClarification,
 )
 from app.services.conversation_action_composer import (
+    ActionInterpretation,
     MaterialActionInterpretation,
     PurchaseActionInterpretation,
     ambiguous_material_quantity_phrase,
@@ -357,7 +359,7 @@ async def send_message(
     )
     memory = memory_service.load(access)
 
-    clarification_interpretation = None
+    clarification_interpretation: ActionInterpretation | None = None
     if (
         memory.active_clarification is not None
         and memory.active_clarification.status == ClarificationStatus.PENDING
@@ -381,9 +383,8 @@ async def send_message(
                 status_code=503,
             )
 
-        decision = await resolver.resolve(
-            payload.message, clarification=memory.active_clarification
-        )
+        clarification_record = memory.active_clarification
+        decision = await resolver.resolve(payload.message, clarification=clarification_record)
         if decision.resolution == ClarificationResolutionType.AMBIGUOUS:
             return ConversationMessageResponse(
                 kind="clarification",
@@ -391,18 +392,27 @@ async def send_message(
                 intent=IntentType.CLARIFICATION_RESPONSE.value,
             )
 
+        quantity = clarification_record.quantity
+        unit = clarification_record.unit
+        if quantity is None or unit is None:
+            raise ApiError(
+                "INVALID_CLARIFICATION",
+                "The clarification is missing a quantity or unit. Please restate the request.",
+                status_code=400,
+            )
+
         if decision.resolution == ClarificationResolutionType.INVENTORY_INCREMENT:
             clarification_interpretation = MaterialActionInterpretation(
                 operation=MaterialOperation.ADJUST_ON_SITE,
-                material_reference=memory.active_clarification.entity_reference,
-                quantity_delta=memory.active_clarification.quantity,
-                unit=memory.active_clarification.unit,
+                material_reference=clarification_record.entity_reference,
+                quantity_delta=quantity,
+                unit=unit,
             )
         else:
             clarification_interpretation = PurchaseActionInterpretation(
-                material_reference=memory.active_clarification.entity_reference,
-                quantity=memory.active_clarification.quantity,
-                unit=memory.active_clarification.unit,
+                material_reference=clarification_record.entity_reference,
+                quantity=quantity,
+                unit=unit,
                 reason="Requested via conversation clarification",
             )
 
@@ -511,18 +521,16 @@ async def send_message(
         if clarification_interpretation is None:
             quantity_unit_material = ambiguous_material_quantity_phrase(payload.message)
             if quantity_unit_material is not None:
-                quantity, unit, material = quantity_unit_material
-                clarification = (
-                    f"Do you mean {quantity} {unit} arrived on site, or you want me to prepare a "
-                    f"request for {quantity} {unit}?"
+                parsed_quantity, parsed_unit, material = quantity_unit_material
+                clarification_text = (
+                    f"Do you mean {parsed_quantity} {parsed_unit} arrived on site, or you want me to prepare a "
+                    f"request for {parsed_quantity} {parsed_unit}?"
                 )
-                from decimal import Decimal
-
                 pending_clarif = PendingClarification(
                     kind=ClarificationKind.MATERIAL_OPERATION,
                     entity_reference=material,
-                    quantity=Decimal(quantity),
-                    unit=unit,
+                    quantity=Decimal(parsed_quantity),
+                    unit=parsed_unit,
                     allowed_resolutions=(
                         ClarificationResolutionType.INVENTORY_INCREMENT,
                         ClarificationResolutionType.MATERIAL_REQUEST,
@@ -531,11 +539,13 @@ async def send_message(
                     expires_at=datetime.now(UTC) + timedelta(minutes=15),
                 )
                 memory_service.remember_pending(
-                    access, active_clarification=pending_clarif, clarification=clarification
+                    access,
+                    active_clarification=pending_clarif,
+                    clarification=clarification_text,
                 )
                 return ConversationMessageResponse(
                     kind="clarification",
-                    text=clarification,
+                    text=clarification_text,
                     intent=route.decision.intent.value,
                 )
         access = configured_project_access(request, project_id, ProjectPermission.OPERATE)

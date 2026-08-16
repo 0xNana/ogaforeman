@@ -144,12 +144,14 @@ def build_site_update_workflow(
                 ),
                 message=result.get("summary", ""),
                 payload=result,
+                response_schema=dict[str, Any],
             )
         if result.get("has_pending_approvals"):
             return RequestInput(
                 interrupt_id="approval_required",
                 message=result.get("summary", ""),
                 payload=result,
+                response_schema=dict[str, Any],
             )
         return result
 

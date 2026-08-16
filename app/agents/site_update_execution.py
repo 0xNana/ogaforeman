@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from google.adk.runners import Runner
 from google.genai import types
@@ -222,7 +222,9 @@ class SiteUpdateEventExecutor:
             # independent project runs isolated while allowing retries to
             # resume the exact same ADK session.
             app_name=adk_app_name,
-            agent=agent,
+            # ADK 2.6.2 accepts Workflow roots at runtime, but its published
+            # Runner annotation still narrows this parameter to BaseAgent.
+            agent=cast(Any, agent),
             session_service=create_session_service(self._settings),
             auto_create_session=True,
         )
