@@ -22,9 +22,11 @@ from app.domain.enums import (
     TaskStatus,
 )
 from app.domain.facts import (
+    BaseFact,
     ConfidenceLevel,
     ExtractedFactSet,
     IssueFact,
+    MaterialQuantityFact,
     NextFocusFact,
     SafetyIssueFact,
     TaskCompletionFact,
@@ -179,7 +181,7 @@ class SiteUpdateService:
         material_requests_created = 0
         approvals_requested = 0
         has_pending_approvals = False
-        pending_actions: list[str] = []
+        pending_actions: list[str] = _clarification_actions(routed.clarifications)
         schedule_risk_summaries: list[str] = []
 
         resolved_focus, focus_needs_clarification = _resolve_next_focus(
@@ -563,6 +565,24 @@ def _site_update_summary(tasks_updated: int, issues_created: int, materials_upda
         changes[0] if len(changes) == 1 else f"{', '.join(changes[:-1])} and {changes[-1]}"
     )
     return f"OG {change_summary}. The daily report is refreshed."
+
+
+def _clarification_actions(clarifications: Sequence[BaseFact]) -> list[str]:
+    """Turn extracted clarification facts into concise, user-facing next steps."""
+
+    actions: list[str] = []
+    for fact in clarifications:
+        message = fact.clarification_needed
+        if not message and isinstance(fact, MaterialQuantityFact):
+            message = (
+                f"I noted the {fact.material_name} update, but need the quantity and unit "
+                "to record it accurately."
+            )
+        if not message and isinstance(fact, TaskCompletionFact):
+            message = f"I couldn't match '{fact.task_name}' to a project task. Which task did you mean?"
+        if message and message not in actions:
+            actions.append(message)
+    return actions
 
 
 def _mutation_context(

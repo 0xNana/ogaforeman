@@ -503,6 +503,42 @@ async def test_worker_atomically_pauses_run_and_update_for_clarification() -> No
     assert update.processing_status is ProcessingStatus.WAITING_FOR_CLARIFICATION
 
 
+@pytest.mark.asyncio
+async def test_worker_surfaces_actionable_material_clarification() -> None:
+    store = InMemoryRepositoryStore()
+    _seed(store, raw_text="Hurayyy, we have received the plasterboard deliveirs")
+    event = _event(text="Hurayyy, we have received the plasterboard deliveirs")
+    interpreter = FakeSiteInterpreter(
+        responses={
+            event.payload["text"]: ExtractedFactSet(
+                materials=[
+                    MaterialQuantityFact(
+                        material_name="plasterboard",
+                        quantity=None,
+                        unit=None,
+                        evidence="we have received the plasterboard deliveries",
+                        confidence="high",
+                        clarification_needed="How many plasterboard units arrived, and what unit should I record?",
+                    )
+                ]
+            )
+        }
+    )
+
+    await process_event_async(
+        event.model_dump_json().encode(),
+        store=store,
+        settings=Settings(_env_file=None),
+        site_interpreter=interpreter,
+    )
+
+    run = store.repository(AgentRun).require(PROJECT_ID, run_id_for_event(EVENT_ID))
+    assert run.status is AgentRunStatus.WAITING_FOR_CLARIFICATION
+    assert run.pending_actions == [
+        "How many plasterboard units arrived, and what unit should I record?"
+    ]
+
+
 class PartialFailureInterpreter:
     def __init__(self) -> None:
         self.calls = 0

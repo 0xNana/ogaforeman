@@ -135,7 +135,7 @@ test('uploads and submits a photo using the signed attachment contract', async (
 
   expect(payload.input_type).toBe('photo');
   expect(payload.attachment_ids).toHaveLength(1);
-  await expect(page.getByRole('status')).toContainText('updated the clear details');
+  await expect(page.getByRole('status')).toContainText('OG needs one more detail');
   await page.getByRole('link', { name: 'Photos' }).click();
   await expect(page.getByRole('heading', { name: 'Photos', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open site-progress.png' }).click();

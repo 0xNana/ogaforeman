@@ -339,11 +339,20 @@ export function SiteComposer({ projectId, embedded = false, onConversationResult
           </div>
         ) : null}
         {state === 'clarification' && (
-          <div className="status-banner info" role="status">
+          <div className="status-banner info" role="status" aria-live="polite">
             <CheckCircle2 size={16} aria-hidden="true" />
-            <span>
-              OG updated the clear details. Add the missing task, quantity or timing to finish the rest.
-            </span>
+            <div>
+              <strong>OG needs one more detail.</strong>
+              {runResult?.pending_actions?.length ? (
+                <ul aria-label="OG clarification needed">
+                  {runResult.pending_actions.map((action, index) => (
+                    <li key={`${index}:${action}`}>{action}</li>
+                  ))}
+                </ul>
+              ) : (
+                <span>{runResult?.result_summary ?? 'Tell OG what to clarify before it continues.'}</span>
+              )}
+            </div>
           </div>
         )}
         {state === 'approval' && <WorkflowReceipt outcome="waiting_for_approval" projectId={projectId} summary={runResult?.result_summary} pendingActions={runResult?.pending_actions} />}
