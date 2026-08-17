@@ -29,6 +29,6 @@ agents:
     prompt_file: "intent_router.txt"
     tools: []
   - name: action_interpreter
-    description: "Interprets one authorized conversational mutation into a typed semantic action."
+    description: "Interprets one authorized conversational mutation, including independent task batches, into typed semantic actions."
     prompt_file: "action_interpreter.txt"
     tools: []

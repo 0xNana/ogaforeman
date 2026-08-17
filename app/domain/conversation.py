@@ -119,6 +119,7 @@ class ProjectSetupStatus(BaseModel):
 
 class TaskOperation(StrEnum):
     CREATE = "create"
+    CHANGE_DUE_DATE = "change_due_date"
     COMPLETE = "complete"
     CHANGE_STATUS = "change_status"
     ASSIGN = "assign"

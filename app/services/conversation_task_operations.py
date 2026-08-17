@@ -153,6 +153,21 @@ class ConversationTaskService:
                 change, f"Done. {change.task.title} is now {command.priority.value} priority."
             )
 
+        if command.operation is TaskOperation.CHANGE_DUE_DATE:
+            if command.planned_end is None:
+                raise ValueError("planned_end is required")
+            details = UpdateTaskDetailsCommand(
+                project_id=access.project_id,
+                task_id=task_id,
+                expected_version=current.version,
+                planned_end=command.planned_end,
+                occurred_at=context.occurred_at,
+            )
+            change = self._tasks.update_task_details(access, details, context)
+            assert change.task.planned_end is not None
+            due_label = change.task.planned_end.strftime("%B %-d")
+            return _result(change, f"Done. {change.task.title} is due {due_label}.")
+
         if not command.note:
             raise ValueError("note is required")
         details = UpdateTaskDetailsCommand(

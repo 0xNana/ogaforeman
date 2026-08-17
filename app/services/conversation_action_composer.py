@@ -47,12 +47,24 @@ class TaskActionInterpretation(_Interpretation):
     location: str | None = Field(default=None, max_length=500)
     planned_start: AwareDatetime | None = None
     planned_end: AwareDatetime | None = None
+    due_date: AwareDatetime | None = None
+    due_day: int | None = Field(default=None, ge=1, le=31)
+    due_month: int | None = Field(default=None, ge=1, le=12)
+    due_year: int | None = Field(default=None, ge=2000, le=2200)
+    create_if_missing: bool = False
     target_status: TaskStatus | None = None
     priority: TaskPriority | None = None
     note: str | None = Field(default=None, min_length=1, max_length=5_000)
     evidence: str | None = Field(default=None, min_length=1, max_length=5_000)
     negated: bool = False
     ambiguous: bool = False
+
+
+class TaskActionBatchInterpretation(_Interpretation):
+    """Independent task mutations extracted from one conversational turn."""
+
+    kind: Literal["task_batch"] = "task_batch"
+    actions: tuple[TaskActionInterpretation, ...] = Field(min_length=2, max_length=20)
 
 
 class MaterialActionInterpretation(_Interpretation):
@@ -113,6 +125,7 @@ class PurchaseActionInterpretation(_Interpretation):
 
 ActionInterpretation: TypeAlias = Annotated[
     TaskActionInterpretation
+    | TaskActionBatchInterpretation
     | MaterialActionInterpretation
     | IssueActionInterpretation
     | ScheduleActionInterpretation
@@ -122,10 +135,18 @@ ActionInterpretation: TypeAlias = Annotated[
 
 
 class ActionInterpretationEnvelope(BaseModel):
-    """Structured model boundary for exactly one proposed conversational action."""
+    """Structured model boundary for one action or an independent task batch."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     action: ActionInterpretation
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_task_batch_shape(cls, value: object) -> object:
+        """Accept the public batch shape while preserving the legacy envelope."""
+        if isinstance(value, dict) and "action" not in value and value.get("kind") == "task_batch":
+            return {"action": value}
+        return value
 
 
 ActionCommand: TypeAlias = (
@@ -214,7 +235,11 @@ class ActionComposer:
         context: ConversationalProjectContext,
         resolutions: tuple[EntityResolution, ...],
     ) -> tuple[ConversationTaskCommand, MutationKind]:
-        task = self._optional_resolution(value.task_reference, EntityKind.TASK, resolutions)
+        task = (
+            None
+            if value.operation is TaskOperation.CREATE
+            else self._optional_resolution(value.task_reference, EntityKind.TASK, resolutions)
+        )
         assignee = self._optional_resolution(
             value.assignee_reference, EntityKind.PROJECT_MEMBER, resolutions
         )
@@ -239,12 +264,12 @@ class ActionComposer:
             operation=value.operation,
             task=task,
             assignee=assignee,
-            title=value.title,
+            title=value.title or (value.task_reference if value.operation is TaskOperation.CREATE else None),
             description=value.description,
             trade=value.trade,
             location=value.location,
             planned_start=value.planned_start,
-            planned_end=value.planned_end,
+            planned_end=value.planned_end or value.due_date,
             target_status=value.target_status,
             priority=value.priority,
             note=value.note,
@@ -254,6 +279,14 @@ class ActionComposer:
             reopening=reopening,
             expected_version=version,
         )
+        if (
+            value.operation is TaskOperation.CHANGE_DUE_DATE
+            and task is not None
+            and value.planned_end is not None
+        ):
+            task_item = _context_task(task, context)
+            if task_item.planned_start and value.planned_end < task_item.planned_start:
+                raise ValueError("planned_end cannot be before planned_start")
         _validate_task(command)
         return command, _task_mutation(command)
 
@@ -505,7 +538,22 @@ def _validate_task(command: ConversationTaskCommand) -> None:
             "location",
             "planned_start",
             "planned_end",
+            "due_date",
+            "due_day",
+            "due_month",
+            "due_year",
+            "create_if_missing",
             "priority",
+        },
+        TaskOperation.CHANGE_DUE_DATE: {
+            "operation",
+            "task",
+            "planned_end",
+            "due_date",
+            "due_day",
+            "due_month",
+            "due_year",
+            "expected_version",
         },
         TaskOperation.COMPLETE: {
             "operation",
@@ -565,6 +613,8 @@ def _validate_task(command: ConversationTaskCommand) -> None:
         raise ValueError("task assignment requires a resolved assignee")
     if command.operation is TaskOperation.CHANGE_PRIORITY and command.priority is None:
         raise ValueError("priority change requires priority")
+    if command.operation is TaskOperation.CHANGE_DUE_DATE and command.planned_end is None:
+        raise ValueError("task due date change requires planned_end")
     if command.operation is TaskOperation.ADD_NOTE and command.note is None:
         raise ValueError("task note requires note text")
 
@@ -734,4 +784,5 @@ __all__ = [
     "PurchaseActionInterpretation",
     "ScheduleActionInterpretation",
     "TaskActionInterpretation",
+    "TaskActionBatchInterpretation",
 ]

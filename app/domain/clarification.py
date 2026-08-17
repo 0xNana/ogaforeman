@@ -12,6 +12,7 @@ class ClarificationResolutionType(StrEnum):
 
 class ClarificationKind(StrEnum):
     MATERIAL_OPERATION = "material_operation"
+    TASK_BATCH = "task_batch"
 
 
 class ClarificationStatus(StrEnum):
@@ -32,3 +33,6 @@ class PendingClarification(BaseModel):
     status: ClarificationStatus = ClarificationStatus.PENDING
     created_at: AwareDatetime
     expires_at: AwareDatetime | None = None
+    # Serialized, typed task-batch interpretation retained across refreshes.
+    # The action schema is validated again before execution; this is not project truth.
+    action_json: str | None = Field(default=None, max_length=100_000)

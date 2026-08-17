@@ -36,6 +36,7 @@ from app.services.conversation_action_composer import (
     ActionInterpretation,
     MaterialActionInterpretation,
     PurchaseActionInterpretation,
+    TaskActionBatchInterpretation,
     ambiguous_material_quantity_phrase,
 )
 from app.services.conversation_action_execution import ConversationActionExecutionService
@@ -375,57 +376,110 @@ async def send_message(
                 intent=IntentType.CLARIFICATION_RESPONSE.value,
             )
 
-        resolver = getattr(request.app.state, "clarification_resolver", None)
-        if resolver is None or not hasattr(resolver, "resolve"):
-            raise ApiError(
-                "DEPENDENCY_UNAVAILABLE",
-                "OG conversation is temporarily unavailable.",
-                status_code=503,
-            )
-
-        clarification_record = memory.active_clarification
-        decision = await resolver.resolve(payload.message, clarification=clarification_record)
-        if decision.resolution == ClarificationResolutionType.AMBIGUOUS:
-            return ConversationMessageResponse(
-                kind="clarification",
-                text=memory.pending_clarification or "Could you clarify what you mean?",
-                intent=IntentType.CLARIFICATION_RESPONSE.value,
-            )
-
-        quantity = clarification_record.quantity
-        unit = clarification_record.unit
-        if quantity is None or unit is None:
-            raise ApiError(
-                "INVALID_CLARIFICATION",
-                "The clarification is missing a quantity or unit. Please restate the request.",
-                status_code=400,
-            )
-
-        if decision.resolution == ClarificationResolutionType.INVENTORY_INCREMENT:
-            clarification_interpretation = MaterialActionInterpretation(
-                operation=MaterialOperation.ADJUST_ON_SITE,
-                material_reference=clarification_record.entity_reference,
-                quantity_delta=quantity,
-                unit=unit,
+        if memory.active_clarification.kind is ClarificationKind.TASK_BATCH:
+            action_json = memory.active_clarification.action_json
+            if not action_json:
+                memory_service.clear_active_clarification(access)
+                return ConversationMessageResponse(
+                    kind="clarification",
+                    text="That task update expired. Please restate both task changes.",
+                    intent=IntentType.CLARIFICATION_RESPONSE.value,
+                )
+            try:
+                pending_batch = TaskActionBatchInterpretation.model_validate_json(
+                    action_json
+                )
+            except ValueError as exc:
+                memory_service.clear_active_clarification(access)
+                raise ApiError(
+                    "INVALID_CLARIFICATION",
+                    "That task clarification is no longer valid. Please restate both task changes.",
+                    status_code=400,
+                ) from exc
+            if memory.active_clarification.entity_reference != "task batch":
+                resolution = ConversationEntityResolver(runtime.store).resolve(
+                    access, EntityKind.TASK, payload.message
+                )
+                if (
+                    resolution.status is not EntityResolutionStatus.RESOLVED
+                    or resolution.entity_id is None
+                ):
+                    return ConversationMessageResponse(
+                        kind="clarification",
+                        text=memory.pending_clarification
+                        or "Which specific task do you mean?",
+                        intent=IntentType.CLARIFICATION_RESPONSE.value,
+                    )
+                reference = memory.active_clarification.entity_reference.casefold()
+                actions = tuple(
+                    action.model_copy(
+                        update={
+                            "task_reference": resolution.display_name or payload.message,
+                            "ambiguous": False,
+                        }
+                    )
+                    if (action.task_reference or "").casefold() == reference
+                    else action
+                    for action in pending_batch.actions
+                )
+                pending_batch = TaskActionBatchInterpretation(actions=actions)
+            clarification_interpretation = pending_batch
+            memory_service.clear_active_clarification(access)
+            route = IntentRoute(
+                decision=IntentDecision(
+                    intent=IntentType.PROJECT_MUTATION,
+                    confidence=1.0,
+                    reason_code="task_batch_clarification_resolution",
+                ),
+                destination=IntentDestination.PROJECT_ACTION,
             )
         else:
-            clarification_interpretation = PurchaseActionInterpretation(
-                material_reference=clarification_record.entity_reference,
-                quantity=quantity,
-                unit=unit,
-                reason="Requested via conversation clarification",
+            resolver = getattr(request.app.state, "clarification_resolver", None)
+            if resolver is None or not hasattr(resolver, "resolve"):
+                raise ApiError(
+                    "DEPENDENCY_UNAVAILABLE",
+                    "OG conversation is temporarily unavailable.",
+                    status_code=503,
+                )
+            clarification_record = memory.active_clarification
+            decision = await resolver.resolve(payload.message, clarification=clarification_record)
+            if decision.resolution == ClarificationResolutionType.AMBIGUOUS:
+                return ConversationMessageResponse(
+                    kind="clarification",
+                    text=memory.pending_clarification or "Could you clarify what you mean?",
+                    intent=IntentType.CLARIFICATION_RESPONSE.value,
+                )
+            quantity = clarification_record.quantity
+            unit = clarification_record.unit
+            if quantity is None or unit is None:
+                raise ApiError(
+                    "INVALID_CLARIFICATION",
+                    "The clarification is missing a quantity or unit. Please restate the request.",
+                    status_code=400,
+                )
+            if decision.resolution == ClarificationResolutionType.INVENTORY_INCREMENT:
+                clarification_interpretation = MaterialActionInterpretation(
+                    operation=MaterialOperation.ADJUST_ON_SITE,
+                    material_reference=clarification_record.entity_reference,
+                    quantity_delta=quantity,
+                    unit=unit,
+                )
+            else:
+                clarification_interpretation = PurchaseActionInterpretation(
+                    material_reference=clarification_record.entity_reference,
+                    quantity=quantity,
+                    unit=unit,
+                    reason="Requested via conversation clarification",
+                )
+            memory_service.clear_active_clarification(access)
+            route = IntentRoute(
+                decision=IntentDecision(
+                    intent=IntentType.PROJECT_MUTATION,
+                    confidence=1.0,
+                    reason_code="clarification_resolution",
+                ),
+                destination=IntentDestination.PROJECT_ACTION,
             )
-
-        memory_service.clear_active_clarification(access)
-
-        route = IntentRoute(
-            decision=IntentDecision(
-                intent=IntentType.PROJECT_MUTATION,
-                confidence=1.0,
-                reason_code="clarification_resolution",
-            ),
-            destination=IntentDestination.PROJECT_ACTION,
-        )
     else:
         classifier = getattr(request.app.state, "intent_classifier", None)
         if classifier is None or not hasattr(classifier, "classify"):

@@ -8,6 +8,7 @@ from hashlib import sha256
 from collections.abc import Callable
 import logging
 from typing import Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import ValidationError
 
@@ -39,6 +40,8 @@ from app.domain.conversation import (
     ScheduleChangeCommand,
 )
 from app.domain.enums import ActorType, TaskStatus
+from app.domain.clarification import ClarificationKind, PendingClarification
+from app.domain.models import Task
 from app.repositories.interfaces import RepositoryStore
 from app.services.conversation_action_composer import (
     ActionComposer,
@@ -48,6 +51,7 @@ from app.services.conversation_action_composer import (
     PurchaseActionInterpretation,
     ScheduleActionInterpretation,
     TaskActionInterpretation,
+    TaskActionBatchInterpretation,
 )
 from app.services.conversation_context import ProjectContextService, ProjectReader
 from app.services.conversation_entity_resolution import ConversationEntityResolver
@@ -218,6 +222,14 @@ class ConversationActionExecutionService:
                 kind="clarification",
                 text="I couldn't safely interpret that update. Nothing was changed. Try rephrasing it.",
                 mutation_performed=False,
+            )
+        if isinstance(interpretation, TaskActionBatchInterpretation):
+            return self._execute_task_batch(
+                access,
+                message,
+                idempotency_key,
+                interpretation,
+                snapshot,
             )
         resolutions = self._resolve(access, interpretation)
         interpretation, resolutions = _prepare_missing_material_creation(
@@ -410,6 +422,197 @@ class ConversationActionExecutionService:
             activity_id=activity_id,
         )
 
+    def _execute_task_batch(
+        self,
+        access: ProjectAccessContext,
+        message: str,
+        idempotency_key: str,
+        interpretation: TaskActionBatchInterpretation,
+        snapshot: ConversationalProjectContext,
+    ) -> ConversationActionOutcome:
+        """Validate every task clause before dispatching any typed mutation."""
+        actions = tuple(_normalize_task_dates(action, snapshot) for action in interpretation.actions)
+        if any(action is None for action in actions):
+            clarification = _task_batch_date_clarification(interpretation, snapshot)
+            self._remember_task_batch_clarification(
+                access, message, interpretation, clarification
+            )
+            return ConversationActionOutcome(
+                kind="clarification", text=clarification, mutation_performed=False
+            )
+        normalized = TaskActionBatchInterpretation(actions=tuple(actions))
+        resolved_actions: list[TaskActionInterpretation] = []
+        resolved_entities: list[tuple[EntityResolution, ...]] = []
+        for action in normalized.actions:
+            if action.ambiguous:
+                clarification = (
+                    f"I need one specific task for {action.task_reference or action.title or 'that update'}. "
+                    "Which task do you mean?"
+                )
+                self._remember_task_batch_clarification(
+                    access, message, normalized, clarification,
+                    entity_reference=action.task_reference or action.title or "task batch",
+                )
+                return ConversationActionOutcome(
+                    kind="clarification", text=clarification, mutation_performed=False
+                )
+            resolutions = self._resolve(access, action)
+            task_resolution = next(
+                (item for item in resolutions if item.kind is EntityKind.TASK), None
+            )
+            if (
+                task_resolution is not None
+                and task_resolution.status is EntityResolutionStatus.NOT_FOUND
+                and (action.create_if_missing or _explicit_task_creation_language(message))
+            ):
+                action = action.model_copy(
+                    update={
+                        "operation": TaskOperation.CREATE,
+                        "title": action.title or action.task_reference,
+                        "task_reference": None,
+                    }
+                )
+                resolutions = tuple(
+                    item for item in resolutions if item.kind is not EntityKind.TASK
+                )
+            unsafe = next(
+                (
+                    item
+                    for item in resolutions
+                    if item.status is not EntityResolutionStatus.RESOLVED
+                    or not item.can_mutate
+                    or item.entity_id is None
+                ),
+                None,
+            )
+            if unsafe is not None:
+                clarification = unsafe.clarification or (
+                    f"I couldn't find a unique task for {unsafe.reference}. Which task do you mean?"
+                )
+                self._remember_task_batch_clarification(
+                    access, message, normalized, clarification,
+                    entity_reference=unsafe.reference,
+                )
+                return ConversationActionOutcome(
+                    kind="clarification", text=clarification, mutation_performed=False
+                )
+            resolved_actions.append(action)
+            resolved_entities.append(resolutions)
+
+        terms = tuple(
+            dict.fromkeys(
+                term
+                for resolutions in resolved_entities
+                for resolution in resolutions
+                for term in resolution.reference.casefold().split()
+            )
+        )[:16]
+        if terms:
+            snapshot = self._context.retrieve(
+                access,
+                ContextQuery(
+                    domains=_ACTION_DOMAINS,
+                    focus=ContextFocus.ALL,
+                    search_terms=terms,
+                ),
+            )
+        composed = []
+        for action, resolutions in zip(resolved_actions, resolved_entities, strict=True):
+            policy_request = MutationPolicyRequest(
+                project_id=access.project_id,
+                kind=_mutation_kind(action, snapshot, resolutions),
+            )
+            try:
+                proposal = self._composer.compose(
+                    access, action, snapshot, resolutions, policy_request
+                )
+            except ValueError as exc:
+                logger.info(
+                    "conversation_task_batch_preflight_rejected",
+                    extra={"project_id": access.project_id, "error_type": type(exc).__name__},
+                )
+                return ConversationActionOutcome(
+                    kind="clarification",
+                    text="I couldn't safely apply both task dates. Please check the dates and try again.",
+                    mutation_performed=False,
+                )
+            if proposal.policy_decision.policy is not MutationPolicyClass.AUTO_EXECUTE:
+                return ConversationActionOutcome(
+                    kind="clarification",
+                    text="This task batch needs a separate review before OG can apply it.",
+                    mutation_performed=False,
+                )
+            composed.append(proposal)
+
+        # Recheck every resolved version immediately before dispatch. This makes
+        # a stale second clause fail before the first clause can mutate.
+        for proposal in composed:
+            command = proposal.command
+            if isinstance(command, ConversationTaskCommand) and command.task is not None:
+                current = self._store.repository(Task).get(
+                    access.project_id, command.task.entity_id
+                )
+                if current is None or current.version != command.expected_version:
+                    return ConversationActionOutcome(
+                        kind="clarification",
+                        text="One of those tasks changed while I was preparing the update. Please try both dates again.",
+                        mutation_performed=False,
+                    )
+
+        results = []
+        for index, proposal in enumerate(composed):
+            if not isinstance(proposal.command, ConversationTaskCommand):
+                raise ValueError("task batch contains a non-task command")
+            mutation = MutationContext(
+                project_id=access.project_id,
+                actor_type=ActorType.USER,
+                actor_id=access.actor.user_id,
+                idempotency_key=f"{idempotency_key}:task:{index}",
+                request_fingerprint=sha256(message.encode("utf-8")).hexdigest(),
+            )
+            results.append(self._tasks.execute(access, proposal.command, mutation))
+        created = [result.task.title for result, proposal in zip(results, composed, strict=True)
+                   if proposal.command.operation is TaskOperation.CREATE]
+        due = [
+            f"{result.task.title} is due {result.task.planned_end.strftime('%B %-d')}"
+            for result in results
+            if result.task.planned_end is not None
+        ]
+        prefix = (
+            f"Done. I created {', '.join(created)} as separate tasks. " if created else "Done. "
+        )
+        suffix = " and ".join(due)
+        return ConversationActionOutcome(
+            kind="done",
+            text=prefix + suffix + ("." if suffix else ""),
+            mutation_performed=any(not result.duplicate for result in results),
+            activity_id=results[-1].activity_id if results else None,
+        )
+
+    def _remember_task_batch_clarification(
+        self,
+        access: ProjectAccessContext,
+        message: str,
+        interpretation: TaskActionBatchInterpretation,
+        text: str,
+        *,
+        entity_reference: str = "task batch",
+    ) -> None:
+        now = datetime.now(UTC)
+        self._memory.remember_pending(
+            access,
+            active_clarification=PendingClarification(
+                kind=ClarificationKind.TASK_BATCH,
+                entity_reference=entity_reference,
+                allowed_resolutions=(),
+                created_at=now,
+                expires_at=now + timedelta(minutes=15),
+                action_json=interpretation.model_dump_json(),
+            ),
+            clarification=text,
+            proposed_action=message,
+        )
+
     def _pending(
         self,
         access: ProjectAccessContext,
@@ -513,7 +716,12 @@ class ConversationActionExecutionService:
         references: list[tuple[EntityKind, str | None]]
         if isinstance(interpretation, TaskActionInterpretation):
             references = [
-                (EntityKind.TASK, interpretation.task_reference),
+                (
+                    EntityKind.TASK,
+                    None
+                    if interpretation.operation is TaskOperation.CREATE
+                    else interpretation.task_reference,
+                ),
                 (EntityKind.PROJECT_MEMBER, interpretation.assignee_reference),
             ]
         elif isinstance(interpretation, MaterialActionInterpretation):
@@ -597,6 +805,69 @@ def _mutation_kind(
     if isinstance(interpretation, ScheduleActionInterpretation):
         return MutationKind.SCHEDULE_DATES
     return MutationKind.MATERIAL_PURCHASE
+
+
+def _normalize_task_dates(
+    action: TaskActionInterpretation,
+    context: ConversationalProjectContext,
+) -> TaskActionInterpretation | None:
+    """Resolve day-only task dates against the retrieved project calendar context."""
+    if action.planned_end is not None:
+        return action
+    if action.due_date is not None:
+        return action.model_copy(update={"planned_end": action.due_date})
+    if action.due_day is None:
+        return action
+    if context.project is None:
+        return None
+    try:
+        timezone = ZoneInfo(context.project.timezone)
+        local_now = context.retrieved_at.astimezone(timezone)
+        year = action.due_year or local_now.year
+        month = action.due_month or local_now.month
+        resolved = datetime(year, month, action.due_day, tzinfo=timezone)
+    except (ValueError, TypeError, ZoneInfoNotFoundError):
+        return None
+    return action.model_copy(update={"planned_end": resolved})
+
+
+def _explicit_task_creation_language(message: str) -> bool:
+    normalized = " ".join(message.casefold().split())
+    return any(
+        phrase in normalized
+        for phrase in ("separate task", "separate tasks", "create", "new task", "new tasks")
+    )
+
+
+def _task_batch_date_clarification(
+    interpretation: TaskActionBatchInterpretation,
+    context: ConversationalProjectContext,
+) -> str:
+    labels = []
+    for action in interpretation.actions:
+        if action.due_day is None:
+            continue
+        month = action.due_month
+        year = action.due_year
+        if month is None:
+            if context.project is not None:
+                try:
+                    month = context.retrieved_at.astimezone(
+                        ZoneInfo(context.project.timezone)
+                    ).month
+                except (ValueError, TypeError, ZoneInfoNotFoundError):
+                    month = None
+        month_label = ""
+        if month is not None:
+            month_label = datetime(2000, month, 1).strftime("%B") + " "
+        year_label = "" if year is None else f" {year}"
+        labels.append(
+            f"{action.title or action.task_reference or 'task'} "
+            f"{month_label}{action.due_day}{year_label}"
+        )
+    if labels:
+        return "Got it — two separate tasks. Do you mean " + " and ".join(labels) + "?"
+    return "Got it — two separate tasks. What dates should I use for each task?"
 
 
 def _prepare_missing_material_creation(

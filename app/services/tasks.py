@@ -162,12 +162,16 @@ class UpdateTaskDetailsCommand(BaseModel):
     expected_version: int = Field(ge=0)
     assigned_to: CanonicalId | None = None
     priority: TaskPriority | None = None
+    planned_end: AwareDatetime | None = None
     note: str | None = Field(default=None, min_length=1, max_length=5_000)
     occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @model_validator(mode="after")
     def require_one_change(self) -> Self:
-        supplied = sum(value is not None for value in (self.assigned_to, self.priority, self.note))
+        supplied = sum(
+            value is not None
+            for value in (self.assigned_to, self.priority, self.planned_end, self.note)
+        )
         if supplied != 1:
             raise ValueError("task detail update requires exactly one field")
         return self
@@ -370,6 +374,10 @@ class TaskService:
             updates["assigned_to"] = command.assigned_to
         elif command.priority is not None:
             updates["priority"] = command.priority
+        elif command.planned_end is not None:
+            if current.planned_start and command.planned_end < current.planned_start:
+                raise TaskMutationError("planned_end cannot be before planned_start")
+            updates["planned_end"] = command.planned_end
         elif command.note is not None:
             if len(current.notes) >= 100:
                 raise TaskMutationError("task note limit reached")
@@ -570,6 +578,10 @@ def _details_activity_spec(command: UpdateTaskDetailsCommand) -> ActivitySpec:
         action = "task.priority_changed"
         summary = "Task priority updated"
         metadata = {"priority": command.priority.value}
+    elif command.planned_end is not None:
+        action = "task.due_date_changed"
+        summary = "Task due date updated"
+        metadata = {"planned_end": command.planned_end.isoformat()}
     else:
         action = "task.note_added"
         summary = "Task note added"
