@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { LandingNav } from '@/components/landing-nav';
 import { OgaDemo } from '@/components/oga-demo';
+import { siteUpdateSteps } from '@/components/site-update-steps';
 
 const capabilities = [
   { title: 'Daily site updates', copy: 'Voice notes and photos become useful project context.', icon: MessageSquareText },
@@ -135,12 +136,7 @@ export default function HomePage() {
               <h2>Say it once. OG takes it from there.</h2>
               <p>The fastest way to update OG is the way site teams already work—talk, snap a photo and keep moving.</p>
               <div className="process-list">
-                {[
-                  ['1', 'Understanding site update...', 'The important details are pulled out.'],
-                  ['2', '3 updates found', 'Progress, blocker and material risk.'],
-                  ['3', 'Updating the site', 'Project context stays current.'],
-                  ['4', 'Needs you', 'Only consequential actions come back.'],
-                ].map(([number, title, copy]) => <div className="process-row" key={number}><span className="process-number">{number}</span><div><strong>{title}</strong><span>{copy}</span></div></div>)}
+                {siteUpdateSteps.map(({ number, label, copy }) => <div className="process-row" key={number}><span className="process-number">{number}</span><div><strong>{label}</strong><span>{copy}</span></div></div>)}
               </div>
             </div>
           </div>
@@ -159,7 +155,7 @@ export default function HomePage() {
 
         <section className="section autonomy">
           <div className="container">
-            <div className="autonomy-copy"><span className="eyebrow">More than a chatbot</span><h2>OG doesn&apos;t just answer. OG follows through.</h2><p>Most AI waits for another prompt. OG keeps track of what happened next.</p></div>
+            <div className="autonomy-copy"><span className="eyebrow">From update to follow-through</span><h2>OG turns site updates into next steps.</h2><p>It records progress, flags blockers, keeps materials in view and prepares the follow-up so the project record stays current.</p></div>
             <div className="autonomy-flow" aria-label="How OG follows through">{flow.map(([title, copy]) => <div className="flow-step" key={title}><strong>{title}</strong><span>{copy}</span></div>)}</div>
           </div>
         </section>
