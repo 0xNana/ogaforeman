@@ -48,9 +48,12 @@ recovery. PI-03 makes canonical import provenance complete, derives trusted
 source metadata from persisted project sources, and exposes tenant-authorized
 explanation lookups. PI-04 blocks canonical duplicate/change/ambiguity conflicts
 before review and reruns its additive-only preflight inside the commit transaction.
-Two strict expected failures still cover write-budget undercounting and
-task-incorrect shortage calculation. The New Project import journey and PI-05 through PI-14
-remain open.
+PI-05 makes validation and commit consume the same immutable exact mutation plan,
+blocks oversized transaction/document plans while preserving their reviews, and
+corrects canonical creation-activity identity and provenance metadata. The
+canonical-import backend checkpoint is complete. One strict expected failure still
+covers task-incorrect shortage calculation. The New Project import journey and
+PI-06 through PI-14 remain open.
 
 Project Initialization Phase 1 has partial local implementation: strict, schema-versioned
 Pydantic contracts cover import drafts, draft-only temporary references,
@@ -62,8 +65,9 @@ is the sole complete-draft validation owner and performs side-effect-free
 reference, duplicate-ID, self-dependency, dependency-cycle, duplicate-edge, unit
 compatibility, duplicate-requirement, completion-evidence, milestone-date, and
 unresolved-reference validation before any canonical write. Invalid drafts retain
-their full extracted content plus typed warnings and conflicts; exact transaction
-write-plan accounting remains open under PI-05.
+their full extracted content plus typed warnings and conflicts. Exact canonical,
+provenance, ledger, activity, and import-state writes and conservative document
+size are now validated from the immutable PI-05 commit plan.
 Project Initialization Phase 3 has partial local implementation: confirmed drafts persist
 separate `CONFIRMED` and `IMPORTING` claims, then commit
 canonical phases, tasks, dependencies, materials, inventory ledger entries,
@@ -130,7 +134,8 @@ updates are dynamically auto-created as canonical Material entities when unit an
 quantity data is sufficient, avoiding manual re-initialization.
 Project Initialization Phase 16 has partial local implementation: project imports emit user-facing
 activity events during extraction, review, initialization, and individual entity creation
-(task, dependency, material, requirement) while preserving actor, source, and timestamps.
+(task, dependency, material, requirement) with canonical entity IDs/types while
+preserving actor, source/import identity, and timestamps.
 Project Initialization Phase 17 has partial local implementation:
 `ProjectImportDiffService` compares authorized canonical phases, tasks/milestones,
 dependencies, materials/aliases, and requirements. Normalized matches and ambiguous
@@ -250,6 +255,22 @@ Project Initialization PI-04 verification on 2026-08-19:
 - dependency sync, repository-wide Ruff check/format, and app-wide mypy: passed
 - the optional all-non-backing run was stopped in the known long-running capacity
   baseline; no completion claim is made for that broader command
+
+Project Initialization PI-05 and backend-checkpoint verification on 2026-08-19:
+
+- focused importer, validator, and review-API regression suite: 51 passed
+- exact planned count equals writes attempted by the canonical transaction;
+  dependency and creation activities use canonical target IDs/types and retain
+  source/import metadata
+- oversized drafts persist all 75 test tasks for review, transition to typed
+  `VALIDATION_FAILED`, and return 422 on confirmation without canonical writes
+- injected mid-commit collision transitions to retryable `IMPORT_FAILED` while
+  rolling back every phase, provenance, material, ledger, requirement, and
+  creation activity write
+- Firestore repository atomicity plus fresh-client exact replay/restart gate:
+  12 passed against the local emulator
+- locked dependency sync, repository-wide Ruff check/format, app-wide mypy, and
+  documentation validation: passed
 
 Project Initialization PI-01 verification on 2026-08-19:
 

@@ -511,16 +511,23 @@ commit transaction.
 
 **Work**
 
-- [ ] Introduce one prepared mutation-plan type shared by validation and commit.
-- [ ] Count every canonical, provenance, ledger, import-state, and activity write.
-- [ ] Enforce transaction and document-size safety before confirmation.
-- [ ] Correct entity types and source/import metadata on creation activities.
+- [x] Introduce one prepared mutation-plan type shared by validation and commit.
+- [x] Count every canonical, provenance, ledger, import-state, and activity write.
+- [x] Enforce transaction and document-size safety before confirmation.
+- [x] Correct entity types and source/import metadata on creation activities.
 
 **Acceptance**
 
-- [ ] The count asserted by tests equals the writes attempted by the transaction.
-- [ ] Oversized drafts remain reviewable but cannot be confirmed.
-- [ ] Commit failure produces `IMPORT_FAILED` with no partial canonical state.
+- [x] The count asserted by tests equals the writes attempted by the transaction.
+- [x] Oversized drafts remain reviewable but cannot be confirmed.
+- [x] Commit failure produces `IMPORT_FAILED` with no partial canonical state.
+
+`PreparedProjectImportPlan` is immutable and owns deterministic canonical IDs,
+provenance targets, and exact canonical/activity/import-state write counts. The
+default safety policy reserves Firestore headroom with a 450-write transaction
+limit and a conservative 750,000-byte document estimate; validation persists a
+typed conflict while retaining the complete review draft when either bound is
+exceeded.
 
 **Verification**
 
@@ -532,11 +539,11 @@ commit transaction.
 
 ### Backend checkpoint — canonical import safety
 
-- [ ] PI-00 through PI-05 acceptance criteria pass.
-- [ ] In-memory and Firestore-backed exact replay produce identical outcomes.
-- [ ] Conflict, concurrency, timeout, restart, and commit-failure cases leave no
+- [x] PI-00 through PI-05 acceptance criteria pass.
+- [x] In-memory and Firestore-backed exact replay produce identical outcomes.
+- [x] Conflict, concurrency, timeout, restart, and commit-failure cases leave no
   duplicate or partial canonical state.
-- [ ] Ruff, format, mypy, and documentation checks pass.
+- [x] Ruff, format, mypy, and documentation checks pass.
 
 ### PI-06 — Build the New Project setup route
 

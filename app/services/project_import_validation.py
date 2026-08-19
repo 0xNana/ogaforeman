@@ -15,11 +15,18 @@ from app.domain.project_import import (
     TaskDraft,
 )
 from app.services.project_import_normalization import normalize_task_name_for_match
+from app.services.project_import_plan import (
+    DEFAULT_PROJECT_IMPORT_SAFETY_LIMITS,
+    PreparedProjectImportPlan,
+    ProjectImportSafetyLimits,
+    prepare_project_import_plan,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class ProjectImportValidationResult:
     draft: ProjectImportDraft
+    plan: PreparedProjectImportPlan
     warnings: tuple[ImportWarning, ...] = ()
     errors: tuple[ImportConflict, ...] = ()
 
@@ -41,6 +48,13 @@ class ProjectImportValidationError(ValueError):
 class ProjectImportValidator:
     """Validate a complete draft without Gemini, repositories, or side effects."""
 
+    def __init__(
+        self,
+        *,
+        limits: ProjectImportSafetyLimits = DEFAULT_PROJECT_IMPORT_SAFETY_LIMITS,
+    ) -> None:
+        self._limits = limits
+
     def validate(self, draft: ProjectImportDraft) -> ProjectImportValidationResult:
         errors = list(draft.conflicts)
         warnings = list(draft.warnings)
@@ -54,7 +68,6 @@ class ProjectImportValidator:
         self._validate_milestones(draft, errors)
         self._validate_dependencies(draft, tasks, errors)
         self._validate_material_requirements(draft, tasks, materials, errors)
-        self._validate_write_budget(draft, errors)
         self._collect_unresolved_reference_warnings(draft, warnings)
 
         warnings = _deduplicate_warnings(warnings)
@@ -65,9 +78,15 @@ class ProjectImportValidator:
                 "conflicts": errors,
             }
         )
+        plan = prepare_project_import_plan(validated_draft, limits=self._limits)
+        self._validate_plan_safety(plan, errors)
+        errors = _deduplicate_conflicts(errors)
+        validated_draft = validated_draft.model_copy(update={"conflicts": errors})
+        plan = prepare_project_import_plan(validated_draft, limits=self._limits)
 
         return ProjectImportValidationResult(
             draft=validated_draft,
+            plan=plan,
             warnings=tuple(warnings),
             errors=tuple(errors),
         )
@@ -323,36 +342,29 @@ class ProjectImportValidator:
                 )
 
     @staticmethod
-    def _validate_write_budget(
-        draft: ProjectImportDraft,
+    def _validate_plan_safety(
+        plan: PreparedProjectImportPlan,
         errors: list[ImportConflict],
     ) -> None:
-        estimated_writes = (
-            3
-            + len(draft.phases)
-            + len(draft.tasks)
-            + len(draft.materials)
-            + len(draft.material_requirements)
-            + sum(1 for material in draft.materials if material.initial_on_hand_quantity > 0)
-            + sum(
-                1
-                for item in (
-                    *draft.tasks,
-                    *draft.dependencies,
-                    *draft.materials,
-                    *draft.material_requirements,
-                    *draft.milestones,
-                    *draft.warnings,
-                    *draft.conflicts,
-                )
-                if getattr(item, "source_reference", None) is not None
-            )
-        )
-        if estimated_writes > 450:
+        if plan.commit_write_count > plan.limits.max_transaction_writes:
             errors.append(
                 ImportConflict(
                     code="TRANSACTION_WRITE_BUDGET_EXCEEDED",
-                    message="project import draft exceeds the transaction write budget",
+                    message=(
+                        "project import requires "
+                        f"{plan.commit_write_count} atomic writes; the safe limit is "
+                        f"{plan.limits.max_transaction_writes}"
+                    ),
+                )
+            )
+        if plan.largest_document_bytes > plan.limits.max_document_bytes:
+            errors.append(
+                ImportConflict(
+                    code="IMPORT_DOCUMENT_SIZE_EXCEEDED",
+                    message=(
+                        "project import draft exceeds the safe document limit of "
+                        f"{plan.limits.max_document_bytes} bytes"
+                    ),
                 )
             )
 

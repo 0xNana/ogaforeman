@@ -126,6 +126,33 @@ class InvalidReferencesDraftExtractor(FixedDraftExtractor):
         )
 
 
+class OversizedDraftExtractor:
+    async def extract(
+        self,
+        *,
+        project_id: str,
+        import_id: str,
+        source_id: str,
+        source_text: str,
+    ) -> ProjectImportDraft:
+        assert source_text.strip() == "Task: Foundation"
+        return ProjectImportDraft(
+            id=import_id,
+            project_id=project_id,
+            source_id=source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            project={"name": "Oversized plan"},
+            tasks=[
+                {
+                    "temp_id": f"tmp_task_{index:03d}",
+                    "name": f"Task {index:03d}",
+                    "description": "x" * 10_000,
+                }
+                for index in range(75)
+            ],
+        )
+
+
 class FailOnceExtractor:
     def __init__(self) -> None:
         self.calls = 0
@@ -276,6 +303,39 @@ async def test_confirming_a_conflicted_review_is_rejected_without_canonical_muta
         )
 
     assert created.status_code == 201
+    assert confirmed.status_code == 422
+    assert confirmed.json()["error"]["code"] == "PROJECT_IMPORT_VALIDATION_FAILED"
+    assert _canonical_counts(store) == (0, 0, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_oversized_draft_remains_reviewable_but_cannot_be_confirmed() -> None:
+    store = InMemoryRepositoryStore()
+    app = make_app_with_extractor(store, OversizedDraftExtractor())
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={"source_name": "oversized.md", "source_text": "Task: Foundation"},
+            headers={"Idempotency-Key": "project-import-oversized:create"},
+        )
+        review = created.json()
+        fetched = await client.get(f"/api/v1/projects/{PROJECT_ID}/imports/{review['id']}")
+        confirmed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports/{review['id']}/confirm",
+            json={"expected_version": review["version"]},
+            headers={"Idempotency-Key": "project-import-oversized:confirm"},
+        )
+
+    assert created.status_code == 201
+    assert review["status"] == "validation_failed"
+    assert len(review["tasks"]) == 75
+    assert [conflict["code"] for conflict in review["conflicts"]] == [
+        "IMPORT_DOCUMENT_SIZE_EXCEEDED"
+    ]
+    assert fetched.status_code == 200
+    assert len(fetched.json()["tasks"]) == 75
     assert confirmed.status_code == 422
     assert confirmed.json()["error"]["code"] == "PROJECT_IMPORT_VALIDATION_FAILED"
     assert _canonical_counts(store) == (0, 0, 0, 0)

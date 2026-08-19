@@ -222,10 +222,6 @@ def test_existing_conflicts_remain_blocking_without_being_duplicated() -> None:
     assert [error.code for error in exc_info.value.errors] == ["EXISTING_TASK_POSSIBLE_MATCH"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PI-05 must count canonical records and their atomic activities in one write plan",
-)
 def test_transaction_budget_counts_task_creation_activities() -> None:
     draft = _draft(
         tasks=[
@@ -238,3 +234,58 @@ def test_transaction_budget_counts_task_creation_activities() -> None:
     result = ProjectImportValidator().validate(draft)
 
     assert [error.code for error in result.errors] == ["TRANSACTION_WRITE_BUDGET_EXCEEDED"]
+
+
+def test_prepared_plan_counts_every_atomic_commit_write() -> None:
+    draft = _draft(
+        phases=[{"temp_id": "tmp_phase_one", "name": "Substructure", "sequence": 1}],
+        dependencies=[
+            {
+                "predecessor_temp_id": "tmp_task_one",
+                "successor_temp_id": "tmp_task_two",
+            }
+        ],
+        material_requirements=[
+            {
+                "task_temp_id": "tmp_task_two",
+                "material_temp_id": "tmp_material_cement",
+                "required_quantity": Decimal("2"),
+                "unit": "bags",
+            }
+        ],
+        milestones=[
+            {
+                "temp_id": "tmp_milestone_one",
+                "name": "Substructure complete",
+                "planned_date": date(2026, 8, 9),
+            }
+        ],
+    )
+
+    result = ProjectImportValidator().validate(draft)
+
+    assert result.is_valid
+    assert result.plan.provenance_write_count == 8
+    assert result.plan.canonical_write_count == 7
+    assert result.plan.activity_write_count == 7
+    assert result.plan.import_state_write_count == 1
+    assert result.plan.commit_write_count == 23
+
+
+def test_oversized_import_record_is_a_blocking_conflict_without_discarding_draft() -> None:
+    tasks = [
+        {
+            "temp_id": f"tmp_task_{index:03d}",
+            "name": f"Task {index:03d}",
+            "description": "x" * 10_000,
+        }
+        for index in range(75)
+    ]
+
+    result = ProjectImportValidator().validate(_draft(tasks=tasks, materials=[]))
+    replay = ProjectImportValidator().validate(result.draft)
+
+    assert [error.code for error in result.errors] == ["IMPORT_DOCUMENT_SIZE_EXCEEDED"]
+    assert [error.code for error in replay.errors] == ["IMPORT_DOCUMENT_SIZE_EXCEEDED"]
+    assert len(result.draft.tasks) == 75
+    assert result.plan.largest_document_bytes > result.plan.limits.max_document_bytes

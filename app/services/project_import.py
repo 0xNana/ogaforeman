@@ -26,7 +26,6 @@ from app.domain.import_records import (
     ProjectPhase,
     ProjectSource,
     ProjectSourceStatus,
-    import_dependency_target_id,
     import_provenance_id,
 )
 from app.domain.materials import MaterialLedgerEntry, normalize_material_name
@@ -52,6 +51,10 @@ from app.services.project_import_validation import (
 from app.services.project_import_diff import (
     ProjectImportDiffConflictError,
     ProjectImportDiffService,
+)
+from app.services.project_import_plan import (
+    PreparedProjectImportPlan,
+    canonical_import_id,
 )
 
 
@@ -79,6 +82,7 @@ class ProjectImportResult:
 
 @dataclass(frozen=True, slots=True)
 class _PreparedImportEntities:
+    plan: PreparedProjectImportPlan
     provenance: tuple[ImportProvenance, ...]
     phases: tuple[ProjectPhase, ...]
     tasks: tuple[Task, ...]
@@ -252,6 +256,7 @@ class ProjectImportService:
                 access,
                 idempotency_key=f"project-import:{draft.id}:reviewed",
                 action="project.import.reviewed",
+                entity_type="project_import",
                 entity_id=draft.id,
                 summary="Reviewed and confirmed the project plan.",
                 metadata={"source_id": draft.source_id, "import_id": draft.id},
@@ -339,6 +344,7 @@ class ProjectImportService:
                 access,
                 idempotency_key=f"project-import:{import_id}:started:{attempt}",
                 action="project.import.started",
+                entity_type="project_import",
                 entity_id=import_id,
                 summary="Started importing the confirmed project plan.",
                 metadata={
@@ -409,26 +415,34 @@ class ProjectImportService:
                     access,
                     idempotency_key=f"task:{task.id}:created:import:{draft.id}",
                     action="task.created",
+                    entity_type="task",
                     entity_id=task.id,
                     summary=f"Created task {task.title}.",
                     metadata={"import_id": draft.id, "source_id": draft.source_id},
                     occurred_at=now,
                 )
-                for dep_id in task.dependency_ids:
-                    _activity(
-                        session,
-                        access,
-                        idempotency_key=f"task:{task.id}:dependency:{dep_id}:import:{draft.id}",
-                        action="dependency.created",
-                        entity_id=task.id,
-                        summary=f"Created dependency on {dep_id}.",
-                        metadata={
-                            "dependency_id": dep_id,
-                            "import_id": draft.id,
-                            "source_id": draft.source_id,
-                        },
-                        occurred_at=now,
-                    )
+            for dependency in entities.plan.dependencies:
+                _activity(
+                    session,
+                    access,
+                    idempotency_key=(
+                        f"dependency:{dependency.target_id}:created:import:{draft.id}"
+                    ),
+                    action="dependency.created",
+                    entity_type="dependency",
+                    entity_id=dependency.target_id,
+                    summary=(
+                        "Created task dependency from "
+                        f"{dependency.predecessor_task_id} to {dependency.successor_task_id}."
+                    ),
+                    metadata={
+                        "predecessor_task_id": dependency.predecessor_task_id,
+                        "successor_task_id": dependency.successor_task_id,
+                        "import_id": draft.id,
+                        "source_id": draft.source_id,
+                    },
+                    occurred_at=now,
+                )
             for material in entities.materials:
                 _authorized_repository(session, Material, access).create(material)
                 _activity(
@@ -436,6 +450,7 @@ class ProjectImportService:
                     access,
                     idempotency_key=f"material:{material.id}:created:import:{draft.id}",
                     action="material.created",
+                    entity_type="material",
                     entity_id=material.id,
                     summary=f"Created material {material.name}.",
                     metadata={
@@ -454,6 +469,7 @@ class ProjectImportService:
                     access,
                     idempotency_key=f"requirement:{requirement.id}:created:import:{draft.id}",
                     action="material.requirement.created",
+                    entity_type="material_requirement",
                     entity_id=requirement.id,
                     summary="Created material requirement.",
                     metadata={
@@ -470,6 +486,7 @@ class ProjectImportService:
                 access,
                 idempotency_key=f"project-import:{draft.id}:completed",
                 action="project.initialized",
+                entity_type="project_import",
                 entity_id=draft.id,
                 summary="Imported the confirmed project plan into the canonical model.",
                 metadata={
@@ -555,6 +572,7 @@ class ProjectImportService:
                 access,
                 idempotency_key=f"project-import:{import_id}:failed:{failed.version}",
                 action="project.import.failed",
+                entity_type="project_import",
                 entity_id=import_id,
                 summary="Project import could not be committed; review can be retried or cancelled.",
                 metadata={"status": failed.status.value},
@@ -572,16 +590,11 @@ class ProjectImportService:
         imported_at: datetime,
     ) -> _PreparedImportEntities:
         draft = result.draft
-        phase_ids = {
-            phase.temp_id: _canonical_id("phs", draft.id, phase.temp_id) for phase in draft.phases
-        }
-        task_ids = {
-            task.temp_id: _canonical_id("tsk", draft.id, task.temp_id) for task in draft.tasks
-        }
-        material_ids = {
-            material.temp_id: _canonical_id("mat", draft.id, material.temp_id)
-            for material in draft.materials
-        }
+        plan = result.plan
+        phase_ids = dict(plan.phase_ids)
+        task_ids = dict(plan.task_ids)
+        material_ids = dict(plan.material_ids)
+        ledger_ids = dict(plan.ledger_ids)
         provenance: list[ImportProvenance] = []
 
         def provenance_for(
@@ -672,12 +685,12 @@ class ProjectImportService:
                 continue
             milestone_provenance = provenance_for(
                 ImportProvenanceTargetType.TASK,
-                _canonical_id("tsk", draft.id, milestone.temp_id),
+                task_ids[milestone.temp_id],
                 milestone.source_reference,
             )
             tasks.append(
                 Task(
-                    id=_canonical_id("tsk", draft.id, milestone.temp_id),
+                    id=task_ids[milestone.temp_id],
                     project_id=draft.project_id,
                     title=milestone.name,
                     status=TaskStatus.PROPOSED,
@@ -688,17 +701,17 @@ class ProjectImportService:
                     source_refs=[milestone_provenance] if milestone_provenance else [],
                 )
             )
-        for dependency in draft.dependencies:
-            predecessor_id = task_ids[dependency.predecessor_temp_id]
-            successor_id = task_ids[dependency.successor_temp_id]
-            dependency_id = import_dependency_target_id(predecessor_id, successor_id)
+        tasks_by_id = {task.id: task for task in tasks}
+        for dependency, planned_dependency in zip(
+            draft.dependencies, plan.dependencies, strict=True
+        ):
             provenance_for(
                 ImportProvenanceTargetType.DEPENDENCY,
-                dependency_id,
+                planned_dependency.target_id,
                 dependency.source_reference,
             )
-            successor = next(task for task in tasks if task.id == successor_id)
-            successor.dependency_ids.append(predecessor_id)
+            successor = tasks_by_id[planned_dependency.successor_task_id]
+            successor.dependency_ids.append(planned_dependency.predecessor_task_id)
         materials = tuple(
             Material(
                 id=material_ids[material.temp_id],
@@ -719,7 +732,7 @@ class ProjectImportService:
             )
         ledger = tuple(
             MaterialLedgerEntry(
-                id=_canonical_id("led", draft.id, material.temp_id),
+                id=ledger_ids[material.temp_id],
                 project_id=draft.project_id,
                 material_id=material_ids[material.temp_id],
                 quantity_delta=material.initial_on_hand_quantity,
@@ -732,35 +745,32 @@ class ProjectImportService:
             for material in draft.materials
             if material.initial_on_hand_quantity > 0
         )
+        material_drafts_by_id = {
+            material_ids[material.temp_id]: material for material in draft.materials
+        }
         for ledger_entry in ledger:
-            material = next(
-                item
-                for item in draft.materials
-                if material_ids[item.temp_id] == ledger_entry.material_id
-            )
+            material = material_drafts_by_id[ledger_entry.material_id]
             provenance_for(
                 ImportProvenanceTargetType.MATERIAL_LEDGER_ENTRY,
                 ledger_entry.id,
                 material.source_reference,
             )
         requirements: list[MaterialRequirement] = []
-        for requirement in draft.material_requirements:
+        for requirement, planned_requirement in zip(
+            draft.material_requirements, plan.requirements, strict=True
+        ):
             provenance_id = provenance_for(
                 ImportProvenanceTargetType.MATERIAL_REQUIREMENT,
-                _canonical_id(
-                    "req", draft.id, requirement.task_temp_id, requirement.material_temp_id
-                ),
+                planned_requirement.target_id,
                 requirement.source_reference,
             )
             requirements.append(
                 MaterialRequirement(
-                    id=_canonical_id(
-                        "req", draft.id, requirement.task_temp_id, requirement.material_temp_id
-                    ),
+                    id=planned_requirement.target_id,
                     project_id=draft.project_id,
                     import_id=draft.id,
-                    task_id=task_ids[requirement.task_temp_id],
-                    material_id=material_ids[requirement.material_temp_id],
+                    task_id=planned_requirement.task_id,
+                    material_id=planned_requirement.material_id,
                     required_quantity=requirement.required_quantity,
                     unit=requirement.unit,
                     required_by=requirement.required_by,
@@ -768,7 +778,8 @@ class ProjectImportService:
                     source_provenance_id=provenance_id,
                 )
             )
-        return _PreparedImportEntities(
+        entities = _PreparedImportEntities(
+            plan=plan,
             provenance=tuple(provenance),
             phases=tuple(phases),
             tasks=tuple(tasks),
@@ -776,6 +787,8 @@ class ProjectImportService:
             ledger=ledger,
             requirements=tuple(requirements),
         )
+        _ensure_entities_match_plan(entities)
+        return entities
 
 
 def _activity(
@@ -784,6 +797,7 @@ def _activity(
     *,
     idempotency_key: str,
     action: str,
+    entity_type: str,
     entity_id: str,
     summary: str,
     metadata: dict[str, str | int],
@@ -800,7 +814,7 @@ def _activity(
             ),
             ActivitySpec(
                 action=action,
-                entity_type="project_import",
+                entity_type=entity_type,
                 entity_id=entity_id,
                 summary=summary,
                 metadata=metadata,
@@ -886,8 +900,50 @@ def _result(record: ProjectImportRecord, *, replayed: bool = False) -> ProjectIm
 
 
 def _canonical_id(prefix: str, *parts: str) -> str:
-    digest = sha256(":|:".join(parts).encode()).hexdigest()[:32]
-    return f"{prefix}_{digest}"
+    return canonical_import_id(prefix, *parts)
+
+
+def _ensure_entities_match_plan(entities: _PreparedImportEntities) -> None:
+    plan = entities.plan
+    expected_ids = {
+        "phase": {canonical_id for _, canonical_id in plan.phase_ids},
+        "task": {canonical_id for _, canonical_id in plan.task_ids},
+        "material": {canonical_id for _, canonical_id in plan.material_ids},
+        "ledger": {canonical_id for _, canonical_id in plan.ledger_ids},
+        "requirement": {requirement.target_id for requirement in plan.requirements},
+    }
+    actual_ids = {
+        "phase": {entity.id for entity in entities.phases},
+        "task": {entity.id for entity in entities.tasks},
+        "material": {entity.id for entity in entities.materials},
+        "ledger": {entity.id for entity in entities.ledger},
+        "requirement": {entity.id for entity in entities.requirements},
+    }
+    expected_provenance_targets = set(plan.provenance_targets)
+    actual_provenance_targets = {
+        (provenance.target_entity_type, provenance.target_entity_id)
+        for provenance in entities.provenance
+    }
+    actual_commit_writes = (
+        len(entities.provenance)
+        + len(entities.phases)
+        + len(entities.tasks)
+        + len(entities.materials)
+        + len(entities.ledger)
+        + len(entities.requirements)
+        + len(entities.tasks)
+        + len(plan.dependencies)
+        + len(entities.materials)
+        + len(entities.requirements)
+        + 1  # project.initialized activity
+        + 1  # imported ProjectImportRecord save
+    )
+    if (
+        actual_ids != expected_ids
+        or actual_provenance_targets != expected_provenance_targets
+        or actual_commit_writes != plan.commit_write_count
+    ):
+        raise RuntimeError("prepared project import entities diverged from the validated plan")
 
 
 def _at_utc(value: date | None) -> datetime | None:

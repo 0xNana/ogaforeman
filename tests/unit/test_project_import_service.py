@@ -3,9 +3,10 @@ from decimal import Decimal
 from hashlib import sha256
 from collections.abc import Callable
 from collections import Counter
-from typing import TypeVar
+from typing import Generic, TypeVar, cast
 
 import pytest
+from pydantic import BaseModel
 
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
 from app.domain.enums import MemberRole, ProjectStatus, TaskStatus
@@ -26,7 +27,11 @@ from app.domain.project_import import (
     SourceType,
 )
 from app.repositories.memory import InMemoryRepositoryStore
-from app.repositories.interfaces import EntityAlreadyExistsError, RepositorySession
+from app.repositories.interfaces import (
+    EntityAlreadyExistsError,
+    ProjectRepository,
+    RepositorySession,
+)
 from app.repositories.interfaces import VersionConflictError
 from app.repositories.firestore import (
     FirestoreRepository,
@@ -35,11 +40,86 @@ from app.repositories.firestore import (
 )
 from app.services.project_import import ProjectImportService, _canonical_id
 from app.services.project_import import ProjectImportConfirmationError
-from app.services.project_import_validation import ProjectImportValidationError
+from app.services.project_import_validation import (
+    ProjectImportValidationError,
+    ProjectImportValidator,
+)
 from app.services.project_sources import ProjectSourceService
 
 
 ResultT = TypeVar("ResultT")
+EntityT = TypeVar("EntityT", bound=BaseModel)
+
+
+class MutationCountingRepository(Generic[EntityT]):
+    def __init__(self, delegate: ProjectRepository[EntityT], counter: list[int]) -> None:
+        self._delegate = delegate
+        self._counter = counter
+
+    def get(self, project_id: str, entity_id: str) -> EntityT | None:
+        return self._delegate.get(project_id, entity_id)
+
+    def require(self, project_id: str, entity_id: str) -> EntityT:
+        return self._delegate.require(project_id, entity_id)
+
+    def list(self, project_id: str):
+        return self._delegate.list(project_id)
+
+    def create(self, entity: EntityT) -> EntityT:
+        self._counter[0] += 1
+        return self._delegate.create(entity)
+
+    def save(self, entity: EntityT, *, expected_version: int | None = None) -> EntityT:
+        self._counter[0] += 1
+        return self._delegate.save(entity, expected_version=expected_version)
+
+    def delete(
+        self,
+        project_id: str,
+        entity_id: str,
+        *,
+        expected_version: int | None = None,
+    ) -> None:
+        self._counter[0] += 1
+        self._delegate.delete(project_id, entity_id, expected_version=expected_version)
+
+    def version_of(self, project_id: str, entity_id: str) -> int | None:
+        return self._delegate.version_of(project_id, entity_id)
+
+
+class MutationCountingSession:
+    def __init__(self, delegate: RepositorySession, counter: list[int]) -> None:
+        self._delegate = delegate
+        self._counter = counter
+
+    def repository(self, entity_type: type[EntityT]) -> ProjectRepository[EntityT]:
+        return cast(
+            ProjectRepository[EntityT],
+            MutationCountingRepository(self._delegate.repository(entity_type), self._counter),
+        )
+
+
+class MutationCountingImportStore(InMemoryRepositoryStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.commit_write_count: int | None = None
+
+    def run_transaction(
+        self,
+        operation: Callable[[RepositorySession], ResultT],
+    ) -> ResultT:
+        is_canonical_commit = any(
+            record.status is ProjectImportStatus.IMPORTING
+            for record in self.repository(ProjectImportRecord).list("prj_commit123")
+        )
+        if not is_canonical_commit:
+            return super().run_transaction(operation)
+        counter = [0]
+        result = super().run_transaction(
+            lambda session: operation(MutationCountingSession(session, counter))
+        )
+        self.commit_write_count = counter[0]
+        return result
 
 
 class RecordingImportStore(InMemoryRepositoryStore):
@@ -201,6 +281,88 @@ def test_confirmed_import_commits_canonical_records_and_replays_idempotently() -
         "material.created",
         "material.requirement.created",
         "project.initialized",
+    }
+    activities = {
+        activity.action: activity
+        for activity in store.repository(ActivityEvent).list("prj_commit123")
+    }
+    assert activities["task.created"].entity_type == "task"
+    assert activities["material.created"].entity_type == "material"
+    assert activities["material.requirement.created"].entity_type == "material_requirement"
+    assert activities["project.initialized"].entity_type == "project_import"
+    for action in ("task.created", "material.created", "material.requirement.created"):
+        assert activities[action].metadata["import_id"] == draft.id
+        assert activities[action].metadata["source_id"] == draft.source_id
+
+
+def test_prepared_plan_count_matches_writes_attempted_by_commit_transaction() -> None:
+    draft_data = _confirmed_draft().model_dump()
+    draft_data["tasks"].append(
+        {
+            "temp_id": "tmp_task_wall",
+            "name": "Walling",
+            "source_reference": draft_data["tasks"][0]["source_reference"],
+        }
+    )
+    draft_data["dependencies"] = [
+        {
+            "predecessor_temp_id": "tmp_task_foundation",
+            "successor_temp_id": "tmp_task_wall",
+            "source_reference": draft_data["tasks"][0]["source_reference"],
+        }
+    ]
+    draft = ProjectImportDraft.model_validate(draft_data)
+    plan = ProjectImportValidator().validate(draft).plan
+    store = MutationCountingImportStore()
+    access = ProjectAccessContext(
+        actor=AuthenticatedUser(user_id="usr_admin123", subject="test"),
+        project_id=draft.project_id,
+        role=MemberRole.ADMIN,
+    )
+    ProjectSourceService(store).persist_text(
+        access,
+        source_id=draft.source_id,
+        name="plan.md",
+        text="# Imported residence\nFoundation precedes walling.",
+    )
+    store.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=draft.id,
+            project_id=draft.project_id,
+            source_id=draft.source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            draft=draft.model_copy(update={"status": ProjectImportStatus.NEEDS_REVIEW}),
+        )
+    )
+
+    ProjectImportService(store).import_confirmed(
+        draft,
+        access,
+        expected_review_version=0,
+        decision_idempotency_key="confirm-counted-plan",
+    )
+
+    assert store.commit_write_count == plan.commit_write_count
+    dependency = next(
+        activity
+        for activity in store.repository(ActivityEvent).list(draft.project_id)
+        if activity.action == "dependency.created"
+    )
+    assert dependency.entity_type == "dependency"
+    assert dependency.entity_id.startswith("dep_")
+    assert {
+        key: dependency.metadata[key]
+        for key in (
+            "predecessor_task_id",
+            "successor_task_id",
+            "import_id",
+            "source_id",
+        )
+    } == {
+        "predecessor_task_id": _canonical_id("tsk", draft.id, "tmp_task_foundation"),
+        "successor_task_id": _canonical_id("tsk", draft.id, "tmp_task_wall"),
+        "import_id": draft.id,
+        "source_id": draft.source_id,
     }
 
 
@@ -1053,6 +1215,26 @@ def test_commit_failure_is_persisted_as_retryable_import_failed_state(
     assert failed.status is ProjectImportStatus.IMPORT_FAILED
     assert failed.failure_code == "import_commit_failed"
     assert failed.failure_message == "Project import commit failed and can be retried."
+    assert store.repository(ProjectPhase).list(draft.project_id) == ()
+    assert store.repository(Material).list(draft.project_id) == ()
+    assert store.repository(MaterialRequirement).list(draft.project_id) == ()
+    assert store.repository(MaterialLedgerEntry).list(draft.project_id) == ()
+    assert store.repository(ImportProvenance).list(draft.project_id) == ()
+    assert [task.title for task in store.repository(Task).list(draft.project_id)] == [
+        "Existing task"
+    ]
+    actions = {
+        activity.action for activity in store.repository(ActivityEvent).list(draft.project_id)
+    }
+    assert not actions.intersection(
+        {
+            "task.created",
+            "dependency.created",
+            "material.created",
+            "material.requirement.created",
+            "project.initialized",
+        }
+    )
 
     retry_store = InMemoryRepositoryStore()
     ProjectSourceService(retry_store).persist_text(

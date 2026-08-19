@@ -6,8 +6,9 @@ Project Initialization status: **partial** as of 2026-08-19. The phase notes
 below record prior slice-level implementation, but production completion is
 superseded by the open gates in
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md). Strict expected-failure
-regressions now preserve the remaining audited gaps until PI-05 through PI-14
-resolve them. PI-00 through PI-04 are complete locally: invalid complete drafts
+regressions now preserve the remaining audited gaps until PI-06 through PI-14
+resolve them. PI-00 through PI-05 and the canonical-import backend checkpoint are
+complete locally: invalid complete drafts
 remain reviewable, all persisted conflicts block confirmation, and the durable
 import lifecycle safely resumes exact extraction and commit claims after restart.
 Canonical import provenance is complete, trusted from persisted sources, and
@@ -15,6 +16,10 @@ resolvable through tenant-authorized target, dependency, and direct-record APIs.
 Canonical preflight now persists normalized duplicate/change/ambiguity conflicts
 before review, permits only wholly additive imports, and reruns under the commit
 transaction so concurrent canonical writes cannot create partial or duplicate truth.
+Validation and commit now share one immutable mutation plan containing every
+canonical/provenance/ledger/activity/import-state write and deterministic target
+ID. Oversized plans remain visible as blocked reviews, and commit rollback leaves
+only a safe retryable `IMPORT_FAILED` lifecycle record.
 
 ## Project Initialization — Phase 0 Domain Audit
 
@@ -37,7 +42,8 @@ of complete-draft validation and preserves unknown references, duplicate IDs,
 self-dependencies, dependency cycles, duplicate edges, incompatible material
 units, existing typed conflicts, and unresolved-reference warnings without
 repositories or canonical writes. Blocking results persist as
-`VALIDATION_FAILED`; exact write-plan accounting remains open under PI-05.
+`VALIDATION_FAILED`. PI-05 adds exact transaction-write and conservative document-size
+guards from the same immutable plan consumed by canonical commit.
 
 ## Project Initialization — Phase 3 Deterministic Importer
 
@@ -48,6 +54,9 @@ material requirements, provenance, import records, and activity atomically
 through the repository transaction boundary. Exact retries resume `CONFIRMED`,
 `IMPORTING`, or retryable `IMPORT_FAILED` records; mismatched claims conflict,
 and replaying an imported record is a durable no-op.
+PI-05 verifies that the prepared entity set and provenance targets cannot diverge
+from that validated plan before the transaction runs, and creation activities now
+use their canonical entity types plus source/import metadata.
 
 ## Project Initialization — Phase 4 Source Persistence
 
@@ -119,6 +128,13 @@ write-budget guard retained as a strict expected failure. Three Firestore
 lifecycle tests pass against the local emulator, including distinct-import
 duplicate suppression through a fresh client. Repository-wide Ruff/format and
 app-wide mypy pass.
+
+PI-05 verification: focused importer, validator, and review-API coverage passes
+51 tests, including exact attempted-write accounting, stable oversized-review
+blocking, canonical activity identities, and failure rollback with no partial
+truth. Twelve Firestore emulator tests pass for repository atomicity and
+fresh-client import replay/restart behavior. Locked dependency sync,
+repository-wide Ruff/format, app-wide mypy, and documentation checks pass.
 
 ## Project Initialization — Phase 9 Review UI
 

@@ -16,8 +16,8 @@ Overall status: **partial**. The checked implementation claims from the prior
 phase sequence are reopened as partial evidence until
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md) passes its production
 gates. Strict expected-failure tests track audited defects without misreporting
-them as passing behavior. PI-00 through PI-04 are complete locally; two strict
-expected failures remain for PI-05 and PI-09.
+them as passing behavior. PI-00 through PI-05 and the canonical-import backend
+checkpoint are complete locally; the remaining strict expected failure tracks PI-09.
 
 - [~] Phase 0 domain audit documents the existing canonical model, persistence,
   authorization, ADK boundary, and the concepts that must be created or extended.
@@ -26,15 +26,18 @@ expected failures remain for PI-05 and PI-09.
 - [~] Phase 2 deterministic validation rejects invalid references, duplicate or
   cyclic dependencies, and incompatible material units before canonical writes;
   unresolved references remain review warnings. PI-01 makes it the sole
-  complete-draft validation owner and persists invalid drafts with typed blockers;
-  exact write-plan accounting remains open under PI-05.
+  complete-draft validation owner and persists invalid drafts with typed blockers.
+  PI-05 shares one immutable exact write plan with commit and blocks transaction
+  or document limits without discarding the review draft.
 - [~] Phase 3 deterministic importer requires a persisted review and explicit
   confirmation, generates canonical IDs, commits the canonical model plus
   provenance/activity/inventory records, preserves imported fields, records
   retryable failures, persists separate confirmation/import claims, resumes exact
   claims after restart, and rejects mismatched retries. PI-03 makes provenance
   complete for every imported fact, sources its trusted metadata from persisted
-  project sources, and exposes tenant-authorized explanation lookups.
+  project sources, and exposes tenant-authorized explanation lookups. PI-05
+  verifies the prepared canonical/provenance/activity/import-state writes against
+  the validated plan before atomic commit and proves failure rollback is partial-free.
 - [~] Phase 4 persists first-class project sources with pasted text/checksum,
   durable metadata, creator/status, replay protection, and import linkage.
 - [~] Phase 5 structured text adapter accepts pasted text, Markdown, and OG
@@ -80,7 +83,8 @@ expected failures remain for PI-05 and PI-09.
   creations (`project.import.started`, `project.import.extracted`, `project.import.reviewed`,
   `project.initialized`, `task.created`, `dependency.created`, `material.created`,
   `material.requirement.created`), avoiding internal extraction spam while preserving audit
-  fields (actor, source, import ID, and timestamp).
+  fields (actor, source, import ID, and timestamp). PI-05 corrects each creation
+  event's canonical entity type and dependency target identity.
 - [~] Phase 17 provides deterministic, authorized canonical preflight through
   `ProjectImportDiffService`: normalized duplicate/change/ambiguous matches are
   persisted as review conflicts, only genuinely new entities remain additive,
