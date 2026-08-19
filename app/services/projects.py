@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 from hashlib import sha256
 
 from google.cloud import firestore
@@ -11,6 +12,7 @@ from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, en
 from app.domain.enums import ActorType, MemberRole, MemberStatus, ProjectStatus
 from app.domain.models import ActivityEvent, Project, ProjectMember
 from app.infrastructure.firestore import decode_firestore_value, encode_firestore_value
+from app.repositories.interfaces import EntityAlreadyExistsError
 
 
 class FirestoreProjectService:
@@ -47,7 +49,11 @@ class FirestoreProjectService:
         *,
         name: str,
         location: str,
+        description: str | None = None,
         timezone: str,
+        start_date: date | None = None,
+        target_end_date: date | None = None,
+        status: ProjectStatus = ProjectStatus.ACTIVE,
         idempotency_key: str,
     ) -> Project:
         digest = sha256(f"{actor.user_id}\x00{idempotency_key}".encode()).hexdigest()[:32]
@@ -55,8 +61,11 @@ class FirestoreProjectService:
             id=f"prj_{digest}",
             name=name,
             location=location,
+            description=description,
             timezone=timezone,
-            status=ProjectStatus.ACTIVE,
+            start_date=start_date,
+            target_end_date=target_end_date,
+            status=status,
             created_by=actor.user_id,
         )
         membership = ProjectMember(
@@ -84,7 +93,29 @@ class FirestoreProjectService:
             if existing.exists:
                 stored = Project.model_validate(decode_firestore_value(existing.to_dict() or {}))
                 if stored.created_by != actor.user_id:
-                    raise ValueError("idempotency key identifies another project")
+                    raise EntityAlreadyExistsError("idempotency key identifies another project")
+                requested_fields = (
+                    project.name,
+                    project.location,
+                    project.description,
+                    project.timezone,
+                    project.start_date,
+                    project.target_end_date,
+                    project.status,
+                )
+                stored_fields = (
+                    stored.name,
+                    stored.location,
+                    stored.description,
+                    stored.timezone,
+                    stored.start_date,
+                    stored.target_end_date,
+                    stored.status,
+                )
+                if stored_fields != requested_fields:
+                    raise EntityAlreadyExistsError(
+                        "idempotency key identifies another project mutation"
+                    )
                 return stored
             active_transaction.create(project_reference, encode_firestore_value(project))
             active_transaction.create(

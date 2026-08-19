@@ -780,6 +780,42 @@ p { font-size: 1.05rem; }
 .create-project-modal { position: relative; width: min(100%, 480px); padding: 34px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
 .create-project-modal h2 { max-width: 360px; margin-top: 16px; font-size: 2.6rem; }
 .modal-close { position: absolute; top: 15px; right: 17px; width: 36px; height: 36px; color: var(--ink-soft); background: var(--paper); border-radius: 50%; font-size: 1.4rem; cursor: pointer; }
+.new-project-page { min-height: 100vh; padding: 46px 0 80px; background: var(--paper); }
+.new-project-shell { width: min(920px, calc(100% - 40px)); }
+.new-project-card { padding: clamp(28px, 5vw, 54px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.new-project-card h1 { max-width: 720px; margin-top: 13px; font-size: clamp(2.6rem, 6vw, 4.5rem); line-height: 0.98; }
+.new-project-lede { max-width: 620px; margin-top: 16px; color: var(--ink-soft); line-height: 1.6; }
+.new-project-progress { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 46px; }
+.new-project-progress span { display: flex; min-height: 42px; align-items: center; gap: 9px; padding-bottom: 10px; color: var(--ink-faint); border-bottom: 2px solid var(--line); font-size: 0.76rem; font-weight: 800; }
+.new-project-progress span.active, .new-project-progress span.complete { color: var(--ink); border-color: var(--orange); }
+.new-project-progress b { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; color: var(--ink); background: var(--paper); border-radius: 50%; font-size: 0.7rem; }
+.new-project-progress span.active b, .new-project-progress span.complete b { background: var(--orange); }
+.new-project-form { display: grid; gap: 24px; margin-top: 34px; }
+.new-project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.new-project-form label:not(.setup-method) { display: grid; gap: 7px; color: var(--ink-soft); font-size: 0.78rem; font-weight: 800; }
+.new-project-form label > span:not(.setup-method-icon) { color: var(--ink-faint); font-weight: 650; }
+.new-project-form input:not([type="radio"]), .new-project-form textarea, .new-project-form select { width: 100%; min-height: 48px; padding: 0 13px; color: var(--ink); background: var(--paper); border: 1px solid var(--line-strong); border-radius: 10px; outline: none; font: inherit; font-weight: 600; }
+.new-project-form textarea { min-height: 108px; padding-top: 12px; resize: vertical; line-height: 1.5; }
+.new-project-form input:focus, .new-project-form textarea:focus, .new-project-form select:focus { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft); }
+.new-project-form .field-span { grid-column: 1 / -1; }
+.new-project-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+.form-alert { padding: 12px 14px; color: var(--red); background: var(--red-soft); border-radius: 10px; font-size: 0.82rem; font-weight: 750; }
+.setup-methods { display: grid; gap: 12px; border: 0; }
+.setup-method { position: relative; display: grid; grid-template-columns: 22px 44px minmax(0, 1fr); min-height: 100px; align-items: center; gap: 13px; padding: 17px; background: var(--paper); border: 1px solid var(--line-strong); border-radius: 13px; cursor: pointer; }
+.setup-method.selected { border-color: var(--orange-deep); box-shadow: 0 0 0 3px var(--orange-soft); }
+.setup-method input { width: 18px; height: 18px; accent-color: var(--orange-deep); }
+.setup-method-icon { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; color: var(--orange-deep); background: var(--orange-soft); border-radius: 11px; }
+.setup-method > span:last-child { display: grid; gap: 5px; }
+.setup-method strong { color: var(--ink); font-size: 0.96rem; }
+.setup-method small { color: var(--ink-soft); font-size: 0.78rem; line-height: 1.45; }
+.project-draft-summary { display: grid; gap: 3px; padding: 15px 17px; background: var(--paper); border-left: 3px solid var(--orange); }
+.project-draft-summary span { color: var(--ink-faint); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.project-draft-summary small { color: var(--ink-soft); }
+.setup-handoff { max-width: 760px; padding: clamp(24px, 5vw, 50px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.setup-handoff-icon { display: inline-flex; width: 50px; height: 50px; align-items: center; justify-content: center; margin-bottom: 24px; color: var(--orange-deep); background: var(--orange-soft); border-radius: 13px; }
+.setup-handoff h1 { max-width: 620px; margin-top: 13px; font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1; }
+.setup-handoff > p { max-width: 590px; margin-top: 16px; color: var(--ink-soft); line-height: 1.6; }
+.setup-handoff-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
 .material-create-modal { width: min(100%, 760px); max-height: min(90vh, 820px); overflow-y: auto; }
 .material-create-modal h2 { max-width: 560px; }
 .material-create-intro { margin-top: 10px; color: var(--ink-soft); font-size: 0.86rem; }
@@ -895,6 +931,18 @@ p { font-size: 1.05rem; }
   h1 { font-size: clamp(3rem, 15vw, 4.8rem); }
   h2 { font-size: clamp(2.35rem, 12vw, 3.5rem); }
   .btn { width: 100%; }
+  .new-project-page { padding: 20px 0 48px; }
+  .new-project-shell { width: min(100% - 24px, 920px); }
+  .new-project-card { padding: 25px 18px; }
+  .new-project-card h1 { font-size: clamp(2.5rem, 13vw, 3.5rem); }
+  .new-project-progress { margin-bottom: 32px; }
+  .new-project-progress span { align-items: flex-start; flex-direction: column; }
+  .new-project-grid { grid-template-columns: 1fr; }
+  .new-project-form .field-span { grid-column: auto; }
+  .new-project-actions { align-items: stretch; flex-direction: column-reverse; }
+  .setup-method { grid-template-columns: 20px minmax(0, 1fr); }
+  .setup-method-icon { display: none; }
+  .setup-handoff-actions { align-items: stretch; flex-direction: column; }
   .import-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .import-summary > div { border-right: 1px solid var(--line); }
   .import-summary > div:nth-child(2n) { border-right: 0; }

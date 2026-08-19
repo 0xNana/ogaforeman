@@ -2,7 +2,7 @@
 
 ## Status
 
-Active implementation plan. PI-00 through PI-04 are complete locally; later
+Active implementation plan. PI-00 through PI-06 are complete locally; later
 tasks remain incomplete until their acceptance criteria and verification
 commands pass. This plan closes the gaps found while auditing the current
 implementation against [`PROJECT_INIT.md`](PROJECT_INIT.md).
@@ -551,17 +551,26 @@ exceeded.
 
 **Work**
 
-- [ ] Replace the New Project modal-only path with `/projects/new`.
-- [ ] Collect the complete supported project fields with validation and accessible
+- [x] Replace the New Project modal-only path with `/projects/new`.
+- [x] Collect the complete supported project fields with validation and accessible
   mobile/desktop states.
-- [ ] Add the setup-method choice: import existing plan or start empty.
-- [ ] Keep the project-creation idempotency key stable across retries.
+- [x] Add the setup-method choice: import existing plan or start empty.
+- [x] Keep the project-creation idempotency key stable across retries.
 
 **Acceptance**
 
-- [ ] Every New Project entry point begins the same wizard.
-- [ ] A timeout/retry creates exactly one project.
-- [ ] Successful creation immediately establishes a reload-safe project setup URL.
+- [x] Every New Project entry point begins the same wizard.
+- [x] A timeout/retry creates exactly one project.
+- [x] Successful creation immediately establishes a reload-safe project setup URL.
+
+Completed locally on 2026-08-19. The dedicated two-step wizard persists its
+bounded draft and caller-owned creation claim in session storage, restores them
+after reload, and replaces the browser location with
+`/projects/{project_id}/setup?method=import|empty` as soon as creation succeeds.
+The additive create-project API persists description, dates, and status; exact
+Firestore replay returns one project and one activity, while a mismatched replay
+is rejected. Desktop and mobile Chromium exercise the committed-response-loss
+case and pass the wizard's WCAG A/AA scan. Structured source entry remains PI-07.
 
 **Verification**
 

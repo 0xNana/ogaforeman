@@ -1,17 +1,25 @@
-export type ProjectStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED';
+export type ProjectStatus = 'PLANNING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
+export type CreateProjectStatus = 'planning' | 'active' | 'paused';
 
 export type Project = {
   id: string;
   name: string;
   location: string;
+  description?: string | null;
   status: ProjectStatus;
   timezone: string;
+  start_date?: string | null;
+  target_end_date?: string | null;
 };
 
 export type CreateProjectInput = {
   name: string;
   location: string;
+  description?: string | null;
   timezone: string;
+  start_date?: string | null;
+  target_end_date?: string | null;
+  status?: CreateProjectStatus;
 };
 
 export type BootstrapUser = {
@@ -514,12 +522,12 @@ export const api = {
     const response = await remote<{ data: Project[] }>('/api/v1/projects');
     return response.data;
   },
-  createProject: async (input: CreateProjectInput): Promise<Project> => remote<Project>(
+  createProject: async (input: CreateProjectInput, idempotencyKey: string): Promise<Project> => remote<Project>(
     '/api/v1/projects',
     {
       method: 'POST',
       body: JSON.stringify(input),
-      headers: { 'Idempotency-Key': `project:${crypto.randomUUID()}` },
+      headers: { 'Idempotency-Key': idempotencyKey },
     },
   ),
   getProject: async (id: string): Promise<Project> => {

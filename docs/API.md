@@ -90,6 +90,15 @@ GET    /projects/{project_id}/members
 POST   /projects/{project_id}/members
 ```
 
+`POST /projects` accepts `name`, `location`, `timezone`, optional `description`,
+optional ISO `start_date` and `target_end_date`, and an optional lowercase project
+`status`. Existing clients that omit status retain the `active` default; the New
+Project wizard explicitly starts projects in `planning`. The caller owns the
+required `Idempotency-Key` and must reuse it after a timeout. An exact replay
+returns the original project, while reusing the key with different project fields
+returns `409 DUPLICATE_IDEMPOTENCY_KEY`. Project creation atomically writes the
+project, administrator membership, and `project.created` activity.
+
 ### Project State
 
 ```text

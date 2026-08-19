@@ -162,7 +162,11 @@ async def test_bootstrap_and_project_onboarding_are_persisted_and_project_scoped
             json={
                 "name": "Ridge House",
                 "location": "East Legon, Accra",
+                "description": "Three-bedroom residential build",
                 "timezone": "Africa/Accra",
+                "start_date": "2026-09-01",
+                "target_end_date": "2027-04-30",
+                "status": "planning",
             },
             headers={
                 "Authorization": "Bearer admin-token",
@@ -174,7 +178,27 @@ async def test_bootstrap_and_project_onboarding_are_persisted_and_project_scoped
             json={
                 "name": "Ridge House",
                 "location": "East Legon, Accra",
+                "description": "Three-bedroom residential build",
                 "timezone": "Africa/Accra",
+                "start_date": "2026-09-01",
+                "target_end_date": "2027-04-30",
+                "status": "planning",
+            },
+            headers={
+                "Authorization": "Bearer admin-token",
+                "Idempotency-Key": "project:ridge-house:001",
+            },
+        )
+        conflicting_replay = await api.post(
+            "/api/v1/projects",
+            json={
+                "name": "Different Project",
+                "location": "East Legon, Accra",
+                "description": "Three-bedroom residential build",
+                "timezone": "Africa/Accra",
+                "start_date": "2026-09-01",
+                "target_end_date": "2027-04-30",
+                "status": "planning",
             },
             headers={
                 "Authorization": "Bearer admin-token",
@@ -203,7 +227,13 @@ async def test_bootstrap_and_project_onboarding_are_persisted_and_project_scoped
     assert bootstrap_replay.json()["id"] == bootstrap.json()["id"]
     assert other_bootstrap.status_code == 200
     assert created.status_code == 201
+    assert created.json()["description"] == "Three-bedroom residential build"
+    assert created.json()["start_date"] == "2026-09-01"
+    assert created.json()["target_end_date"] == "2027-04-30"
+    assert created.json()["status"] == "PLANNING"
     assert created_replay.json() == created.json()
+    assert conflicting_replay.status_code == 409
+    assert conflicting_replay.json()["error"]["code"] == "DUPLICATE_IDEMPOTENCY_KEY"
     assert projects.json()["data"] == [created.json()]
     assert project.json() == created.json()
     assert snapshot.status_code == 200

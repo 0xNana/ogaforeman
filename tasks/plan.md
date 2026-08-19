@@ -6,8 +6,8 @@ Project Initialization status: **partial** as of 2026-08-19. The phase notes
 below record prior slice-level implementation, but production completion is
 superseded by the open gates in
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md). Strict expected-failure
-regressions now preserve the remaining audited gaps until PI-06 through PI-14
-resolve them. PI-00 through PI-05 and the canonical-import backend checkpoint are
+regressions now preserve the remaining audited gaps until PI-07 through PI-14
+resolve them. PI-00 through PI-06 and the canonical-import backend checkpoint are
 complete locally: invalid complete drafts
 remain reviewable, all persisted conflicts block confirmation, and the durable
 import lifecycle safely resumes exact extraction and commit claims after restart.
@@ -20,6 +20,12 @@ Validation and commit now share one immutable mutation plan containing every
 canonical/provenance/ledger/activity/import-state write and deterministic target
 ID. Oversized plans remain visible as blocked reviews, and commit rollback leaves
 only a safe retryable `IMPORT_FAILED` lifecycle record.
+
+PI-06 replaces every modal-only New Project action with one `/projects/new`
+wizard, persists all supported project details and a reload-stable caller-owned
+creation claim, and establishes a project-scoped setup URL immediately after an
+exactly-once create. The setup choice is explicit from the start: import an
+existing plan or begin empty. The import-source editor remains scoped to PI-07.
 
 ## Project Initialization — Phase 0 Domain Audit
 
@@ -135,6 +141,13 @@ blocking, canonical activity identities, and failure rollback with no partial
 truth. Twelve Firestore emulator tests pass for repository atomicity and
 fresh-client import replay/restart behavior. Locked dependency sync,
 repository-wide Ruff/format, app-wide mypy, and documentation checks pass.
+
+PI-06 verification: the required frontend project suite passes 12 tests, with
+ESLint and TypeScript clean. Firestore onboarding coverage passes three tests for
+full-field persistence, exact replay, one activity, and mismatched-claim rejection.
+Production-build Playwright passes the lost-response retry journey in desktop and
+mobile Chromium, including the wizard's WCAG A/AA scan and project-scoped setup
+handoff.
 
 ## Project Initialization — Phase 9 Review UI
 

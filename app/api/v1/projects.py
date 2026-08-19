@@ -1,9 +1,13 @@
+from datetime import date
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
 from app.domain.authorization import AuthenticatedUser
+from app.domain.enums import ProjectStatus
 from app.domain.models import (
     ActivityEvent,
     Approval,
@@ -26,8 +30,11 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     location: str
+    description: str | None
     status: str
     timezone: str
+    start_date: date | None
+    target_end_date: date | None
 
 
 class ProjectListResponse(BaseModel):
@@ -35,9 +42,39 @@ class ProjectListResponse(BaseModel):
 
 
 class CreateProjectRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
     name: str = Field(min_length=1, max_length=200)
     location: str = Field(min_length=1, max_length=500)
+    description: str | None = Field(default=None, max_length=5_000)
     timezone: str = Field(min_length=1, max_length=100)
+    start_date: date | None = None
+    target_end_date: date | None = None
+    status: ProjectStatus = ProjectStatus.ACTIVE
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("timezone must be a valid IANA timezone") from exc
+        return value
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        return value or None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "CreateProjectRequest":
+        if (
+            self.start_date is not None
+            and self.target_end_date is not None
+            and self.target_end_date < self.start_date
+        ):
+            raise ValueError("target_end_date cannot be before start_date")
+        return self
 
 
 def project_response(project: Project) -> ProjectResponse:
@@ -45,8 +82,11 @@ def project_response(project: Project) -> ProjectResponse:
         id=project.id,
         name=project.name,
         location=project.location,
+        description=project.description,
         status=project.status.value.upper(),
         timezone=project.timezone,
+        start_date=project.start_date,
+        target_end_date=project.target_end_date,
     )
 
 
@@ -76,7 +116,11 @@ def create_project(payload: CreateProjectRequest, request: Request) -> ProjectRe
         actor,
         name=payload.name,
         location=payload.location,
+        description=payload.description,
         timezone=payload.timezone,
+        start_date=payload.start_date,
+        target_end_date=payload.target_end_date,
+        status=payload.status,
         idempotency_key=require_idempotency_key(request),
     )
     return project_response(project)

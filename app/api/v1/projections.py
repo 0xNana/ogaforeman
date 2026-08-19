@@ -75,8 +75,13 @@ def project_snapshot_projection(
             "id": project.id,
             "name": project.name,
             "location": project.location,
+            "description": project.description,
             "status": project.status.value.upper(),
             "timezone": project.timezone,
+            "start_date": project.start_date.isoformat() if project.start_date else None,
+            "target_end_date": (
+                project.target_end_date.isoformat() if project.target_end_date else None
+            ),
         },
         "tasks": [
             task_projection(

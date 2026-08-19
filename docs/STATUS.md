@@ -51,9 +51,11 @@ before review and reruns its additive-only preflight inside the commit transacti
 PI-05 makes validation and commit consume the same immutable exact mutation plan,
 blocks oversized transaction/document plans while preserving their reviews, and
 corrects canonical creation-activity identity and provenance metadata. The
-canonical-import backend checkpoint is complete. One strict expected failure still
-covers task-incorrect shortage calculation. The New Project import journey and
-PI-06 through PI-14 remain open.
+canonical-import backend checkpoint is complete. PI-06 adds the dedicated New
+Project wizard, complete project fields, explicit import-or-empty setup choice,
+stable creation replay, and the project-scoped setup handoff. One strict expected
+failure still covers task-incorrect shortage calculation. Structured source entry
+and PI-07 through PI-14 remain open.
 
 Project Initialization Phase 1 has partial local implementation: strict, schema-versioned
 Pydantic contracts cover import drafts, draft-only temporary references,
@@ -271,6 +273,18 @@ Project Initialization PI-05 and backend-checkpoint verification on 2026-08-19:
   12 passed against the local emulator
 - locked dependency sync, repository-wide Ruff check/format, app-wide mypy, and
   documentation validation: passed
+
+Project Initialization PI-06 verification on 2026-08-19:
+
+- required frontend project gate: 12 passed; ESLint and TypeScript passed
+- complete create-project request validation and domain regressions: 15 passed
+- Firestore onboarding, exact replay, one-activity, full-field persistence, and
+  mismatched-claim rejection: 3 passed against the local emulator
+- production-build Playwright lost-response retry journey: passed in desktop and
+  mobile Chromium; the wizard has no WCAG A/AA violations in the scanned state
+- `npm ci` completed from the lockfile; `npm audit --audit-level=high` reports no
+  high or critical vulnerabilities (five moderate issues remain in the
+  `firebase-tools` development dependency chain)
 
 Project Initialization PI-01 verification on 2026-08-19:
 

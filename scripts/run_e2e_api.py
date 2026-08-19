@@ -56,6 +56,7 @@ from app.infrastructure.firestore import create_firestore_client, encode_firesto
 from app.infrastructure.storage import SignedUpload, StoredObject
 from app.repositories.firestore import FirestoreRepositoryStore
 from app.repositories.interfaces import RepositoryStore
+from app.repositories.membership import MembershipRepository
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.attachments import AttachmentService
 from app.services.outbox import OutboxService
@@ -318,6 +319,7 @@ class LocalE2ERuntime:
         else:
             self.store = InMemoryRepositoryStore()
             self.projects = SeededProjectService(project)
+        self.memberships = MembershipRepository(self.store.repository(ProjectMember))
         self.interpreter = DeterministicE2ESiteInterpreter()
         self.event_transport = LocalE2EEventTransport(
             self.store,
@@ -377,15 +379,11 @@ class LocalE2ERuntime:
         project_id: str,
         permission: ProjectPermission = ProjectPermission.READ,
     ) -> ProjectAccessContext:
-        if project_id != PROJECT_ID:
-            raise ApiError(
-                "AUTH_PROJECT_FORBIDDEN",
-                "You do not have access to this project.",
-                status_code=403,
-            )
-        actor = self.authenticate(request)
-        role = MemberRole.ADMIN
-        return ProjectAccessContext(actor=actor, project_id=project_id, role=role)
+        return self.memberships.require_access(
+            self.authenticate(request),
+            project_id,
+            permission,
+        )
 
     def _seed(self) -> None:
         self.store.repository(ProjectMember).create(
