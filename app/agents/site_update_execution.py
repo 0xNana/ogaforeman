@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 from google.adk.runners import Runner
 from google.genai import types
@@ -21,9 +21,10 @@ from app.domain.authorization import (
 from app.domain.activity import MutationContext, WorkflowActivityAction
 from app.agents.interpreter import MediaEvidence
 from app.agents.adk_runtime import (
-    build_site_update_workflow,
-    create_session_service,
+    build_site_update_app,
+    managed_session_service,
     session_app_name,
+    sqlite_session_execution_guard,
 )
 from app.domain.enums import ActorType, AgentRunStatus, AttachmentUploadStatus, ProcessingStatus
 from app.domain.events import EventActorType, EventSource, EventType, ProjectEvent
@@ -42,7 +43,7 @@ from app.services.tasks import TaskService
 from app.services.workflow_audit import WorkflowAuditService
 from app.tools.materials import MaterialTools
 from app.tools.tasks import TaskTools
-from app.workflows.runtime import run_id_for_event
+from app.repositories.runs import run_id_for_event
 
 
 logger = logging.getLogger("ogaforeman.agents.site_update")
@@ -107,6 +108,9 @@ class SiteUpdateEventExecutor:
                 run_id=run_id,
                 trace_id=trace_id,
                 attempt=claim_attempt,
+                # Persist the namespace together with the session cursor so a
+                # restarted worker can find the exact ADK session even when a
+                # local/test repository object is reconstructed.
                 adk_session_id=f"{adk_app_name}/{adk_session_id}",
                 adk_invocation_id=event.event_id,
                 adk_workflow_id="daily_site_update_workflow",
@@ -213,24 +217,26 @@ class SiteUpdateEventExecutor:
                 workflow_failure.append(exc)
                 return {"status": "failed", "_adk_failure": True}
 
-        agent = build_site_update_workflow(
+        app = build_site_update_app(
+            adk_app_name,
             adk_execute,
             timeout_seconds=self._settings.agent_workflow_timeout_seconds,
         )
-        runner = Runner(
-            # Scope the ADK session namespace to the canonical run. This keeps
-            # independent project runs isolated while allowing retries to
-            # resume the exact same ADK session.
-            app_name=adk_app_name,
-            # ADK 2.6.2 accepts Workflow roots at runtime, but its published
-            # Runner annotation still narrows this parameter to BaseAgent.
-            agent=cast(Any, agent),
-            session_service=create_session_service(self._settings),
-            auto_create_session=True,
-        )
         output: dict[str, Any] | None = None
         try:
-            async with asyncio.timeout(self._settings.agent_workflow_timeout_seconds):
+            async with (
+                managed_session_service(self._settings) as session_service,
+                sqlite_session_execution_guard(self._settings),
+                asyncio.timeout(self._settings.agent_workflow_timeout_seconds),
+            ):
+                runner = Runner(
+                    # Scope the ADK session namespace to the canonical run. This keeps
+                    # independent project runs isolated while allowing retries to
+                    # resume the exact same ADK session.
+                    app=app,
+                    session_service=session_service,
+                    auto_create_session=True,
+                )
                 async for agent_event in runner.run_async(
                     user_id=access.actor.user_id,
                     session_id=adk_session_id,

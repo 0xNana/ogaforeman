@@ -1,5 +1,6 @@
-import os
 from dataclasses import dataclass
+from datetime import UTC, datetime
+import os
 from uuid import uuid4
 
 import pytest
@@ -20,7 +21,13 @@ from app.domain.authorization import (
     RoleRequiredError,
 )
 from app.domain.enums import MemberRole, MemberStatus, UserStatus
+from app.domain.import_records import (
+    ImportProvenance,
+    ImportProvenanceTargetType,
+    import_provenance_id,
+)
 from app.domain.models import ProjectMember, Task, User
+from app.domain.project_import import SourceType
 from app.repositories.memory import InMemoryRepository
 from app.repositories.membership import (
     AuthorizedProjectRepository,
@@ -255,6 +262,39 @@ def test_authorized_repository_rejects_cross_project_and_viewer_mutations() -> N
         viewer_repository.create(
             Task(id="tsk_new", project_id="prj_ridge", title="Unauthorized task")
         )
+
+
+def test_authorized_repository_never_reads_cross_project_import_provenance() -> None:
+    target_id = "tsk_imported123"
+    provenance_id = import_provenance_id(ImportProvenanceTargetType.TASK, target_id)
+    records = InMemoryRepository(ImportProvenance)
+    records.create(
+        ImportProvenance(
+            id=provenance_id,
+            project_id="prj_other",
+            import_id="imp_other123",
+            source_id="src_other123",
+            source_checksum="c" * 64,
+            source_type=SourceType.MARKDOWN,
+            source_name="other-plan.md",
+            target_entity_type=ImportProvenanceTargetType.TASK,
+            target_entity_id=target_id,
+            imported_by="usr_other123",
+            imported_at=datetime(2026, 8, 19, 12, 0, tzinfo=UTC),
+            idempotency_key="project-import:other:task",
+        )
+    )
+    memberships = MembershipRepository(InMemoryRepository(ProjectMember))
+    viewer = AuthenticatedUser(user_id="usr_viewer", subject="subject-viewer")
+    memberships.add(make_member(viewer.user_id, MemberRole.VIEWER))
+    authorized = AuthorizedProjectRepository(
+        records,
+        memberships.require_access(viewer, "prj_ridge", ProjectPermission.READ),
+    )
+
+    assert authorized.get("prj_ridge", provenance_id) is None
+    with pytest.raises(ProjectForbiddenError):
+        authorized.get("prj_other", provenance_id)
 
 
 def test_authorized_repository_transaction_keeps_project_scope_and_role_checks() -> None:

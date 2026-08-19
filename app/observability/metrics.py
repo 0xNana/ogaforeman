@@ -121,7 +121,13 @@ metrics = MetricRegistry(
         "method": frozenset({"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"}),
         "status_class": frozenset({"2xx", "3xx", "4xx", "5xx"}),
         "workflow": frozenset(
-            {"daily_site_update", "material_shortage", "blocker_delay", "daily_brief"}
+            {
+                "daily_site_update",
+                "material_shortage",
+                "blocker_delay",
+                "daily_brief",
+                "approval_continuation",
+            }
         ),
     }
 )

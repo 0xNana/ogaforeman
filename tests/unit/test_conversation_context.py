@@ -90,6 +90,29 @@ def access(project_id: str = PROJECT_ID) -> ProjectAccessContext:
                 ContextDomain.DAILY_LOGS,
             },
         ),
+        (
+            "What does plastering need?",
+            {ContextDomain.TASKS, ContextDomain.MATERIALS, ContextDomain.MATERIAL_REQUIREMENTS},
+        ),
+        (
+            "How much cement does plastering require?",
+            {ContextDomain.TASKS, ContextDomain.MATERIALS, ContextDomain.MATERIAL_REQUIREMENTS},
+        ),
+        (
+            "What's after foundation?",
+            {ContextDomain.TASKS, ContextDomain.SCHEDULE},
+        ),
+        (
+            "What happens if electrical slips?",
+            {
+                ContextDomain.PROJECT,
+                ContextDomain.TASKS,
+                ContextDomain.ISSUES,
+                ContextDomain.MATERIALS,
+                ContextDomain.APPROVALS,
+                ContextDomain.SCHEDULE,
+            },
+        ),
     ],
 )
 def test_query_planner_selects_only_relevant_domains(

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agents.conversation import IntentRoutingService
+from app.agents.conversation_execution import AdkConversationExecutor
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
 from app.domain.authorization import ProjectAccessContext, ProjectPermission
@@ -51,6 +52,7 @@ from app.services.site_update_intake import SiteUpdateAttachmentError, SiteUpdat
 from app.services.product_knowledge import is_product_help_question
 from app.services.project_setup import ProjectSetupService, is_project_setup_question
 from app.repositories.interfaces import VersionConflictError
+from app.config.settings import get_settings
 
 from .projects import auth_runtime
 
@@ -386,9 +388,7 @@ async def send_message(
                     intent=IntentType.CLARIFICATION_RESPONSE.value,
                 )
             try:
-                pending_batch = TaskActionBatchInterpretation.model_validate_json(
-                    action_json
-                )
+                pending_batch = TaskActionBatchInterpretation.model_validate_json(action_json)
             except ValueError as exc:
                 memory_service.clear_active_clarification(access)
                 raise ApiError(
@@ -406,8 +406,7 @@ async def send_message(
                 ):
                     return ConversationMessageResponse(
                         kind="clarification",
-                        text=memory.pending_clarification
-                        or "Which specific task do you mean?",
+                        text=memory.pending_clarification or "Which specific task do you mean?",
                         intent=IntentType.CLARIFICATION_RESPONSE.value,
                     )
                 reference = memory.active_clarification.entity_reference.casefold()
@@ -611,18 +610,25 @@ async def send_message(
                 "OG project actions are temporarily unavailable.",
                 status_code=503,
             )
-        outcome = await ConversationActionExecutionService(
+        action_service = ConversationActionExecutionService(
             runtime.store,
             runtime.projects,
             interpreter,
             member_names=getattr(runtime, "project_member_names", None),
             schedules=getattr(request.app.state, "conversation_schedule_service", None),
             proposal_signing_key=_proposal_signing_key(request),
-        ).execute(
-            access,
-            payload.message,
-            idempotency_key=key,
-            clarification_interpretation=clarification_interpretation,
+        )
+        settings = getattr(request.app.state, "settings", None) or get_settings()
+        outcome = await AdkConversationExecutor(runtime.store, settings).execute(
+            session_id=f"conversation-{access.actor.user_id}",
+            invocation_id=key,
+            message=payload.message,
+            action=lambda: action_service.execute(
+                access,
+                payload.message,
+                idempotency_key=key,
+                clarification_interpretation=clarification_interpretation,
+            ),
         )
         return ConversationMessageResponse(
             kind=outcome.kind,

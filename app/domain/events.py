@@ -218,6 +218,7 @@ class ProjectEvent(DomainModel):
             if not math.isfinite(float(quantity)) or quantity < 0:
                 raise ValueError("quantity cannot be negative")
             _validate_required_text(self.payload["unit"], "unit", 100)
+            _validate_optional_text(self.payload, "supplier", max_length=500)
         if self.event_type is EventType.DELIVERY_DELAYED:
             _validate_iso_date(self.payload["new_date"], "new_date")
             _validate_required_text(self.payload["reason"], "reason", 5_000)

@@ -70,18 +70,35 @@ class ConversationResponseService:
                 "and I'll start organizing it."
             )
         name = status.project_name or "The project"
-        if status.readiness_state is not ProjectReadinessState.ACTIVE:
+        if status.readiness_state is ProjectReadinessState.EMPTY:
             return _project_reply(
                 f"{name} is created, but it's still mostly empty. The fastest way to get it going "
                 "is to tell me what's happening on site today — work underway, materials on hand, "
                 "blockers, or what's planned next."
             )
-        facts = [f"You have {_count(status.task_count, 'task')}"]
+        if status.readiness_state is ProjectReadinessState.PARTIALLY_CONFIGURED:
+            return _project_reply(
+                f"{name} has some project records, but it needs tasks before OG can reason "
+                "usefully about the work."
+            )
+        facts = [f"I have {_count(status.task_count, 'task')}"]
+        if status.dependency_count:
+            facts.append(f"{status.dependency_count} dependencies")
+        if status.material_requirement_task_count:
+            facts.append(
+                "material requirements for "
+                + _count(status.material_requirement_task_count, "task")
+            )
+        if status.planned_tasks_without_material_requirements:
+            facts.append(
+                f"{status.planned_tasks_without_material_requirements} planned activities "
+                "without material requirements"
+            )
         if status.open_issue_count:
             facts.append(f"{_count(status.open_issue_count, 'open issue')}")
         if status.has_materials:
             facts.append("materials are being tracked")
-        return _project_reply(f"Yes. {name} is set up and active. " + _join_facts(facts) + ".")
+        return _project_reply(f"Yes. {name} is operational. " + _join_facts(facts) + ".")
 
     def project(self, context: ConversationalProjectContext) -> ConversationReply:
         focus = context.query.focus
@@ -161,7 +178,12 @@ def _overview(context: ConversationalProjectContext) -> ConversationReply:
 
 
 def _entity_status(context: ConversationalProjectContext) -> ConversationReply:
-    if not context.tasks and not context.issues and not context.materials:
+    if (
+        not context.tasks
+        and not context.issues
+        and not context.materials
+        and not context.material_requirements
+    ):
         return _project_reply("I can't find a matching activity in this project.")
     if context.tasks:
         task = context.tasks[0]
@@ -173,13 +195,45 @@ def _entity_status(context: ConversationalProjectContext) -> ConversationReply:
             text += f" {task.assignee_name} is assigned."
         if task.actual_completion:
             text += f" It was completed on {task.actual_completion.date().isoformat()}."
+
         issue = next((item for item in context.issues if task.id in item.task_ids), None)
+        refs = [task.id]
         if issue:
             text += f" Blocker: {_sentence(issue.description)}"
-            return _project_reply(text, (task.id, issue.id))
-        return _project_reply(text, (task.id,))
-    issue = context.issues[0]
-    return _project_reply(_sentence(issue.description), (issue.id,))
+            refs.append(issue.id)
+
+        search_terms = context.query.search_terms
+        if any(term in ("after", "slips", "delayed", "happens") for term in search_terms):
+            dependents = [t for t in context.tasks if task.id in t.dependency_ids]
+            if dependents:
+                text += f" {', '.join(t.title for t in dependents)} depends on it."
+                refs.extend(t.id for t in dependents)
+            else:
+                text += " Nothing depends on it."
+
+        if (
+            any(term in ("need", "needs", "require", "requires") for term in search_terms)
+            and context.material_requirements
+        ):
+            reqs = [r for r in context.material_requirements if r.task_id == task.id]
+            if reqs:
+                mat_dict = {m.id: m.name for m in context.materials}
+                req_texts = [
+                    f"{_quantity(r.required_quantity)} {r.unit} of {mat_dict.get(r.material_id, 'material')}"
+                    for r in reqs
+                ]
+                text += f" It requires {' and '.join(req_texts)}."
+                refs.extend(r.id for r in reqs)
+
+        return _project_reply(text, refs)
+    if context.issues:
+        issue = context.issues[0]
+        return _project_reply(_sentence(issue.description), (issue.id,))
+    material = context.materials[0]
+    return _project_reply(
+        f"{material.name} has {_quantity(material.available_quantity)} {material.unit} available.",
+        (material.id,),
+    )
 
 
 def _today(context: ConversationalProjectContext) -> ConversationReply:

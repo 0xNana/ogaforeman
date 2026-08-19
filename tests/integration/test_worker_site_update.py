@@ -35,7 +35,7 @@ from app.domain.models import (
 )
 from app.repositories.memory import InMemoryRepositoryStore
 from app.worker import EventPayloadMismatchError, process_event_async
-from app.workflows.runtime import run_id_for_event
+from app.repositories.runs import run_id_for_event
 
 
 NOW = datetime(2026, 8, 8, 10, 0, tzinfo=UTC)

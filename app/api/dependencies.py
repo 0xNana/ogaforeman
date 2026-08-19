@@ -7,7 +7,7 @@ from typing import Callable
 from fastapi import Request
 from pydantic import TypeAdapter, ValidationError
 
-from app.domain.authorization import ProjectAccessContext, ProjectPermission
+from app.domain.authorization import ProjectAccessContext, ProjectPermission, ensure_project_scope
 from app.domain.models import IdempotencyKey
 
 from .errors import ApiError, RequestContext, get_request_id
@@ -71,6 +71,12 @@ def configured_project_access(
         raise ApiError(
             "AUTH_PROJECT_FORBIDDEN", "Project access could not be established.", status_code=403
         )
+    try:
+        ensure_project_scope(access, project_id)
+    except PermissionError as exc:
+        raise ApiError(
+            "AUTH_PROJECT_FORBIDDEN", "Project access could not be established.", status_code=403
+        ) from exc
     return access
 
 

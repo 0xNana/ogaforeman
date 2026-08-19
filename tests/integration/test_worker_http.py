@@ -20,7 +20,7 @@ from app.domain.models import AgentRun, ProcessedEvent, ProjectMember, SiteUpdat
 from app.infrastructure.pubsub import PubSubClient
 from app.repositories.memory import InMemoryRepositoryStore
 from app.worker_http import create_worker_app
-from app.workflows.runtime import run_id_for_event
+from app.repositories.runs import run_id_for_event
 
 
 def _event_bytes() -> bytes:

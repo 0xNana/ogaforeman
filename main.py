@@ -13,6 +13,8 @@ from app.api.events import router as event_router
 from app.api.health import create_runtime_health_router
 from app.api.runtime_auth import ConfiguredAuthRuntime
 from app.api.uploads import router as upload_router
+from app.agents.project_import_execution import AdkProjectImportExecutor
+from app.agents.project_import_extraction import GeminiProjectImportExtractor
 from app.api.v1.router import api_router
 from app.config import get_settings
 from app.infrastructure.pubsub import PubSubClient
@@ -51,6 +53,11 @@ if settings.auth_audience:
         app.state.intent_classifier = GeminiIntentClassifier(settings)
         app.state.action_interpreter = GeminiActionInterpreter(settings)
         app.state.clarification_resolver = GeminiClarificationResolver(settings)
+        app.state.project_import_draft_extractor = AdkProjectImportExecutor(
+            app.state.auth_runtime.store,
+            settings,
+            GeminiProjectImportExtractor(settings),
+        )
         if settings.conversation_proposal_signing_key is not None:
             app.state.conversation_proposal_signing_key = (
                 settings.conversation_proposal_signing_key.get_secret_value().encode()

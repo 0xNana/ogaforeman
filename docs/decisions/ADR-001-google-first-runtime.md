@@ -10,7 +10,7 @@ The product depends on structured agent reasoning, workflow fan-out/fan-in, retr
 
 ## Decision
 
-Use Google ADK 2.x for coordinator/specialist agents and workflow orchestration. Deploy the API and worker on Cloud Run, use Firestore for state, Cloud Storage for media, Pub/Sub/Eventarc for events, and Cloud Logging/Trace for observability.
+Use Google ADK 2.x Runner/SessionService for agentic execution and workflow orchestration. Deploy the API and worker on Cloud Run, use Firestore for state, Cloud Storage for media, Pub/Sub/Eventarc for events, and Cloud Logging/Trace for observability. Legacy route maps and manual resume code are migration-only and are not execution authority.
 
 ## Consequences
 
@@ -19,6 +19,13 @@ Use Google ADK 2.x for coordinator/specialist agents and workflow orchestration.
 - Deployment is Google-specific in V1, but domain/application layers remain provider-agnostic behind interfaces.
 
 ## Responsibility boundaries
+
+All AI-mediated, autonomous, event-driven, and resumable workflows in OG
+Foreman execute through Google ADK and an ADK Runner. Deterministic
+application operations may invoke domain services directly when no agent
+reasoning or orchestration is required. Firestore remains canonical
+construction-domain state; ADK owns agent execution state; domain services own
+authoritative mutations.
 
 Google ADK is Oga Foreman's sole agent orchestration runtime. ADK owns workflow
 execution, durable session/runtime state, node routing, HITL interruption and

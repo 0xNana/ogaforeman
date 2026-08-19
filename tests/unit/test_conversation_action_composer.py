@@ -33,6 +33,7 @@ from app.services.conversation_action_composer import (
     PurchaseActionInterpretation,
     ScheduleActionInterpretation,
     TaskActionInterpretation,
+    TaskActionBatchInterpretation,
     ambiguous_material_quantity_phrase,
 )
 from app.services.conversation_mutation_policy import MutationPolicyService
@@ -153,6 +154,28 @@ def composer() -> ActionComposer:
 
 def policy(kind: MutationKind) -> MutationPolicyRequest:
     return MutationPolicyRequest(project_id=PROJECT_ID, kind=kind)
+
+
+def test_task_batches_require_individual_composition() -> None:
+    with pytest.raises(ValueError, match="task batches must be composed individually"):
+        composer().compose(
+            access(),
+            TaskActionBatchInterpretation(
+                actions=(
+                    TaskActionInterpretation(
+                        operation=TaskOperation.CREATE,
+                        title="Install windows",
+                    ),
+                    TaskActionInterpretation(
+                        operation=TaskOperation.CREATE,
+                        title="Paint walls",
+                    ),
+                )
+            ),
+            context(),
+            (),
+            policy(MutationKind.TASK_CREATE),
+        )
 
 
 def test_composes_absolute_material_count_with_authorized_observed_version() -> None:

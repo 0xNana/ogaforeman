@@ -28,6 +28,7 @@ _UNIT_ALIASES: dict[str, str] = {
     "blocks": "blocks",
     "piece": "pieces",
     "pieces": "pieces",
+    "pices": "pieces",
     "pc": "pieces",
     "pcs": "pieces",
     "unit": "units",

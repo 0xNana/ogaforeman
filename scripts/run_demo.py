@@ -31,12 +31,12 @@ from app.domain.enums import (
     AgentRunStatus,
     MaterialRequestStatus,
     MemberRole,
-    WorkflowName,
 )
-from app.domain.events import EventType, ProjectEvent
+from app.domain.events import EventActor, EventActorType, EventSource, EventType, ProjectEvent
 from app.domain.models import (
     ActivityEvent,
     AgentRun,
+    Approval,
     MaterialRequest,
     OutboxMessage,
     ProcessedEvent,
@@ -47,7 +47,7 @@ from app.repositories.firestore import FirestoreRepositoryStore
 from app.repositories.interfaces import RepositoryStore
 from app.repositories.memory import InMemoryRepositoryStore
 from app.services.approvals import ApprovalService, ResolutionCommand
-from app.services.material_requests import MaterialRequestService, MaterialShortageCommand
+from app.repositories.runs import run_id_for_event
 from app.services.tasks import TaskService, UpdateTaskCommand
 from app.worker import process_event
 from scripts.rebuild_projections import rebuild_daily_report
@@ -224,40 +224,33 @@ def _run_one(
         ),
     )
 
-    request_result = MaterialRequestService(store).evaluate_shortage(
-        access_foreman,
-        MaterialShortageCommand(
-            project_id=DEMO_PROJECT_ID,
-            material_id_or_alias="cement bags",
-            required_quantity=Decimal("100"),
-            unit="bags",
-            supplier="delayed-supplier",
-            reason="Ten bags may not cover tomorrow's plastering.",
-            occurred_at=DEMO_NOW,
-        ),
-        MutationContext(
-            project_id=DEMO_PROJECT_ID,
-            actor_type=ActorType.USER,
-            actor_id=DEMO_FOREMAN_ID,
-            source_event_id="upd_demo_update",
-            idempotency_key="demo:material:shortage",
-            occurred_at=DEMO_NOW,
-        ),
+    shortage_event = ProjectEvent(
+        event_id="evt_demo_material",
+        project_id=DEMO_PROJECT_ID,
+        event_type=EventType.MATERIAL_LOW,
+        source=EventSource.WEB,
+        occurred_at=DEMO_NOW,
+        received_at=DEMO_NOW,
+        actor=EventActor(type=EventActorType.USER, id=DEMO_FOREMAN_ID),
+        idempotency_key="demo:material:shortage",
+        correlation_id="cor_demo_material",
+        payload={
+            "material_name": "cement bags",
+            "quantity": 100,
+            "unit": "bags",
+            "supplier": "delayed-supplier",
+            "reason": "Ten bags may not cover tomorrow's plastering.",
+        },
     )
-    if request_result.request is None or request_result.approval is None:
+    shortage_delivery = process_event(shortage_event.model_dump_json().encode(), store=store)
+    requests = store.repository(MaterialRequest).list(DEMO_PROJECT_ID)
+    if shortage_delivery.status != "completed" or len(requests) != 1:
         raise RuntimeError("demo shortage fixture did not create a request and approval")
-    approval = request_result.approval
-    store.repository(AgentRun).create(
-        AgentRun(
-            id="run_demo_material",
-            project_id=DEMO_PROJECT_ID,
-            trigger_event_id="upd_demo_update",
-            workflow=WorkflowName.MATERIAL_SHORTAGE,
-            status=AgentRunStatus.WAITING_FOR_APPROVAL,
-            trace_id="trc_demo_material",
-            started_at=DEMO_NOW,
-        )
-    )
+    request = requests[0]
+    if request.approval_id is None:
+        raise RuntimeError("demo shortage fixture did not link its approval")
+    approval = store.repository(Approval).require(DEMO_PROJECT_ID, request.approval_id)
+    run_id = run_id_for_event(shortage_event.event_id)
 
     report_evidence = rebuild_daily_report(
         store,
@@ -270,6 +263,7 @@ def _run_one(
         now=DEMO_NOW,
     )
 
+    decision_at = datetime.now(UTC)
     command = ResolutionCommand(
         project_id=DEMO_PROJECT_ID,
         approval_id=approval.id,
@@ -277,7 +271,7 @@ def _run_one(
         notes="Approved for the rehearsal."
         if decision == "approve"
         else "Reject for the rehearsal.",
-        occurred_at=DEMO_NOW,
+        occurred_at=decision_at,
     )
     context = MutationContext(
         project_id=DEMO_PROJECT_ID,
@@ -285,7 +279,7 @@ def _run_one(
         actor_id=DEMO_MANAGER_ID,
         source_event_id="evt_demo_decision",
         idempotency_key=f"demo:approval:{run_number}",
-        occurred_at=DEMO_NOW,
+        occurred_at=decision_at,
     )
     approval_service = ApprovalService(store)
     if decision == "approve":
@@ -306,7 +300,7 @@ def _run_one(
     first_delivery = process_event(continuation_event.model_dump_json().encode(), store=store)
     replay_delivery = process_event(continuation_event.model_dump_json().encode(), store=store)
     if decision == "approve":
-        resumed_run = store.repository(AgentRun).require(DEMO_PROJECT_ID, "run_demo_material")
+        resumed_run = store.repository(AgentRun).require(DEMO_PROJECT_ID, run_id)
         if resumed_run.status is not AgentRunStatus.COMPLETED:
             raise RuntimeError("approval continuation did not complete the demo run")
         delivery_claims = [
@@ -318,12 +312,8 @@ def _run_one(
         final_status = resumed_run.status.value
         rejection_closed = False
     else:
-        request = store.repository(MaterialRequest).require(
-            DEMO_PROJECT_ID, request_result.request.id
-        )
-        final_status = (
-            store.repository(AgentRun).require(DEMO_PROJECT_ID, "run_demo_material").status.value
-        )
+        request = store.repository(MaterialRequest).require(DEMO_PROJECT_ID, request.id)
+        final_status = store.repository(AgentRun).require(DEMO_PROJECT_ID, run_id).status.value
         delay_safe = False
         rejection_closed = request.status is MaterialRequestStatus.CANCELLED
 
@@ -332,14 +322,14 @@ def _run_one(
         decision=decision,
         reset_twice=True,
         task_activity_created=not task_result.duplicate,
-        material_request_created=not request_result.duplicate,
+        material_request_created=True,
         report_projection_applied=report_evidence.applied,
         continuation_replay_suppressed=(
             first_delivery.status == "completed" and replay_delivery.status == "duplicate"
         ),
         worker_restart_resume_verified=(
             decision == "reject"
-            or store.repository(AgentRun).require(DEMO_PROJECT_ID, "run_demo_material").status
+            or store.repository(AgentRun).require(DEMO_PROJECT_ID, run_id).status
             is AgentRunStatus.COMPLETED
         ),
         rejection_closed_request=rejection_closed,
@@ -349,7 +339,7 @@ def _run_one(
         processed_event_count=len(store.repository(ProcessedEvent).list(DEMO_PROJECT_ID)),
         passed=(
             not task_result.duplicate
-            and not request_result.duplicate
+            and shortage_delivery.status == "completed"
             and report_evidence.applied
             and first_delivery.status == "completed"
             and replay_delivery.status == "duplicate"

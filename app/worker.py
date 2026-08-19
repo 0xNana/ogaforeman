@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from pydantic import ValidationError
 
-from app.agents.coordinator import OgaCoordinator, coordinator
+from app.agents.event_execution import AdkEventExecutor
 from app.agents.interpreter import SiteInterpreter
 from app.agents.site_update_execution import EventPayloadMismatchError, SiteUpdateEventExecutor
 from app.config.settings import Settings, get_settings
@@ -27,12 +27,12 @@ from app.observability.tracing import cloud_trace_exporter
 from app.repositories.interfaces import EntityNotFoundError, RepositoryStore
 from app.services.event_claims import ClaimOutcome, EventClaimService, InvalidEventClaim
 from app.services.external_actions import ExternalActionService
+from app.services.event_router import route_project_event
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_approval import ConversationScheduleApprovalService
 from app.services.conversation_schedule_operations import ConversationScheduleService
-from app.services.routed_events import RoutedEventExecutor
 from app.services.site_update_lifecycle import InvalidSiteUpdateTransition
-from app.workflows.resume import ResumeWorkflow
+from app.workflows.resume import ApprovalContinuationService
 
 
 logger = logging.getLogger("ogaforeman.worker")
@@ -52,7 +52,6 @@ async def process_event_async(
     event_data: bytes,
     *,
     store: RepositoryStore,
-    event_coordinator: OgaCoordinator = coordinator,
     settings: Settings | None = None,
     site_interpreter: SiteInterpreter | None = None,
     storage_adapter: StorageAdapter | None = None,
@@ -126,9 +125,7 @@ async def process_event_async(
             raise RuntimeError("acquired event claim did not include an owner token")
 
         try:
-            result = event_coordinator.process_event(event)
-            route = str(result["route_decision"])
-            result_ref = f"route:{route}:event:{event.event_id}"
+            result_ref = f"event:{event.event_type.value}:{event.event_id}"
             summary: str | None = None
             pending_actions: tuple[str, ...] = ()
             if event.event_type is EventType.SITE_UPDATE_RECEIVED:
@@ -175,47 +172,43 @@ async def process_event_async(
                     )
                     result_ref = f"approval:{approval_id}"
                 else:
-                    resume_workflow = ResumeWorkflow(store)
-                    continuation = resume_workflow.handle_approval_granted(
-                        event.project_id,
-                        approval_id,
-                        str(event.payload["resolver"]),
-                        source_event_id=event.event_id,
-                        occurred_at=event.occurred_at,
+                    approved_continuation = await AdkEventExecutor(store, runtime).resume_approved(
+                        event
                     )
                     delay_event = ExternalActionService(store).continue_approved_purchase(event)
                     if delay_event is not None:
                         await process_event_async(
                             delay_event.model_dump_json().encode(),
                             store=store,
-                            event_coordinator=event_coordinator,
                             settings=runtime,
                             site_interpreter=site_interpreter,
                             storage_adapter=storage_adapter,
                         )
-                    resume_workflow.complete_approved_purchase(
+                    ApprovalContinuationService(store).complete_approved_purchase(
                         event.project_id,
                         approval_id,
                         str(event.payload["resolver"]),
                         source_event_id=event.event_id,
                     )
-                    result_ref = f"run:{continuation.run_id}"
+                    result_ref = f"run:{approved_continuation.run_id}"
             elif event.event_type is EventType.APPROVAL_REJECTED:
                 approval_id = str(event.payload["approval_id"])
                 approval = store.repository(Approval).require(event.project_id, approval_id)
                 if approval.action_type is ApprovalActionType.SCHEDULE_CHANGE:
                     result_ref = f"approval:{approval_id}"
                 else:
-                    continuation = ResumeWorkflow(store).handle_approval_rejected(
+                    rejected_continuation = ApprovalContinuationService(
+                        store
+                    ).handle_approval_rejected(
                         event.project_id,
                         approval_id,
                         str(event.payload["resolver"]),
                         source_event_id=event.event_id,
                         occurred_at=event.occurred_at,
                     )
-                    result_ref = f"run:{continuation.run_id}"
+                    result_ref = f"run:{rejected_continuation.run_id}"
             else:
-                routed_execution = RoutedEventExecutor(store).execute(event)
+                routed_execution = await AdkEventExecutor(store, runtime).execute(event)
                 result_ref = routed_execution.result_ref
             claims.complete(event, claim_token=claim.claim_token, result_ref=result_ref)
         except Exception as exc:
@@ -280,7 +273,7 @@ async def process_event_async(
         return WorkerResult(
             event_id=event.event_id,
             status="completed",
-            route=route,
+            route=route_project_event(event),
             result_ref=result_ref,
             summary=summary,
             pending_actions=pending_actions,
@@ -291,7 +284,6 @@ def process_event(
     event_data: bytes,
     *,
     store: RepositoryStore,
-    event_coordinator: OgaCoordinator = coordinator,
     settings: Settings | None = None,
     site_interpreter: SiteInterpreter | None = None,
     storage_adapter: StorageAdapter | None = None,
@@ -301,7 +293,6 @@ def process_event(
     coroutine = process_event_async(
         event_data,
         store=store,
-        event_coordinator=event_coordinator,
         settings=settings,
         site_interpreter=site_interpreter,
         storage_adapter=storage_adapter,
@@ -315,13 +306,18 @@ def process_event(
 
 
 def _workflow_label(event: ProjectEvent) -> str:
-    route = coordinator.route_event(event)
     return {
-        "site_report": "daily_site_update",
-        "materials": "material_shortage",
-        "planner": "blocker_delay",
-        "communicator": "daily_brief",
-    }[route]
+        EventType.SITE_UPDATE_RECEIVED: "daily_site_update",
+        EventType.TASK_COMPLETED: "daily_site_update",
+        EventType.MATERIAL_LOW: "material_shortage",
+        EventType.MATERIAL_REQUESTED: "material_shortage",
+        EventType.TASK_BLOCKED: "blocker_delay",
+        EventType.TASK_OVERDUE: "blocker_delay",
+        EventType.DELIVERY_DELAYED: "blocker_delay",
+        EventType.DAILY_BRIEF_REQUESTED: "daily_brief",
+        EventType.APPROVAL_GRANTED: "approval_continuation",
+        EventType.APPROVAL_REJECTED: "approval_continuation",
+    }.get(event.event_type, event.event_type.value.lower())
 
 
 __all__ = [

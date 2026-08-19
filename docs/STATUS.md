@@ -2,7 +2,7 @@
 
 ## Status date
 
-2026-08-15
+2026-08-19
 
 ## Summary
 
@@ -31,6 +31,108 @@ guards match only complete help/setup questions, so mutation-shaped messages sti
 Setup/readiness answers remain persisted and authorized, unknown intent recovers conversationally,
 and the API exposes an explicit `OG` assistant identity. Internal routing labels are no longer rendered as authors in the
 conversation transcript. The locked conversational evaluation now includes the HELP category.
+
+The ADK execution-authority migration is active. Resumable ADK applications now
+persist session/invocation identity, non-site events enter ADK Runner workflows,
+and conversational project actions use an ADK Runner around the existing typed
+services. Approval continuation wiring is in progress; legacy projections and
+deterministic services remain during the migration gate.
+
+Project Initialization is **partially implemented**, not production-complete.
+The earlier phase-level completion language is superseded by the audited gaps and
+ordered gates in [`PROJ_INIT_IMPLE.md`](PROJ_INIT_IMPLE.md). PI-00 corrected the
+test baseline; PI-01 preserves internally invalid drafts as typed validation
+failures and blocks every persisted conflict at both confirmation boundaries;
+and PI-02 enforces the complete durable lifecycle with safe, exact-claim restart
+recovery. PI-03 makes canonical import provenance complete, derives trusted
+source metadata from persisted project sources, and exposes tenant-authorized
+explanation lookups. Three strict expected failures still cover duplicate imports,
+write-budget undercounting, and task-incorrect shortage calculation. The New Project
+import journey and PI-04 through PI-14
+remain open.
+
+Project Initialization Phase 1 has partial local implementation: strict, schema-versioned
+Pydantic contracts cover import drafts, draft-only temporary references,
+provenance, explicit dates and units, warnings, conflicts, and task-to-material
+requirements. Extraction provenance accepts only temporary IDs and a residential
+fixture validates without Gemini or persistence.
+Project Initialization Phase 2 has partial local implementation: `ProjectImportValidator`
+is the sole complete-draft validation owner and performs side-effect-free
+reference, duplicate-ID, self-dependency, dependency-cycle, duplicate-edge, unit
+compatibility, duplicate-requirement, completion-evidence, milestone-date, and
+unresolved-reference validation before any canonical write. Invalid drafts retain
+their full extracted content plus typed warnings and conflicts; exact transaction
+write-plan accounting remains open under PI-05.
+Project Initialization Phase 3 has partial local implementation: confirmed drafts persist
+separate `CONFIRMED` and `IMPORTING` claims, then commit
+canonical phases, tasks, dependencies, materials, inventory ledger entries,
+requirements, provenance, import state, and activity in one repository
+transaction; persisted review records, server-owned confirmation timestamps,
+safe retryable failures, and request-fingerprint claims resume exact requests
+after restart while preventing bypasses and mismatched replays. Phase linkage,
+milestones, material locations, and requirement confidence are retained.
+Project Initialization Phase 4 has partial local implementation: pasted project sources are
+stored as first-class records with SHA-256 checksums, durable text, creator,
+status, replay protection, and required linkage before import commit.
+Project Initialization Phase 5 has partial local implementation: the structured text adapter
+accepts pasted/Markdown/OG-template variation, normalizes bounded source text,
+preserves unresolved dates, and produces a checksum-stable extraction input.
+Project Initialization Phase 6 has partial local implementation: a native resumable ADK
+workflow exposes source receipt/loading, schema-constrained Gemini extraction,
+schema validation, draft normalization, deterministic validation, and the
+needs-review handoff. Import records persist the ADK session/invocation identity,
+lease, attempt, and every lifecycle transition from upload through terminal
+outcome. Dependency outages and extraction failures retain safe diagnostics and
+exact failed/expired claims resume; canonical IDs and mutation authority remain
+application-owned.
+Project Initialization Phase 7 has partial local implementation: known unit aliases are
+canonically normalized between extraction and draft validation, while task names
+retain their displayed text and use conservative Unicode/case/punctuation keys
+only for duplicate detection.
+Project Initialization Phase 8 has partial local implementation: the authenticated review API
+extracts durable drafts through ADK, exposes tasks/dependencies/materials/
+requirements/warnings/conflicts/unresolved references, and keeps canonical
+project records unchanged until explicit confirmation. Cancellation discards the
+draft without mutating project truth; confirmation and cancellation use durable
+idempotency claims, terminal stale-request conflicts, extractor-independent
+reads, safe failure projections, restart recovery, and project-scope enforcement.
+Persisted blocking conflicts are rejected by the API and direct import service
+before canonical writes.
+Project Initialization Phase 9 has partial local implementation: the authenticated import
+review route makes the pending canonical records legible as a read-only summary,
+tables/lists for tasks, dependencies, materials, and task-grouped requirements,
+plus explicit warning and conflict items. A conflict disables initialization;
+cancel and confirm retain client-stable idempotency keys and the persisted review
+version, while richer in-place corrections remain V2 scope.
+Project Initialization Phase 10 has partial local implementation: an active project can start
+from its actual site position. Confirmed import tasks retain explicit planned,
+in-progress, completed, or blocked status; completed work requires its supplied
+actual completion date, and opening material balances create ledger state without
+inventing historical task-completion or inventory events.
+Project Initialization Phase 11 has partial local implementation: deterministic readiness is
+derived from canonical project records as empty, partially configured, or
+operational. Setup responses report task, dependency, material-requirement,
+schedule, initial-state, and missing-requirement facts instead of an AI score.
+Project Initialization Phase 12 has partial local implementation: conversational operational
+queries against the newly imported model now fetch entity-specific material
+requirements and downstream dependency impact, returning precise facts without
+generic fallbacks.
+Project Initialization Phase 13 has partial local implementation: Golden Operations
+read `MaterialRequirement` records instead of hardcoded quantities, but currently
+aggregate unrelated active-task requirements. Task-specific shortage calculation
+remains open under PI-09.
+Project Initialization Phase 14 has partial local implementation: conversational dependency reasoning
+uses the data-driven canonical task graph for schedule impact, guaranteeing that removing
+a dependency automatically prevents the system from claiming the downstream impact.
+Project Initialization Phase 15 has partial local implementation: new materials reported during site
+updates are dynamically auto-created as canonical Material entities when unit and
+quantity data is sufficient, avoiding manual re-initialization.
+Project Initialization Phase 16 has partial local implementation: project imports emit user-facing
+activity events during extraction, review, initialization, and individual entity creation
+(task, dependency, material, requirement) while preserving actor, source, and timestamps.
+Project Initialization Phase 17 has partial local implementation: the core data
+structures and `ProjectImportDiffService` interface (`EntityDiff`, `DiffOperation`)
+exist, while canonical duplicate/change preflight remains open under PI-04.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed
@@ -106,6 +208,101 @@ Native ADK migration Phase 16–19 verification on 2026-08-16:
 - Ruff checks for the ADK runtime, worker bridge, and run projection: passed
 - live-cloud voice/photo execution remains a release gate requiring configured
   Gemini credentials and private media access
+
+Project Initialization PI-02 verification on 2026-08-19:
+
+- required workflow and review-API gate: 20 passed
+- focused importer, validation, and review-API regressions: 39 passed, with only
+  the PI-03 provenance, PI-04 duplicate-import, and PI-05 write-budget tests kept
+  as strict expected failures
+- fresh-client Firestore restart coverage: 2 passed for persisted draft
+  validation and persisted import-claim commit recovery
+- repository-wide Ruff check/format and focused PI-02 mypy: passed
+- the unrelated `app/services/site_updates.py` assignment mismatch was fixed
+  during PI-03; app-wide mypy now passes
+
+Project Initialization PI-03 verification on 2026-08-19:
+
+- trusted provenance covers phases, tasks, milestones, dependencies, materials,
+  opening inventory ledger entries, and material requirements
+- direct target, dependency-pair, and provenance-record API lookups resolve the
+  trusted project/import/source context without exposing stored source content
+- focused service/provenance/API verification: 21 passed, with only the PI-04
+  duplicate-import regression retained as a strict expected failure
+- Firestore persistence and authorization verification: 22 passed against the
+  local emulator
+- site-update regression verification after the typing-only variable fix: 10 passed
+- repository-wide Ruff check/format and app-wide mypy (152 modules): passed
+
+Project Initialization PI-01 verification on 2026-08-19:
+
+- contract, deterministic-validation, and review-API gate: 24 passed, with the
+  PI-02 extractor-outage and PI-05 exact-write-budget regressions still strict
+  expected failures
+- direct importer-service boundary: 9 passed, with the PI-03 provenance and
+  PI-04 duplicate-import regressions still strict expected failures
+- focused Ruff check/format and documentation validation: passed
+- the later PI-03 verification fixed the unrelated site-update assignment mismatch
+  and restored a passing app-wide mypy gate
+
+Project Initialization Phase 8 verification on 2026-08-18:
+
+- review API lifecycle, outage recovery, stale replay, authorization, and
+  discard/confirm gates: 7 passed
+- project initialization regression suite: 43 passed (39 unit/API, 4 workflow)
+- Ruff check/format and app-wide mypy for review API, lifecycle services, importer,
+  and ADK extraction bridge: passed
+- exact-run approval-continuation E2E and the 100-project scheduler capacity
+  baseline: passed; local SQLite ADK session services are disposed per delivery
+  and guarded against concurrent single-writer contention
+- production-readiness controls: 12 passed, 1 Firestore-emulator restart test
+  skipped because `FIRESTORE_EMULATOR_HOST` is not configured locally
+
+Project Initialization Phase 9 verification on 2026-08-18:
+
+- frontend import API-boundary and review-component coverage: 12 passed
+- full frontend unit suite: 54 passed across 18 files
+- frontend TypeScript, ESLint, and production build: passed
+
+Project Initialization Phase 10 verification on 2026-08-18:
+
+- project-import service regression covers an active mid-project initialization,
+  all initial task states, opening stock, completion dates, and the absence of
+  fabricated historical activity.
+
+Project Initialization Phase 11 verification on 2026-08-18:
+
+- deterministic readiness unit tests and project-setup conversation integration
+  coverage pass for empty, partially configured, and operational projects.
+
+Project Initialization Phase 12 verification on 2026-08-18:
+
+- conversational project context tests verify correct domains for 'need', 'require', 'after', and 'what happens'
+- conversational responses tests ensure dependencies and material requirements correctly format into concise responses
+
+Project Initialization Phase 13 verification on 2026-08-18:
+
+- Golden scenario correctly computes material shortages using MaterialRequirement project state dynamically, replacing hardcoded fallback logic
+- test suite confirms no regressions in site update workflows
+
+Project Initialization Phase 14 verification on 2026-08-19:
+
+- site update processor verified to extract delay risk strictly via canonical Task `dependency_ids`
+- test suite confirms that removing a task dependency from the project context avoids logging downstream impact
+
+Project Initialization Phase 15 verification on 2026-08-19:
+
+- end-to-end integration test successfully injects unknown material updates and confirms new materialized tracking entities
+- test suite confirms authorization bounds accurately delegate operational permission for runtime auto-creation
+
+Project Initialization Phase 16 verification on 2026-08-19:
+
+- test suite confirms project initialization generates the exact sequence of user-facing activity logs (`project.import.started`, `project.initialized`, `task.created`, etc.) without internal noise
+- verification ensures correct entity_id mapping, timestamp preservation, and source references on each event
+
+Project Initialization Phase 17 verification on 2026-08-19:
+
+- test suite confirms `ProjectImportDiffService` interface is operational, correctly identifying draft tasks as `ADDED` structurally compared to the initialized `ProjectContext`
 
 Conversational Phase 16 verification on 2026-08-14:
 

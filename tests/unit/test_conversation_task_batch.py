@@ -163,7 +163,9 @@ async def test_day_only_dates_use_retrieved_project_calendar_context() -> None:
         interpretation=interpretation,
     )
 
-    result = await service.execute(_access(), "excavation due 20th, foundation due 19th", idempotency_key="batch-date")
+    result = await service.execute(
+        _access(), "excavation due 20th, foundation due 19th", idempotency_key="batch-date"
+    )
 
     assert result.kind == "done"
     tasks = {task.title: task for task in store.repository(Task).list(PROJECT_ID)}
@@ -231,7 +233,9 @@ async def test_task_batch_can_update_existing_and_create_explicit_missing_task()
         interpretation=interpretation,
     )
 
-    result = await service.execute(_access(), "update them as separate tasks", idempotency_key="batch-2")
+    result = await service.execute(
+        _access(), "update them as separate tasks", idempotency_key="batch-2"
+    )
 
     tasks = {task.title: task for task in store.repository(Task).list(PROJECT_ID)}
     assert result.mutation_performed is True
@@ -257,7 +261,9 @@ async def test_task_batch_creates_two_missing_tasks_as_separate_typed_commands()
     )
     store, service = _service(interpretation=interpretation)
 
-    result = await service.execute(_access(), "create both as separate tasks", idempotency_key="batch-create")
+    result = await service.execute(
+        _access(), "create both as separate tasks", idempotency_key="batch-create"
+    )
 
     tasks = {task.title: task for task in store.repository(Task).list(PROJECT_ID)}
     assert result.kind == "done"
@@ -290,7 +296,9 @@ async def test_task_batch_clarifies_only_ambiguous_entity_and_persists_both_acti
         interpretation=_due_batch(),
     )
 
-    result = await service.execute(_access(), "update excavation and foundation", idempotency_key="batch-3")
+    result = await service.execute(
+        _access(), "update excavation and foundation", idempotency_key="batch-3"
+    )
 
     memory = store.repository(ConversationMemory).list(PROJECT_ID)[0]
     assert result.kind == "clarification"

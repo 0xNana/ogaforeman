@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.agents.coordinator import OgaCoordinator
 from app.agents.interpreter import FakeSiteInterpreter
 from app.config.settings import Settings
 from app.domain.enums import (
@@ -18,7 +17,7 @@ from app.domain.events import EventActor, EventActorType, EventSource, EventType
 from app.domain.models import AgentRun, ProcessedEvent, ProjectMember, SiteUpdate
 from app.repositories.memory import InMemoryRepositoryStore
 from app.worker import process_event
-from app.workflows.runtime import run_id_for_event
+from app.repositories.runs import run_id_for_event
 
 
 def event_bytes() -> bytes:
@@ -89,15 +88,17 @@ def test_worker_claims_routes_and_suppresses_duplicate_delivery() -> None:
     assert len(store.repository(ProcessedEvent).list("prj_worker123")) == 1
 
 
-class FailingCoordinator(OgaCoordinator):
-    def process_event(self, event: ProjectEvent) -> dict[str, str]:
+def test_worker_persists_failed_claim_without_exposing_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = InMemoryRepositoryStore()
+
+    async def fail(*_args, **_kwargs):
         raise RuntimeError("deliberate worker failure")
 
-
-def test_worker_persists_failed_claim_without_exposing_payload() -> None:
-    store = InMemoryRepositoryStore()
+    monkeypatch.setattr("app.agents.site_update_execution.SiteUpdateEventExecutor.execute", fail)
     with pytest.raises(RuntimeError, match="deliberate worker failure"):
-        process_event(event_bytes(), store=store, event_coordinator=FailingCoordinator())
+        process_event(event_bytes(), store=store)
 
     processed = store.repository(ProcessedEvent).list("prj_worker123")
     assert len(processed) == 1

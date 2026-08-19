@@ -162,6 +162,7 @@ class Task(DomainModel):
     status: TaskStatus = TaskStatus.PROPOSED
     priority: TaskPriority = TaskPriority.MEDIUM
     assigned_to: CanonicalId | None = None
+    phase_id: CanonicalId | None = None
     trade: str | None = Field(default=None, max_length=200)
     location: str | None = Field(default=None, max_length=500)
     planned_start: AwareDatetime | None = None
@@ -337,6 +338,7 @@ class Material(DomainModel):
     normalized_name: str = Field(min_length=1, max_length=300)
     aliases: list[str] = Field(default_factory=list)
     unit: str = Field(min_length=1, max_length=100)
+    location: str | None = Field(default=None, max_length=500)
     available_quantity: Decimal = Field(default=Decimal("0"), ge=0)
     reserved_quantity: Decimal = Field(default=Decimal("0"), ge=0)
     minimum_required_quantity: Decimal = Field(default=Decimal("0"), ge=0)

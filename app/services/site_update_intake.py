@@ -36,7 +36,7 @@ from app.repositories.activity import ActivityRepository
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.services.activity import ActivityService
 from app.services.outbox import OutboxService
-from app.workflows.runtime import run_id_for_event
+from app.repositories.runs import run_id_for_event
 
 
 class EventPublisher(Protocol):

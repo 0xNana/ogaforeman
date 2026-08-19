@@ -47,41 +47,43 @@ from app.services.material_requests import MaterialRequestService, MaterialShort
 from app.services.outbox import OutboxService
 from app.services.schedule_impact import calculate_impact
 from app.services.tasks import TaskService, UpdateTaskCommand
-from app.workflows.runtime import RuntimeManager, run_id_for_event
+from app.domain.models import AgentRun
+from app.domain.enums import AgentRunStatus
+from app.repositories.runs import AgentRunRepository, run_id_for_event
+from datetime import UTC, datetime
 
 
 @dataclass(frozen=True, slots=True)
 class RoutedEventExecution:
     run_id: str
     result_ref: str
+    waiting_for_approval: bool = False
 
 
-class RoutedEventExecutor:
-    """Execute one already-claimed event through typed, replay-safe services."""
-
-    _WORKFLOWS = {
-        EventType.TASK_COMPLETED: WorkflowName.DAILY_SITE_UPDATE,
-        EventType.MATERIAL_LOW: WorkflowName.MATERIAL_SHORTAGE,
-        EventType.MATERIAL_REQUESTED: WorkflowName.MATERIAL_SHORTAGE,
-        EventType.TASK_BLOCKED: WorkflowName.BLOCKER_DELAY,
-        EventType.TASK_OVERDUE: WorkflowName.BLOCKER_DELAY,
-        EventType.DELIVERY_DELAYED: WorkflowName.BLOCKER_DELAY,
-        EventType.DAILY_BRIEF_REQUESTED: WorkflowName.DAILY_BRIEF,
-    }
+class TypedEventService:
+    """Apply one already-claimed event through typed, replay-safe services."""
 
     def __init__(self, store: RepositoryStore) -> None:
         self._store = store
-        self._runtime = RuntimeManager(store)
+
         self._activities = ActivityService(store)
 
     def execute(self, event: ProjectEvent) -> RoutedEventExecution:
-        workflow = self._WORKFLOWS.get(event.event_type)
+        workflow = {
+            EventType.TASK_COMPLETED: WorkflowName.DAILY_SITE_UPDATE,
+            EventType.MATERIAL_LOW: WorkflowName.MATERIAL_SHORTAGE,
+            EventType.MATERIAL_REQUESTED: WorkflowName.MATERIAL_SHORTAGE,
+            EventType.TASK_BLOCKED: WorkflowName.BLOCKER_DELAY,
+            EventType.TASK_OVERDUE: WorkflowName.BLOCKER_DELAY,
+            EventType.DELIVERY_DELAYED: WorkflowName.BLOCKER_DELAY,
+            EventType.DAILY_BRIEF_REQUESTED: WorkflowName.DAILY_BRIEF,
+        }.get(event.event_type)
         if workflow is None:
             raise ValueError(f"routed event executor does not support {event.event_type.value}")
 
         access = self._authorize(event)
         run_id = run_id_for_event(event.event_id)
-        self._runtime.start_run(
+        self._start_run(
             project_id=event.project_id,
             trigger_event_id=event.event_id,
             workflow=workflow,
@@ -92,15 +94,15 @@ class RoutedEventExecutor:
         try:
             result_ref, wait_for_approval = self._execute_route(event, access, run_id)
             if wait_for_approval:
-                self._runtime.pause_for_approval(
+                self._pause_for_approval(
                     event.project_id,
                     run_id,
                     "approval_required",
                 )
             else:
-                self._runtime.complete_run(event.project_id, run_id)
+                self._complete_run(event.project_id, run_id)
         except Exception as exc:
-            self._runtime.fail_run(
+            self._fail_run(
                 event.project_id,
                 run_id,
                 type(exc).__name__[:128],
@@ -108,7 +110,117 @@ class RoutedEventExecutor:
             )
             raise
 
-        return RoutedEventExecution(run_id=run_id, result_ref=result_ref)
+        return RoutedEventExecution(
+            run_id=run_id,
+            result_ref=result_ref,
+            waiting_for_approval=wait_for_approval,
+        )
+
+    def _start_run(
+        self,
+        project_id: str,
+        trigger_event_id: str,
+        workflow: WorkflowName,
+        run_id: str,
+        trace_id: str,
+    ) -> AgentRun:
+        def _start(session: RepositorySession) -> AgentRun:
+            now = datetime.now(UTC)
+            run_repo = AgentRunRepository.for_session(session)
+            run = run_repo.get(project_id, run_id)
+            if run is None:
+                run = run_repo.create(
+                    AgentRun(
+                        id=run_id,
+                        project_id=project_id,
+                        trigger_event_id=trigger_event_id,
+                        workflow=workflow,
+                        trace_id=trace_id,
+                        adk_session_id=f"event-{trigger_event_id}",
+                        adk_invocation_id=trigger_event_id,
+                        adk_workflow_id=workflow.value,
+                        status=AgentRunStatus.RUNNING,
+                        started_at=now,
+                        updated_at=now,
+                    )
+                )
+            elif run.status in {
+                AgentRunStatus.QUEUED,
+                AgentRunStatus.WAITING_FOR_APPROVAL,
+                AgentRunStatus.WAITING_FOR_CLARIFICATION,
+            }:
+                run = run.model_copy(update={"status": AgentRunStatus.RUNNING, "updated_at": now})
+                run = run_repo.save(run, expected_version=run.version)
+            elif run.status is AgentRunStatus.FAILED:
+                run = run.model_copy(
+                    update={
+                        "status": AgentRunStatus.RUNNING,
+                        "attempt": run.attempt + 1,
+                        "completed_at": None,
+                        "error_code": None,
+                        "error_summary": None,
+                        "updated_at": now,
+                    }
+                )
+                run = run_repo.save(run, expected_version=run.version)
+            return run
+
+        return AgentRunRepository(self._store).run_transaction(_start)
+
+    def _pause_for_approval(self, project_id: str, run_id: str, step: str) -> AgentRun:
+        def _pause(session: RepositorySession) -> AgentRun:
+            run_repo = AgentRunRepository.for_session(session)
+            run = run_repo.require(project_id, run_id)
+            run = run.model_copy(
+                update={
+                    "status": AgentRunStatus.WAITING_FOR_APPROVAL,
+                    "step": step,
+                    "updated_at": datetime.now(UTC),
+                }
+            )
+            return run_repo.save(run, expected_version=run.version)
+
+        return AgentRunRepository(self._store).run_transaction(_pause)
+
+    def _complete_run(self, project_id: str, run_id: str) -> AgentRun:
+        def _complete(session: RepositorySession) -> AgentRun:
+            run_repo = AgentRunRepository.for_session(session)
+            run = run_repo.require(project_id, run_id)
+            if run.status is AgentRunStatus.COMPLETED:
+                return run
+            completed_at = datetime.now(UTC)
+            run = run.model_copy(
+                update={
+                    "status": AgentRunStatus.COMPLETED,
+                    "completed_at": completed_at,
+                    "updated_at": completed_at,
+                }
+            )
+            return run_repo.save(run, expected_version=run.version)
+
+        return AgentRunRepository(self._store).run_transaction(_complete)
+
+    def _fail_run(
+        self, project_id: str, run_id: str, error_code: str, error_summary: str
+    ) -> AgentRun:
+        def _fail(session: RepositorySession) -> AgentRun:
+            run_repo = AgentRunRepository.for_session(session)
+            run = run_repo.require(project_id, run_id)
+            if run.status is AgentRunStatus.COMPLETED:
+                return run
+            completed_at = datetime.now(UTC)
+            run = run.model_copy(
+                update={
+                    "status": AgentRunStatus.FAILED,
+                    "error_code": error_code,
+                    "error_summary": error_summary,
+                    "completed_at": completed_at,
+                    "updated_at": completed_at,
+                }
+            )
+            return run_repo.save(run, expected_version=run.version)
+
+        return AgentRunRepository(self._store).run_transaction(_fail)
 
     def _execute_route(
         self,
@@ -179,6 +291,11 @@ class RoutedEventExecutor:
                 material_id_or_alias=material_ref,
                 required_quantity=Decimal(str(event.payload["quantity"])),
                 unit=str(event.payload["unit"]),
+                supplier=(
+                    str(event.payload["supplier"])
+                    if event.payload.get("supplier") is not None
+                    else None
+                ),
                 reason=reason,
                 occurred_at=event.occurred_at,
             ),
@@ -639,4 +756,4 @@ def _merge_facts(
     return merged
 
 
-__all__ = ["RoutedEventExecution", "RoutedEventExecutor"]
+__all__ = ["RoutedEventExecution", "TypedEventService"]

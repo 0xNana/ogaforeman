@@ -22,7 +22,7 @@ class ApprovalContinuation:
     request_id: str
 
 
-class ResumeWorkflow:
+class ApprovalContinuationService:
     def __init__(self, store: RepositoryStore) -> None:
         self._store = store
 
@@ -362,7 +362,7 @@ class ResumeWorkflow:
                 "workflow": run.workflow.value,
             },
         )
-        return ResumeWorkflow._prepare_activity(session, context, spec)
+        return ApprovalContinuationService._prepare_activity(session, context, spec)
 
     @staticmethod
     def _prepare_request_cancelled_activity(
@@ -390,7 +390,7 @@ class ResumeWorkflow:
             summary="Cancelled the material request after approval rejection.",
             metadata={"approval_id": approval.id},
         )
-        return ResumeWorkflow._prepare_activity(session, context, spec)
+        return ApprovalContinuationService._prepare_activity(session, context, spec)
 
     @staticmethod
     def _prepare_workflow_activity(
@@ -435,7 +435,7 @@ class ResumeWorkflow:
                 "error_code": error_code,
             },
         )
-        return ResumeWorkflow._prepare_activity(session, context, spec)
+        return ApprovalContinuationService._prepare_activity(session, context, spec)
 
     @staticmethod
     def _prepare_activity(
@@ -460,4 +460,8 @@ class ResumeWorkflow:
             session.repository(ActivityEvent).create(activity)
 
 
-__all__ = ["ApprovalContinuation", "ResumeWorkflow"]
+# Compatibility for historical test fixtures; production imports the service by
+# its domain name above. No worker path depends on this alias.
+ResumeWorkflow = ApprovalContinuationService
+
+__all__ = ["ApprovalContinuation", "ApprovalContinuationService", "ResumeWorkflow"]

@@ -58,6 +58,7 @@ class ContextDomain(StrEnum):
     DAILY_LOGS = "daily_logs"
     RECENT_ACTIVITY = "recent_activity"
     PROJECT_MEMBERS = "project_members"
+    MATERIAL_REQUIREMENTS = "material_requirements"
 
 
 class ContextFocus(StrEnum):
@@ -96,8 +97,8 @@ class EntityResolutionStatus(StrEnum):
 
 class ProjectReadinessState(StrEnum):
     EMPTY = "empty"
-    STARTED = "started"
-    ACTIVE = "active"
+    PARTIALLY_CONFIGURED = "partially_configured"
+    OPERATIONAL = "operational"
 
 
 class ProjectSetupStatus(BaseModel):
@@ -107,12 +108,18 @@ class ProjectSetupStatus(BaseModel):
     project_name: str | None = None
     has_members: bool = False
     has_tasks: bool = False
+    has_dependencies: bool = False
     has_schedule: bool = False
     has_materials: bool = False
+    has_material_requirements: bool = False
+    has_initial_state: bool = False
     has_site_updates: bool = False
     has_daily_logs: bool = False
     has_recent_activity: bool = False
     task_count: int = Field(default=0, ge=0)
+    dependency_count: int = Field(default=0, ge=0)
+    material_requirement_task_count: int = Field(default=0, ge=0)
+    planned_tasks_without_material_requirements: int = Field(default=0, ge=0)
     open_issue_count: int = Field(default=0, ge=0)
     readiness_state: ProjectReadinessState = ProjectReadinessState.EMPTY
 
@@ -353,6 +360,16 @@ class MemberContextItem(BaseModel):
     role: str
 
 
+class MaterialRequirementContextItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    task_id: str
+    material_id: str
+    required_quantity: Decimal
+    unit: str
+
+
 class ConversationalProjectContext(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -363,6 +380,7 @@ class ConversationalProjectContext(BaseModel):
     tasks: tuple[TaskContextItem, ...] = ()
     issues: tuple[IssueContextItem, ...] = ()
     materials: tuple[MaterialContextItem, ...] = ()
+    material_requirements: tuple[MaterialRequirementContextItem, ...] = ()
     material_requests: tuple[MaterialRequestContextItem, ...] = ()
     approvals: tuple[ApprovalContextItem, ...] = ()
     schedule: tuple[TaskContextItem, ...] = ()
@@ -654,6 +672,7 @@ __all__ = [
     "IntentType",
     "IssueOperation",
     "MaterialOperation",
+    "MaterialRequirementContextItem",
     "MutationKind",
     "MutationPolicyClass",
     "MutationPolicyDecision",

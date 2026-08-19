@@ -26,6 +26,7 @@ from app.domain.conversation import (
     IssueContextItem,
     MaterialContextItem,
     MaterialRequestContextItem,
+    MaterialRequirementContextItem,
     MemberContextItem,
     ProjectContextItem,
     TaskContextItem,
@@ -37,6 +38,7 @@ from app.domain.enums import (
     MemberStatus,
     TaskStatus,
 )
+from app.domain.import_records import MaterialRequirement
 from app.domain.models import (
     ActivityEvent,
     Approval,
@@ -146,11 +148,26 @@ def plan_context_query(message: str) -> ContextQuery:
             ),
             search_terms=_search_terms(normalized),
         )
+    if "after" in normalized:
+        return ContextQuery(
+            domains=(ContextDomain.TASKS, ContextDomain.SCHEDULE),
+            search_terms=_search_terms(normalized),
+        )
+    if "need" in normalized or "require" in normalized:
+        return ContextQuery(
+            domains=(
+                ContextDomain.TASKS,
+                ContextDomain.MATERIALS,
+                ContextDomain.MATERIAL_REQUIREMENTS,
+            ),
+            search_terms=_search_terms(normalized),
+        )
     if (
         normalized.startswith("how about ")
         or normalized.startswith("what about ")
         or normalized.startswith("what's happening with ")
         or normalized.startswith("whats happening with ")
+        or normalized.startswith("what happens ")
         or normalized.startswith("how is ")
         or normalized.startswith("what is happening with ")
     ):
@@ -213,6 +230,13 @@ class ProjectContextService:
             if ContextDomain.ISSUES in domains
             else ()
         )
+        material_requirements = (
+            self._material_requirements(project.id, query)
+            if ContextDomain.MATERIAL_REQUIREMENTS in domains
+            else ()
+        )
+        req_material_ids = {r.material_id for r in material_requirements}
+
         return ConversationalProjectContext(
             project_id=project.id,
             retrieved_at=retrieved_at,
@@ -230,9 +254,10 @@ class ProjectContextService:
             ),
             tasks=tasks if ContextDomain.TASKS in domains else (),
             issues=issues if ContextDomain.ISSUES in domains else (),
-            materials=self._materials(project.id, query)
+            materials=self._materials(project.id, query, req_material_ids)
             if ContextDomain.MATERIALS in domains
             else (),
+            material_requirements=material_requirements,
             material_requests=(
                 self._requests(project.id, query)
                 if ContextDomain.MATERIAL_REQUESTS in domains
@@ -288,11 +313,22 @@ class ProjectContextService:
                 and task.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
             ]
         elif query.search_terms:
-            tasks = [
+            matched_tasks = [
                 task
                 for task in tasks
                 if _matches(query.search_terms, task.title, task.trade, task.location)
             ]
+            if (
+                ContextDomain.SCHEDULE in query.domains
+                or ContextDomain.MATERIAL_REQUIREMENTS in query.domains
+            ):
+                matched_ids = {t.id for t in matched_tasks}
+                dependents = [
+                    t for t in tasks if any(dep in matched_ids for dep in t.dependency_ids)
+                ]
+                tasks = matched_tasks + [t for t in dependents if t not in matched_tasks]
+            else:
+                tasks = matched_tasks
         else:
             tasks = [task for task in tasks if task.status is not TaskStatus.CANCELLED]
         tasks.sort(
@@ -340,7 +376,10 @@ class ProjectContextService:
             for issue, version in issues[: self._limit]
         )
 
-    def _materials(self, project_id: str, query: ContextQuery) -> tuple[MaterialContextItem, ...]:
+    def _materials(
+        self, project_id: str, query: ContextQuery, req_material_ids: set[str] | None = None
+    ) -> tuple[MaterialContextItem, ...]:
+        req_material_ids = req_material_ids or set()
         materials = list(self._versioned_items(Material, project_id))
         if query.focus is ContextFocus.LOW_STOCK:
             materials = [item for item in materials if _is_low(item[0])]
@@ -354,6 +393,7 @@ class ProjectContextService:
                     item[0].normalized_name,
                     *item[0].aliases,
                 )
+                or item[0].id in req_material_ids
             ]
         return tuple(
             MaterialContextItem(
@@ -367,6 +407,33 @@ class ProjectContextService:
                 version=version,
             )
             for item, version in materials[: self._limit]
+        )
+
+    def _material_requirements(
+        self, project_id: str, query: ContextQuery
+    ) -> tuple[MaterialRequirementContextItem, ...]:
+        requirements = list(self._store.repository(MaterialRequirement).list(project_id))
+        if query.search_terms:
+            task_names = {t.id: t.title for t in self._store.repository(Task).list(project_id)}
+            material_names = {
+                m.id: m.name for m in self._store.repository(Material).list(project_id)
+            }
+            requirements = [
+                r
+                for r in requirements
+                if _matches(
+                    query.search_terms, task_names.get(r.task_id), material_names.get(r.material_id)
+                )
+            ]
+        return tuple(
+            MaterialRequirementContextItem(
+                id=r.id,
+                task_id=r.task_id,
+                material_id=r.material_id,
+                required_quantity=r.required_quantity,
+                unit=r.unit,
+            )
+            for r in requirements[: self._limit]
         )
 
     def _requests(

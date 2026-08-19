@@ -7,17 +7,26 @@ sessions difficult and gives tests one explicit seam for a local durable DB.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+import asyncio
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
+import inspect
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from google.adk.sessions import BaseSessionService
+from google.adk.apps import App, ResumabilityConfig
 from google.adk.events import RequestInput
 from google.adk.workflow import FunctionNode, JoinNode, START, Workflow
 from google.adk.agents.context import Context
 from pydantic import BaseModel, Field
 
 from app.config.settings import RuntimeEnvironment, Settings
+
+
+_SQLITE_SESSION_LOCKS: dict[str, Lock] = {}
+_SQLITE_SESSION_LOCKS_GUARD = Lock()
 
 
 class SiteUpdateWorkflowState(BaseModel):
@@ -71,11 +80,56 @@ def create_session_service(settings: Settings) -> BaseSessionService:
 
         if settings.adk_session_database_url.startswith("sqlite"):
             Path(".adk").mkdir(parents=True, exist_ok=True)
+            # SQLite permits one writer.  The finite connection timeout also
+            # protects local multi-process development, while the execution
+            # guard below handles concurrent deliveries in this process.
+            return DatabaseSessionService(
+                settings.adk_session_database_url,
+                connect_args={"timeout": 30},
+            )
         return DatabaseSessionService(settings.adk_session_database_url)
 
     raise ValueError(
         "Unsupported ADK_SESSION_BACKEND; use 'database' locally or 'vertex_ai' in deployment"
     )
+
+
+@asynccontextmanager
+async def managed_session_service(settings: Settings) -> AsyncIterator[BaseSessionService]:
+    """Yield a session service and always release its database resources."""
+
+    service = create_session_service(settings)
+    try:
+        yield service
+    finally:
+        close = getattr(service, "close", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+
+
+@asynccontextmanager
+async def sqlite_session_execution_guard(settings: Settings) -> AsyncIterator[None]:
+    """Serialize local SQLite ADK writes without limiting deployed backends.
+
+    ADK stores shared app and user state whenever it creates or appends a
+    session. Independent ``DatabaseSessionService`` instances otherwise race
+    on SQLite's single-writer lock under concurrent event delivery. Waiting
+    for a thread lock through ``to_thread`` keeps a shared event loop live.
+    """
+
+    database_url = settings.adk_session_database_url
+    if not database_url.startswith("sqlite"):
+        yield
+        return
+    with _SQLITE_SESSION_LOCKS_GUARD:
+        lock = _SQLITE_SESSION_LOCKS.setdefault(database_url, Lock())
+    await asyncio.to_thread(lock.acquire)
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def session_app_name(settings: Settings, store: object) -> str:
@@ -264,4 +318,26 @@ def build_site_update_workflow(
     )
 
 
-__all__ = ["build_site_update_workflow", "create_session_service", "session_app_name"]
+def build_site_update_app(
+    app_name: str,
+    execute: Callable[[], Awaitable[dict[str, Any]]],
+    *,
+    timeout_seconds: int,
+) -> App:
+    """Build the resumable ADK application for one site-update invocation."""
+
+    return App(
+        name=app_name,
+        root_agent=build_site_update_workflow(execute, timeout_seconds=timeout_seconds),
+        resumability_config=ResumabilityConfig(is_resumable=True),
+    )
+
+
+__all__ = [
+    "build_site_update_app",
+    "build_site_update_workflow",
+    "create_session_service",
+    "managed_session_service",
+    "session_app_name",
+    "sqlite_session_execution_guard",
+]

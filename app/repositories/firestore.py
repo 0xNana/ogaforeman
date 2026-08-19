@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date, datetime
+from decimal import Decimal
+import json
+from enum import Enum
 from typing import Any, Callable, Generic, TypeVar
 
 from google.api_core.exceptions import AlreadyExists
@@ -26,6 +30,13 @@ from app.domain.models import (
     Task,
 )
 from app.domain.materials import MaterialLedgerEntry
+from app.domain.import_records import (
+    ImportProvenance,
+    MaterialRequirement,
+    ProjectImportRecord,
+    ProjectPhase,
+    ProjectSource,
+)
 from app.infrastructure.firestore import decode_firestore_value, encode_firestore_value
 
 from .interfaces import (
@@ -61,8 +72,23 @@ _COLLECTIONS: dict[type[BaseModel], str] = {
     OutboxMessage: "outbox",
     ConversationMemory: "conversation_memory",
     ConversationProposalClaim: "conversation_proposal_claims",
+    ProjectImportRecord: "project_imports",
+    ProjectSource: "project_sources",
+    ProjectPhase: "project_phases",
+    MaterialRequirement: "material_requirements",
+    ImportProvenance: "import_provenance",
 }
 _REPOSITORY_VERSION_FIELD = "_repository_version"
+
+
+def _json_default(value: object) -> str:
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, Enum):
+        return str(value.value)
+    raise TypeError(f"unsupported JSON value: {type(value).__name__}")
 
 
 def firestore_collection_name(entity_type: type[BaseModel]) -> str:
@@ -320,6 +346,12 @@ class FirestoreRepository(Generic[EntityT], ProjectRepository[EntityT]):
         repository_version = data.pop(_REPOSITORY_VERSION_FIELD, 0)
         if "version" in self._entity_type.model_fields:
             data["version"] = repository_version
+        if self._entity_type is ProjectImportRecord:
+            # Draft contracts are strict at the model boundary. Firestore
+            # stores enum/date/decimal values in their JSON-compatible form,
+            # so validate the durable record through Pydantic's JSON parser on
+            # reload rather than weakening extraction-time strictness.
+            return self._entity_type.model_validate_json(json.dumps(data, default=_json_default))
         return self._entity_type.model_validate(data)
 
     @staticmethod

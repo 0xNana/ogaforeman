@@ -428,7 +428,7 @@ async def test_project_setup_question_reports_live_readiness_and_counts() -> Non
 
     assert response.status_code == 200
     assert response.json()["text"] == (
-        "Yes. Ridge House is set up and active. You have One task, One open issue, "
+        "Yes. Ridge House is operational. I have One task, One open issue, "
         "and materials are being tracked."
     )
     assert store.repository(ActivityEvent).list(PROJECT_ID) == ()

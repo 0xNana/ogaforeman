@@ -12,7 +12,7 @@ from collections.abc import Sequence
 
 from app.agents.interpreter import MediaEvidence, SiteInterpreter
 from app.domain.activity import MutationContext, WorkflowActivityAction
-from app.domain.authorization import ProjectAccessContext
+from app.domain.authorization import ProjectAccessContext, ProjectPermission
 from app.domain.enums import (
     ActorType,
     ApprovalStatus,
@@ -32,7 +32,9 @@ from app.domain.facts import (
     TaskCompletionFact,
 )
 from app.domain.models import Issue, Material, ReportFact, SiteUpdate, Task
+from app.domain.import_records import MaterialRequirement
 from app.repositories.context import ProjectContext
+from app.repositories.interfaces import RepositoryStore
 from app.services.context import ContextService
 from app.services.entity_resolution import MatchConfidence, resolve_material, resolve_task
 from app.services.fact_router import route_facts
@@ -40,15 +42,13 @@ from app.services.issues import CreateIssueCommand, IssueService
 from app.services.material_requests import MaterialRequestService, MaterialShortageCommand
 from app.services.reports import ReportService
 from app.services.schedule_impact import calculate_impact
-from app.tools.materials import MaterialQuantityCommand, MaterialTools
+from app.tools.materials import CreateMaterialCommand, MaterialQuantityCommand, MaterialTools
 from app.services.tasks import CreateBlockerFollowUpCommand
 from app.services.workflow_audit import WorkflowAuditService
 from app.tools.tasks import TaskTools, UpdateTaskCommand
 
 if TYPE_CHECKING:
-    from app.workflows.runtime import RuntimeManager
-
-
+    pass
 _MODEL_CONTEXT_ENTITY_LIMIT = 200
 _MODEL_CONTEXT_MAX_CHARS = 100_000
 
@@ -80,7 +80,6 @@ class SiteUpdateService:
         material_request_service: MaterialRequestService,
         report_service: ReportService,
         workflow_audit: WorkflowAuditService,
-        runtime_manager: RuntimeManager | None = None,
     ) -> None:
         self._interpreter = interpreter
         self._context_service = context_service
@@ -92,7 +91,6 @@ class SiteUpdateService:
         # Kept as an injection-compatible argument for legacy callers. Native
         # ADK execution owns workflow checkpoints; this service never advances
         # an AgentRun cursor.
-        del runtime_manager
         self._workflow_audit = workflow_audit
 
     async def process_update(
@@ -392,37 +390,67 @@ class SiteUpdateService:
                     project_context.materials,
                 )
                 material = material_resolution.resolved_entity
-                if material_resolution.confidence is not MatchConfidence.HIGH or material is None:
+                if material_resolution.confidence is MatchConfidence.AMBIGUOUS:
                     has_clarifications = True
                     continue
-                if material.id in seen_material_ids:
-                    continue
-                seen_material_ids.add(material.id)
-                reported_quantity = Decimal(str(material_fact.quantity))
-                quantity_delta = reported_quantity - material.available_quantity
-                if quantity_delta != 0:
-                    material_change = self._material_tools.update_material_quantity(
-                        MaterialQuantityCommand(
+                if material_resolution.confidence is MatchConfidence.UNKNOWN or material is None:
+                    if not material_fact.unit:
+                        has_clarifications = True
+                        continue
+
+                    reported_quantity = Decimal(str(material_fact.quantity))
+                    material_creation = self._material_tools.create_material(
+                        CreateMaterialCommand(
                             project_id=access.project_id,
-                            material_id_or_alias=material.id,
-                            quantity_delta=quantity_delta,
-                            unit=material_fact.unit or material.unit,
-                            expected_version=material.version,
-                            reason=material_fact.evidence,
-                            occurred_at=site_update.submitted_at,
+                            name=material_fact.material_name,
+                            unit=material_fact.unit,
+                            available_quantity=reported_quantity,
                         ),
                         _mutation_context(
                             access,
                             site_update,
                             causal_event_id,
                             run_id,
-                            f"material:{material.id}:reported-stock",
+                            f"material:auto-create:{material_fact.material_name}",
                         ),
+                        permission=ProjectPermission.OPERATE,
                     )
-                    material = material_change.material
-                    materials_updated += int(not material_change.duplicate)
+                    material = material_creation.material
+                    materials_updated += int(not material_creation.duplicate)
+                else:
+                    if material.id in seen_material_ids:
+                        continue
+                    seen_material_ids.add(material.id)
+                    reported_quantity = Decimal(str(material_fact.quantity))
+                    quantity_delta = reported_quantity - material.available_quantity
+                    if quantity_delta != 0:
+                        material_change = self._material_tools.update_material_quantity(
+                            MaterialQuantityCommand(
+                                project_id=access.project_id,
+                                material_id_or_alias=material.id,
+                                quantity_delta=quantity_delta,
+                                unit=material_fact.unit or material.unit,
+                                expected_version=material.version,
+                                reason=material_fact.evidence,
+                                occurred_at=site_update.submitted_at,
+                            ),
+                            _mutation_context(
+                                access,
+                                site_update,
+                                causal_event_id,
+                                run_id,
+                                f"material:{material.id}:reported-stock",
+                            ),
+                        )
+                        material = material_change.material
+                        materials_updated += int(not material_change.duplicate)
 
-                required_quantity = _required_material_quantity(material)
+                required_quantity = _required_material_quantity(
+                    material,
+                    self._material_requests._store,
+                    access.project_id,
+                    project_context.active_tasks,
+                )
                 if required_quantity is None or reported_quantity >= required_quantity:
                     continue
                 shortage = self._material_requests.evaluate_shortage(
@@ -672,7 +700,25 @@ def _resolve_issue_tasks(
     return [task.id], False
 
 
-def _required_material_quantity(material: Material) -> Decimal | None:
+def _required_material_quantity(
+    material: Material, store: RepositoryStore, project_id: str, active_tasks: Sequence[Task]
+) -> Decimal | None:
+    reqs = store.repository(MaterialRequirement).list(project_id)
+    active_task_ids = {
+        t.id for t in active_tasks if t.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
+    }
+
+    has_reqs = False
+    total = Decimal("0")
+    for r in reqs:
+        if r.material_id == material.id:
+            has_reqs = True
+            if r.task_id in active_task_ids:
+                total += r.required_quantity
+
+    if has_reqs:
+        return total if total > 0 else None
+
     return material.upcoming_requirement_quantity or (
         material.minimum_required_quantity if material.minimum_required_quantity > 0 else None
     )

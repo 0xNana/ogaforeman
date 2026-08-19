@@ -8,6 +8,94 @@ Legend: `[x]` implemented and verified locally; `[~]` partially implemented
 or unstable; `[ ]` implementation/evidence missing; `[!]` blocked only on a
 real cloud environment, live model credential/billing, or human release gate.
 
+## ADK execution authority migration
+
+## Project initialization
+
+Overall status: **partial**. The checked implementation claims from the prior
+phase sequence are reopened as partial evidence until
+[`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md) passes its production
+gates. Strict expected-failure tests track audited defects without misreporting
+them as passing behavior. PI-00 through PI-03 are complete locally; three strict
+expected failures remain for PI-04, PI-05, and PI-09.
+
+- [~] Phase 0 domain audit documents the existing canonical model, persistence,
+  authorization, ADK boundary, and the concepts that must be created or extended.
+- [~] Phase 1 canonical import contracts validate a complete residential draft
+  without Gemini, persistence, or arbitrary canonical IDs from extraction output.
+- [~] Phase 2 deterministic validation rejects invalid references, duplicate or
+  cyclic dependencies, and incompatible material units before canonical writes;
+  unresolved references remain review warnings. PI-01 makes it the sole
+  complete-draft validation owner and persists invalid drafts with typed blockers;
+  exact write-plan accounting remains open under PI-05.
+- [~] Phase 3 deterministic importer requires a persisted review and explicit
+  confirmation, generates canonical IDs, commits the canonical model plus
+  provenance/activity/inventory records, preserves imported fields, records
+  retryable failures, persists separate confirmation/import claims, resumes exact
+  claims after restart, and rejects mismatched retries. PI-03 makes provenance
+  complete for every imported fact, sources its trusted metadata from persisted
+  project sources, and exposes tenant-authorized explanation lookups.
+- [~] Phase 4 persists first-class project sources with pasted text/checksum,
+  durable metadata, creator/status, replay protection, and import linkage.
+- [~] Phase 5 structured text adapter accepts pasted text, Markdown, and OG
+  template variation and produces normalized source text for extraction without
+  inventing dates or canonical entities.
+- [~] Phase 6 native ADK extraction workflow persists a resumable node trace,
+  session/invocation identity, extraction lease/attempt, and recoverable failure
+  state from source receipt through schema-constrained Gemini extraction,
+  normalization, deterministic validation, and needs-review handoff. PI-02 now
+  persists and enforces every lifecycle transition and safely resumes exact
+  expired/failed claims.
+- [~] Phase 7 deterministically normalizes known Gemini unit aliases before
+  canonical draft validation, and detects punctuation-only task-name duplicates
+  without merging distinct activities.
+- [~] Phase 8 exposes the review-first import API for extraction, review,
+  confirmation, cancellation, and draft discard; canonical project truth remains
+  unchanged until server-authoritative confirmation, with durable request claims,
+  stale-replay conflicts, outage-safe reads/decisions, project-scope checks, and
+  a bounded local SQLite ADK fallback that safely serializes concurrent writes;
+  persisted conflicts block both API and direct-service confirmation, and
+  dependency outages leave reloadable records with safe retry diagnostics.
+- [~] Phase 9 presents each persisted import draft as a focused read-only review
+  of its task, dependency, material, and task-grouped requirement records, with
+  explicit warnings and conflict blockers before the version-checked cancel or
+  confirm-and-initialize decision; in-place editing remains V2 scope.
+- [~] Phase 10 initializes an active, mid-project site from explicit task state
+  (`planned`, `in_progress`, `completed`, or `blocked`) and opening material
+  quantity without fabricating historical task or inventory events.
+- [~] Phase 11 derives `empty`, `partially_configured`, and `operational`
+  readiness entirely from canonical project records, exposing task, dependency,
+  material, requirement, schedule, initial-state, and configuration-gap facts.
+- [~] Phase 12 queries the newly imported model for operational context (e.g. material
+  requirements, dependencies) using entity-specific project state without generic fallbacks.
+- [~] Phase 13 connects imported requirements to Golden Operations rather than
+  hardcoded quantities, but task-specific shortage selection remains open.
+- [~] Phase 14 enforces data-driven schedule dependency reasoning. Blockers dynamically
+  traverse actual canonical task dependencies rather than making hallucinated or hardcoded
+  fallback impact claims.
+- [~] Phase 15 supports material auto-creation during site operations. A valid material
+  fact with sufficient naming and unit data creates a typed entity when it does not exist,
+  without treating operations as a project re-import.
+- [~] Phase 16 emits user-facing activity for project import lifecycle events and entity
+  creations (`project.import.started`, `project.import.extracted`, `project.import.reviewed`,
+  `project.initialized`, `task.created`, `dependency.created`, `material.created`,
+  `material.requirement.created`), avoiding internal extraction spam while preserving audit
+  fields (actor, source, import ID, and timestamp).
+- [~] Phase 17 establishes the `ProjectImportDiffService` interface and declarative
+  operations (`ADDED`, `CHANGED`, `REMOVED`, `CONFLICTED`), while canonical
+  duplicate/change preflight remains open.
+
+- [ ] P0 Approval continuation resumes the same durable ADK session and
+  invocation after worker/container restart and completes the original run once.
+- [ ] P1 Every non-site agentic event executes through ADK rather than
+  `OgaCoordinator` or `RoutedEventExecutor`.
+- [ ] P2 Conversational queries and actions execute through ADK Runner plus
+  typed deterministic tools.
+- [ ] P3 Registered `LlmAgent`s are wired to production use or removed, with no
+  unused agents in architecture documents.
+- [ ] P4 Legacy route-map authority, manual `AgentRun` workflow progression,
+  and custom resume orchestration are removed; `AgentRun` is observable only.
+
 ## Conversational operations
 
 - [x] C-01 Phase 0 audit documents the locked Golden Scenario, reusable architecture,

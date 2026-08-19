@@ -222,7 +222,7 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
     assert store.repository(Approval).require(PROJECT_ID, approval.id).resolved_by == ACTOR_ID
     assert [result.route for result in runtime.event_transport.worker_results] == [
         "site_report",
-        "materials",
+        "approval_continuation",
     ]
     assert len(runtime.interpreter.fact_calls) == 1
     assert '"id":"tsk_electrical123"' in runtime.interpreter.fact_calls[0][2]

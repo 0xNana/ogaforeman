@@ -20,6 +20,7 @@ from app.domain.conversation import (
     IntentType,
     IssueContextItem,
     MaterialContextItem,
+    MaterialRequirementContextItem,
     MemberContextItem,
     ReplyKind,
     ProjectSetupStatus,
@@ -94,19 +95,42 @@ def test_project_setup_reply_uses_persisted_counts() -> None:
             project_name="Ridge House",
             has_members=True,
             has_tasks=True,
+            has_dependencies=True,
             has_schedule=True,
             has_materials=True,
+            has_material_requirements=True,
+            has_initial_state=True,
             has_recent_activity=True,
             task_count=8,
+            dependency_count=14,
+            material_requirement_task_count=5,
+            planned_tasks_without_material_requirements=2,
             open_issue_count=2,
-            readiness_state=ProjectReadinessState.ACTIVE,
+            readiness_state=ProjectReadinessState.OPERATIONAL,
         )
     )
 
     assert "Ridge House is created, but it's still mostly empty" in minimal.text
     assert active.text == (
-        "Yes. Ridge House is set up and active. You have 8 tasks, 2 open issues, "
-        "and materials are being tracked."
+        "Yes. Ridge House is operational. I have 8 tasks, 14 dependencies, material requirements "
+        "for 5 tasks, 2 planned activities without material requirements, 2 open issues, and "
+        "materials are being tracked."
+    )
+
+
+def test_project_setup_reply_explains_that_partial_configuration_needs_tasks() -> None:
+    reply = ConversationResponseService().project_setup(
+        ProjectSetupStatus(
+            project_exists=True,
+            project_name="Ridge House",
+            has_materials=True,
+            readiness_state=ProjectReadinessState.PARTIALLY_CONFIGURED,
+        )
+    )
+
+    assert reply.text == (
+        "Ridge House has some project records, but it needs tasks before OG can reason "
+        "usefully about the work."
     )
 
 
@@ -338,6 +362,57 @@ def test_entity_project_query_returns_matching_task_state() -> None:
                 ),
             ),
             "Kofi Mensah owns Electrical rough-in.",
+        ),
+        (
+            context(
+                ContextQuery(
+                    domains=(
+                        ContextDomain.TASKS,
+                        ContextDomain.MATERIALS,
+                        ContextDomain.MATERIAL_REQUIREMENTS,
+                    ),
+                    search_terms=("plastering", "need"),
+                ),
+                tasks=(task("tsk_plastering123", "Plastering", "planned"),),
+                materials=(
+                    MaterialContextItem(
+                        id="mat_cement123",
+                        name="Cement",
+                        unit="bags",
+                        available_quantity=Decimal("10"),
+                        reserved_quantity=Decimal("0"),
+                        minimum_required_quantity=Decimal("40"),
+                    ),
+                ),
+                material_requirements=(
+                    MaterialRequirementContextItem(
+                        id="req_123",
+                        task_id="tsk_plastering123",
+                        material_id="mat_cement123",
+                        required_quantity=Decimal("30"),
+                        unit="bags",
+                    ),
+                ),
+            ),
+            "Plastering is planned. It requires 30 bags of Cement.",
+        ),
+        (
+            context(
+                ContextQuery(
+                    domains=(ContextDomain.TASKS, ContextDomain.SCHEDULE),
+                    search_terms=("foundation", "after"),
+                ),
+                tasks=(
+                    task("tsk_foundation123", "Foundation", "completed"),
+                    task(
+                        "tsk_framing123",
+                        "Framing",
+                        "planned",
+                        dependency_ids=("tsk_foundation123",),
+                    ),
+                ),
+            ),
+            "Foundation is completed. Framing depends on it.",
         ),
     ],
 )

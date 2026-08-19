@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from google.cloud import firestore
 
+from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
 from app.domain.enums import (
     ActorType,
     AgentRunStatus,
@@ -13,12 +14,20 @@ from app.domain.enums import (
     ApprovalStatus,
     MaterialRequestStatus,
     TaskStatus,
+    MemberRole,
+)
+from app.domain.import_records import (
+    ImportProvenance,
+    ImportProvenanceTargetType,
+    import_provenance_id,
 )
 from app.domain.models import ActivityEvent, AgentRun, Approval, Material, MaterialRequest, Task
+from app.domain.project_import import SourceType
 from app.repositories.firestore import FirestoreRepository, FirestoreRepositoryStore
 from app.repositories.interfaces import EntityAlreadyExistsError, VersionConflictError
 from app.config.settings import RuntimeEnvironment, Settings
 from app.workflows.resume import ResumeWorkflow
+from app.services.project_import_provenance import ProjectImportProvenanceService
 from scripts.reset_demo import reset_demo
 
 
@@ -83,6 +92,45 @@ def test_firestore_persists_across_clients_and_isolates_projects(
     assert restarted_repository.require("prj_ridge", "tsk_blockwork").project_id == "prj_ridge"
     assert restarted_repository.require("prj_other", "tsk_blockwork").project_id == "prj_other"
     assert restarted_repository.get("prj_unknown", "tsk_blockwork") is None
+
+
+def test_firestore_import_provenance_survives_restart_and_resolves_by_target(
+    firestore_project_id: str,
+) -> None:
+    project_id = "prj_provenance123"
+    target_id = "tsk_foundation123"
+    initial_store = FirestoreRepositoryStore(firestore.Client(project=firestore_project_id))
+    initial_store.repository(ImportProvenance).create(
+        ImportProvenance(
+            id=import_provenance_id(ImportProvenanceTargetType.TASK, target_id),
+            project_id=project_id,
+            import_id="imp_provenance123",
+            source_id="src_provenance123",
+            source_checksum="d" * 64,
+            source_type=SourceType.MARKDOWN,
+            source_name="trusted-plan.md",
+            target_entity_type=ImportProvenanceTargetType.TASK,
+            target_entity_id=target_id,
+            imported_by="usr_admin123",
+            imported_at=datetime(2026, 8, 19, 12, 0, tzinfo=UTC),
+            idempotency_key="project-import:provenance:task",
+        )
+    )
+
+    restarted_store = FirestoreRepositoryStore(firestore.Client(project=firestore_project_id))
+    provenance = ProjectImportProvenanceService(restarted_store).get_for_target(
+        ProjectAccessContext(
+            actor=AuthenticatedUser(user_id="usr_viewer123", subject="test"),
+            project_id=project_id,
+            role=MemberRole.VIEWER,
+        ),
+        target_entity_type=ImportProvenanceTargetType.TASK,
+        target_entity_id=target_id,
+    )
+
+    assert provenance.import_id == "imp_provenance123"
+    assert provenance.source_checksum == "d" * 64
+    assert provenance.target_entity_id == target_id
 
 
 def test_firestore_transaction_commits_mutation_and_activity_atomically(

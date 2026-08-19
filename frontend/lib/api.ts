@@ -277,6 +277,55 @@ export type ConversationInput = {
   inputType?: ConversationInputType;
 };
 
+export type ProjectImportStatus =
+  | 'uploaded'
+  | 'extracting'
+  | 'draft'
+  | 'validating'
+  | 'needs_review'
+  | 'confirmed'
+  | 'importing'
+  | 'imported'
+  | 'extraction_failed'
+  | 'validation_failed'
+  | 'import_failed'
+  | 'cancelled';
+
+type ImportSourceReference = {
+  source_id: string;
+  source_type: string;
+  source_name: string;
+  section: string | null;
+  external_reference: string | null;
+  imported_at: string;
+};
+
+export type ProjectImportReviewRecord = {
+  id: string;
+  source_id: string;
+  status: ProjectImportStatus;
+  version: number;
+  project: {
+    name: string;
+    description: string | null;
+    type: string | null;
+    location: string | null;
+    start_date: string | null;
+    target_end_date: string | null;
+    status: string;
+  } | null;
+  phases: Array<{ temp_id: string; name: string; sequence: number; description: string | null }>;
+  tasks: Array<{ temp_id: string; name: string; description: string | null; phase_temp_id: string | null; planned_start: string | null; planned_finish: string | null; actual_completion: string | null; duration: string | number | null; initial_status: string; location: string | null; trade: string | null; assignee_reference: string | null; source_reference: ImportSourceReference | null }>;
+  dependencies: Array<{ predecessor_temp_id: string; successor_temp_id: string; type: string; source_reference: ImportSourceReference | null }>;
+  materials: Array<{ temp_id: string; name: string; canonical_unit: string; initial_on_hand_quantity: string | number; location: string | null; source_reference: ImportSourceReference | null }>;
+  requirements: Array<{ task_temp_id: string; material_temp_id: string; required_quantity: string | number; unit: string; required_by: string | null; source_reference: ImportSourceReference | null; confidence: string | number }>;
+  milestones: Array<{ temp_id: string; name: string; planned_date: string | null; source_reference: ImportSourceReference | null }>;
+  warnings: Array<{ code: string; message: string; field: string | null; source_reference: ImportSourceReference | null }>;
+  conflicts: Array<{ code: string; message: string; entity_temp_id: string | null; existing_reference: string | null; source_reference: ImportSourceReference | null }>;
+  unresolved_references: string[];
+  replayed: boolean;
+};
+
 type UploadGrant = {
   attachment_id: string;
   upload_url: string;
@@ -389,6 +438,35 @@ function authenticatedFetch(path: string, token: string, init?: RequestInit): Pr
 }
 
 export const api = {
+  getProjectImport: async (projectId: string, importId: string): Promise<ProjectImportReviewRecord> => remote<ProjectImportReviewRecord>(
+    `/api/v1/projects/${projectId}/imports/${importId}`,
+  ),
+  confirmProjectImport: async (
+    projectId: string,
+    importId: string,
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<ProjectImportReviewRecord> => remote<ProjectImportReviewRecord>(
+    `/api/v1/projects/${projectId}/imports/${importId}/confirm`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ expected_version: expectedVersion }),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    },
+  ),
+  cancelProjectImport: async (
+    projectId: string,
+    importId: string,
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<ProjectImportReviewRecord> => remote<ProjectImportReviewRecord>(
+    `/api/v1/projects/${projectId}/imports/${importId}/cancel`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ expected_version: expectedVersion }),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    },
+  ),
   getPendingConversationProposal: async (projectId: string): Promise<PendingConversationProposalResult> => remote<PendingConversationProposalResult>(
     `/api/v1/projects/${projectId}/conversations/proposals/pending`,
   ),

@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from hashlib import sha256
 from typing import Callable, TypeVar
 
 from app.domain.models import AgentRun
 from app.repositories.interfaces import ProjectRepository, RepositorySession, RepositoryStore
 
 ResultT = TypeVar("ResultT")
+
+
+def run_id_for_event(event_id: str) -> str:
+    return f"run_{sha256(event_id.encode('utf-8')).hexdigest()[:32]}"
 
 
 class AgentRunRepository:
@@ -42,4 +47,4 @@ class AgentRunRepository:
         return session.repository(AgentRun)
 
 
-__all__ = ["AgentRunRepository"]
+__all__ = ["AgentRunRepository", "run_id_for_event"]

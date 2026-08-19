@@ -54,7 +54,11 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     conversation_proposal_signing_key: SecretStr | None = None
 
-    event_claim_lease_seconds: int = Field(default=60, ge=30, le=600)
+    # A lease must cover the longest bounded local SQLite ADK queue as well as
+    # a single workflow attempt.  Local SQLite serializes its one writer; a
+    # five-minute default keeps the documented 100-event capacity envelope
+    # claim-safe without weakening the persisted owner-token check.
+    event_claim_lease_seconds: int = Field(default=300, ge=30, le=600)
     event_claim_max_attempts: int = Field(default=3, ge=1, le=10)
     agent_workflow_timeout_seconds: int = Field(default=45, ge=5, le=300)
     adk_session_backend: str = "auto"

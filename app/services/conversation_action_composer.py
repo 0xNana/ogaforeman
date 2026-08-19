@@ -196,18 +196,26 @@ class ActionComposer:
     ) -> ComposedAction:
         ensure_project_scope(access, context.project_id)
         ensure_project_scope(access, policy_request.project_id)
+        if isinstance(interpretation, TaskActionBatchInterpretation):
+            raise ValueError("task batches must be composed individually")
         command: ActionCommand
         mutation: MutationKind
+        kind: Literal["task", "material", "issue", "schedule", "purchase"]
         if isinstance(interpretation, TaskActionInterpretation):
             command, mutation = self._task(interpretation, context, resolutions)
+            kind = "task"
         elif isinstance(interpretation, MaterialActionInterpretation):
             command, mutation = self._material(interpretation, context, resolutions)
+            kind = "material"
         elif isinstance(interpretation, IssueActionInterpretation):
             command, mutation = self._issue(interpretation, context, resolutions)
+            kind = "issue"
         elif isinstance(interpretation, ScheduleActionInterpretation):
             command, mutation = self._schedule(access, interpretation, context, resolutions)
+            kind = "schedule"
         else:
             command, mutation = self._purchase(interpretation, context, resolutions)
+            kind = "purchase"
         allowed_policy_kinds = (
             {MutationKind.SCHEDULE_DATES, MutationKind.MAJOR_SCHEDULE_CHANGE}
             if interpretation.kind == "schedule"
@@ -222,7 +230,7 @@ class ActionComposer:
             raise ValueError("mutation policy does not match the composed command")
         mutation = policy_request.kind
         return ComposedAction(
-            kind=interpretation.kind,
+            kind=kind,
             command=command,
             mutation_kind=mutation,
             policy_decision=self._policies.classify(access, policy_request),
@@ -264,7 +272,8 @@ class ActionComposer:
             operation=value.operation,
             task=task,
             assignee=assignee,
-            title=value.title or (value.task_reference if value.operation is TaskOperation.CREATE else None),
+            title=value.title
+            or (value.task_reference if value.operation is TaskOperation.CREATE else None),
             description=value.description,
             trade=value.trade,
             location=value.location,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.domain.activity import MutationContext
-from app.domain.authorization import ProjectAccessContext
+from app.domain.authorization import ProjectAccessContext, ProjectPermission
 from app.services.materials import (
     CreateMaterialCommand,
     MaterialChange,
@@ -30,9 +30,13 @@ class MaterialTools:
         return self._service.update_quantity(self._access, command, context)
 
     def create_material(
-        self, command: CreateMaterialCommand, context: MutationContext
+        self,
+        command: CreateMaterialCommand,
+        context: MutationContext,
+        *,
+        permission: ProjectPermission = ProjectPermission.MANAGE,
     ) -> MaterialCreation:
-        return self._service.create_material(self._access, command, context)
+        return self._service.create_material(self._access, command, context, permission=permission)
 
     def set_material_quantity(
         self, command: SetMaterialQuantityCommand, context: MutationContext

@@ -2,30 +2,28 @@
 
 ## Principle
 
-Use a coordinator and four narrow specialists. Agents return typed facts or proposals. ADK workflows control business steps, and deterministic tools enforce policies and mutations.
+ADK Runner workflows are the execution authority. Agents return typed facts or
+proposals; deterministic tools enforce policies and mutations, and Firestore is
+the durable source of truth.
 
 ```text
-OgaCoordinator
-  +-- SiteInterpreter
-  +-- ProjectPlanner
-  +-- MaterialsSpecialist
-  +-- Reporter
+ADK Runner / durable SessionService
+  +-- typed event and conversation tools
+  +-- model boundary (SiteInterpreter / registered LlmAgents)
+  +-- AgentRun observable projection
 ```
 
 ## Canonical Registry
 
 Agent name, ADK name, prompt file/version, allowed tools, model configuration, and telemetry label live in one typed registry. Startup fails if a coordinator route references an absent/duplicate agent or prompt.
 
-## OgaCoordinator
+## Execution boundary
 
-- validates project event and context;
-- chooses registered workflows, not arbitrary names from input;
-- invokes specialists and validates structured output;
-- enforces safety and approval policy before tools;
-- returns a safe action summary;
-- never accesses Firestore directly or stores durable truth in its session.
-
-The production API and Pub/Sub worker both enter through this coordinator. Direct workflow function calls are allowed only in tests or explicitly labeled local demos.
+The production API and worker enter through an ADK `Runner` backed by a durable
+`SessionService`. ADK owns invocation scheduling, pauses, restart recovery, and
+continuation. Typed services remain responsible for authorization, idempotent
+mutations, and atomic activity events. `AgentRun` is an authorized projection,
+not an execution cursor.
 
 ## SiteInterpreter
 

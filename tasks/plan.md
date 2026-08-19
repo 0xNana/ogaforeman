@@ -1,5 +1,181 @@
 # Oga Foreman V1 Execution Plan
 
+## ADK Execution Authority Migration — P0 through P4
+
+Project Initialization status: **partial** as of 2026-08-19. The phase notes
+below record prior slice-level implementation, but production completion is
+superseded by the open gates in
+[`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md). Strict expected-failure
+regressions now preserve the remaining audited gaps until PI-04 through PI-14
+resolve them. PI-00 through PI-03 are complete locally: invalid complete drafts
+remain reviewable, all persisted conflicts block confirmation, and the durable
+import lifecycle safely resumes exact extraction and commit claims after restart.
+Canonical import provenance is complete, trusted from persisted sources, and
+resolvable through tenant-authorized target, dependency, and direct-record APIs.
+
+## Project Initialization — Phase 0 Domain Audit
+
+Prior slice evidence recorded on 2026-08-17. The existing canonical domain,
+repositories, services, ADK boundary, and missing import concepts are mapped in
+[`docs/PROJECT_INITIALIZATION_ARCHITECTURE.md`](../docs/PROJECT_INITIALIZATION_ARCHITECTURE.md).
+No import models or writes are introduced until the Phase 1 contracts are defined.
+
+## Project Initialization — Phase 1 Canonical Import Contracts
+
+Prior slice evidence recorded on 2026-08-17. Pure strict Pydantic contracts cover
+versioned import drafts, project/phases/tasks/dependencies/materials,
+task-to-material requirements, provenance, warnings, conflicts, and draft-only
+temporary references. A complete residential fixture validates without Gemini.
+
+## Project Initialization — Phase 2 Deterministic Validation
+
+PI-01 completed locally on 2026-08-19. `ProjectImportValidator` is the sole owner
+of complete-draft validation and preserves unknown references, duplicate IDs,
+self-dependencies, dependency cycles, duplicate edges, incompatible material
+units, existing typed conflicts, and unresolved-reference warnings without
+repositories or canonical writes. Blocking results persist as
+`VALIDATION_FAILED`; exact write-plan accounting remains open under PI-05.
+
+## Project Initialization — Phase 3 Deterministic Importer
+
+PI-02 completed locally on 2026-08-19. Confirmed drafts move through separate,
+persisted `CONFIRMED` and `IMPORTING` claims before they commit canonical
+phases, tasks, dependencies, materials, initial inventory ledger entries,
+material requirements, provenance, import records, and activity atomically
+through the repository transaction boundary. Exact retries resume `CONFIRMED`,
+`IMPORTING`, or retryable `IMPORT_FAILED` records; mismatched claims conflict,
+and replaying an imported record is a durable no-op.
+
+## Project Initialization — Phase 4 Source Persistence
+
+Prior slice evidence recorded on 2026-08-17. `ProjectSource` and
+`ProjectSourceService` persist pasted text with SHA-256 checksums, durable
+references, source status, creator, and replay-safe activity. Confirmed imports
+require a persisted source before canonical records are committed.
+
+## Project Initialization — Phase 5 Structured Text Adapter
+
+Prior slice evidence recorded on 2026-08-17. `StructuredTextProjectAdapter` accepts
+pasted text, Markdown, and OG-template variations, normalizes bounded source
+text and labels, preserves unresolved dates, and computes a stable checksum for
+the ADK/Gemini extraction boundary.
+
+## Project Initialization — Phase 6 ADK Project Extraction Workflow
+
+PI-02 completed locally on 2026-08-19. A native resumable ADK workflow
+exposes `source_received`, `load_source`, schema-constrained Gemini extraction,
+schema validation, draft normalization, deterministic validation, and
+`needs_review` nodes. The application persists and guards `UPLOADED`,
+`EXTRACTING`, `DRAFT`, `VALIDATING`, review/failure, confirmation/import, and
+terminal transitions. Dependency outages persist safe retryable failures;
+expired and failed exact claims resume without changing import identity. Gemini
+emits only draft-shaped data; application code adds import/source identity and
+produces the normalized `ProjectImportDraft`.
+
+## Project Initialization — Phase 7 Normalization Layer
+
+Prior slice evidence recorded on 2026-08-17. Deterministic normalization converts
+known extraction unit aliases (including `pcs`/`piece`/`pices` and cubic-metre
+forms) before canonical draft creation. Task display names are preserved, while
+a conservative Unicode/case/punctuation comparison key rejects only equivalent
+duplicates without semantic merging.
+
+## Project Initialization — Phase 8 Review API
+
+Prior slice evidence recorded on 2026-08-18. Authenticated project-scoped import
+routes now extract and persist review drafts through the native ADK Runner,
+expose the complete review payload, and require an optimistic version plus
+idempotency key for confirmation or cancellation. Draft cancellation discards
+the review without writing canonical project entities; confirmation is only
+possible from the persisted review record, commits the validated draft once,
+and safely replays only the original request claim. Extraction leases and
+persisted ADK session/invocation identity support recovery after failure or
+worker restart, while reads and decisions remain available during extractor
+outages. PI-01 rejects persisted blocking conflicts through both the review API
+and direct import service before any canonical entity write. PI-02 adds safe
+failure diagnostics and exact-claim recovery across process and Firestore-client
+restart.
+
+PI-02 verification: the required workflow/API gate passes 20 tests, the focused
+import/validation/API regression set passes 39 tests with only PI-03 through
+PI-05 strict expected failures, and two fresh-client lifecycle restart tests pass
+against the Firestore emulator. Ruff and format pass repository-wide; focused
+PI-02 mypy passes. The previously unrelated assignment mismatch in
+`app/services/site_updates.py` was subsequently fixed during PI-03, and app-wide
+mypy now passes.
+
+PI-03 verification: trusted provenance covers phases, tasks, milestones,
+dependencies, materials, opening inventory ledger entries, and requirements.
+Focused service/provenance/API tests pass 21 tests with only the PI-04 duplicate
+import regression xfailed; Firestore persistence and authorization pass 22 tests
+against the emulator. Repository-wide Ruff/format and app-wide mypy pass.
+
+## Project Initialization — Phase 9 Review UI
+
+Prior slice evidence recorded on 2026-08-18. The authenticated review route renders
+the persisted draft as a focused, read-only summary of tasks, dependencies,
+materials, task-grouped requirements, and explicit warnings before canonical
+state changes. Conflicts visibly block confirmation; cancellation and
+confirmation preserve stable client idempotency keys and the server-provided
+optimistic version. Terminal decisions return the user to the project; in-place
+draft editing remains V2 scope.
+
+Verification: frontend API-boundary and review-component tests, full frontend
+unit suite, TypeScript, ESLint, and production build pass locally.
+
+## Project Initialization — Phase 10 Initial Actual State
+
+Prior slice evidence recorded on 2026-08-18. Confirmed imports preserve explicitly
+provided task state (`planned`, `in_progress`, `completed`, or `blocked`) and
+opening material quantity. Completed tasks require an explicit actual completion
+date and are recorded at 100% completion; the import records only source/import
+lifecycle activity and opening-stock ledger state, never fabricated historical
+task or inventory events.
+
+Verification: the project-import service regression covers an active, mid-project
+initialization with completed, in-progress, and planned tasks plus opening cement
+stock, and verifies that no historical task or material activity is synthesized.
+
+## Project Initialization — Phase 11 Project Readiness
+
+Prior slice evidence recorded on 2026-08-18. Project readiness is derived from
+canonical project data only: `empty`, `partially_configured`, or `operational`.
+An operational project has tasks; capability flags and counts expose dependencies,
+materials, material requirements, schedule, imported initial state, and planned
+tasks that still lack material requirements. OG answers setup questions with
+those real counts and concrete gaps, never an AI-generated score.
+
+Verification: unit and integration coverage proves the three readiness states,
+imported-plan capability flags, requirement gaps, and the grounded setup reply.
+
+Acceptance: ADK Runner and its durable session service are the only execution
+authority for agentic production paths. An approval pauses the original ADK
+invocation, survives worker/container restart, and resumes that invocation
+exactly once. `AgentRun` remains an authorized, durable product projection;
+it is never an execution cursor or checkpoint store.
+
+Implementation slices:
+
+1. P0 — persist the ADK session/invocation identity for a site update and resume
+   it with `Runner.run_async` after an approval decision; keep supplier actions
+   guarded by their existing outbox/idempotency claims.
+2. P1 — move each non-site V1 event into a native ADK workflow and remove
+   `OgaCoordinator`/`RoutedEventExecutor` as production execution authorities.
+3. P2 — route conversational queries and actions through an ADK Runner with
+   typed deterministic tools; retain the existing CRUD services underneath.
+4. P3 — either invoke registered `LlmAgent`s from those paths or remove the
+   unused agent facades and all stale architecture references.
+5. P4 — delete the legacy route-map, manual `AgentRun` progression, and custom
+   approval-resume orchestration after the end-to-end migration gate passes.
+
+Verification: focused red/green continuation and event tests for every slice;
+restart reconstruction against the durable ADK session store; then Ruff,
+formatting, mypy, targeted worker/conversation tests, the non-backing suite,
+and the backed-service restart gate. Update `docs/STATUS.md`, this plan, and
+`tasks/todo-v1.md` only after the migration acceptance is proven.
+
+Status: active.
+
 ## Conversational UX Correction — Product Help and Project Readiness
 
 Acceptance: product-help questions route without project state; setup questions use an authorized

@@ -114,6 +114,33 @@ describe('production API boundary', () => {
     );
   });
 
+  it('loads and decides a project import through its review-only API contract', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
+    const review = { id: 'imp_ridge', source_id: 'src_ridge', status: 'needs_review', version: 3 };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(review), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...review, status: 'imported', version: 4 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...review, status: 'cancelled', version: 4 }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getProjectImport('prj_ridge', 'imp_ridge');
+    await api.confirmProjectImport('prj_ridge', 'imp_ridge', 3, 'project-import-confirm:stable');
+    await api.cancelProjectImport('prj_ridge', 'imp_ridge', 3, 'project-import-cancel:stable');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1,
+      'https://api.example.test/api/v1/projects/prj_ridge/imports/imp_ridge',
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }) }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2,
+      'https://api.example.test/api/v1/projects/prj_ridge/imports/imp_ridge/confirm',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ expected_version: 3 }), headers: expect.objectContaining({ 'Idempotency-Key': 'project-import-confirm:stable' }) }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(3,
+      'https://api.example.test/api/v1/projects/prj_ridge/imports/imp_ridge/cancel',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ expected_version: 3 }), headers: expect.objectContaining({ 'Idempotency-Key': 'project-import-cancel:stable' }) }),
+    );
+  });
+
   it('refreshes the Firebase token once after an unauthorized response', async () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = 'https://api.example.test';
     const tokens: boolean[] = [];

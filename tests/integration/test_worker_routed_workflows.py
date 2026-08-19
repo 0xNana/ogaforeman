@@ -39,7 +39,7 @@ from app.repositories.memory import InMemoryRepositoryStore
 from app.repositories.firestore import FirestoreRepositoryStore
 from app.services.approvals import ApprovalService, ResolutionCommand
 from app.worker import process_event
-from app.workflows.runtime import run_id_for_event
+from app.repositories.runs import run_id_for_event
 
 
 NOW = datetime(2026, 8, 8, 10, 0, tzinfo=UTC)
@@ -155,6 +155,7 @@ def test_material_events_create_and_observe_one_approval_gated_request() -> None
             "material_ref": "mat_cement123",
             "quantity": 20,
             "unit": "bags",
+            "supplier": "Delayed Logistics",
             "reason": "Required for tomorrow's plastering.",
         },
     )
@@ -168,6 +169,7 @@ def test_material_events_create_and_observe_one_approval_gated_request() -> None
     assert result_ref == f"material_request:{requests[0].id}"
     assert len(requests) == 1
     assert requests[0].quantity == Decimal("15")
+    assert requests[0].supplier == "Delayed Logistics"
     assert requests[0].status is MaterialRequestStatus.AWAITING_APPROVAL
     assert len(approvals) == 1
     assert low_run.workflow is WorkflowName.MATERIAL_SHORTAGE

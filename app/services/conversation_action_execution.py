@@ -431,16 +431,19 @@ class ConversationActionExecutionService:
         snapshot: ConversationalProjectContext,
     ) -> ConversationActionOutcome:
         """Validate every task clause before dispatching any typed mutation."""
-        actions = tuple(_normalize_task_dates(action, snapshot) for action in interpretation.actions)
-        if any(action is None for action in actions):
-            clarification = _task_batch_date_clarification(interpretation, snapshot)
-            self._remember_task_batch_clarification(
-                access, message, interpretation, clarification
-            )
-            return ConversationActionOutcome(
-                kind="clarification", text=clarification, mutation_performed=False
-            )
-        normalized = TaskActionBatchInterpretation(actions=tuple(actions))
+        normalized_actions: list[TaskActionInterpretation] = []
+        for action in interpretation.actions:
+            normalized_action = _normalize_task_dates(action, snapshot)
+            if normalized_action is None:
+                clarification = _task_batch_date_clarification(interpretation, snapshot)
+                self._remember_task_batch_clarification(
+                    access, message, interpretation, clarification
+                )
+                return ConversationActionOutcome(
+                    kind="clarification", text=clarification, mutation_performed=False
+                )
+            normalized_actions.append(normalized_action)
+        normalized = TaskActionBatchInterpretation(actions=tuple(normalized_actions))
         resolved_actions: list[TaskActionInterpretation] = []
         resolved_entities: list[tuple[EntityResolution, ...]] = []
         for action in normalized.actions:
@@ -450,7 +453,10 @@ class ConversationActionExecutionService:
                     "Which task do you mean?"
                 )
                 self._remember_task_batch_clarification(
-                    access, message, normalized, clarification,
+                    access,
+                    message,
+                    normalized,
+                    clarification,
                     entity_reference=action.task_reference or action.title or "task batch",
                 )
                 return ConversationActionOutcome(
@@ -490,7 +496,10 @@ class ConversationActionExecutionService:
                     f"I couldn't find a unique task for {unsafe.reference}. Which task do you mean?"
                 )
                 self._remember_task_batch_clarification(
-                    access, message, normalized, clarification,
+                    access,
+                    message,
+                    normalized,
+                    clarification,
                     entity_reference=unsafe.reference,
                 )
                 return ConversationActionOutcome(
@@ -548,7 +557,11 @@ class ConversationActionExecutionService:
         # a stale second clause fail before the first clause can mutate.
         for proposal in composed:
             command = proposal.command
-            if isinstance(command, ConversationTaskCommand) and command.task is not None:
+            if (
+                isinstance(command, ConversationTaskCommand)
+                and command.task is not None
+                and command.task.entity_id is not None
+            ):
                 current = self._store.repository(Task).get(
                     access.project_id, command.task.entity_id
                 )
@@ -571,8 +584,12 @@ class ConversationActionExecutionService:
                 request_fingerprint=sha256(message.encode("utf-8")).hexdigest(),
             )
             results.append(self._tasks.execute(access, proposal.command, mutation))
-        created = [result.task.title for result, proposal in zip(results, composed, strict=True)
-                   if proposal.command.operation is TaskOperation.CREATE]
+        created = [
+            result.task.title
+            for result, proposal in zip(results, composed, strict=True)
+            if isinstance(proposal.command, ConversationTaskCommand)
+            and proposal.command.operation is TaskOperation.CREATE
+        ]
         due = [
             f"{result.task.title} is due {result.task.planned_end.strftime('%B %-d')}"
             for result in results
