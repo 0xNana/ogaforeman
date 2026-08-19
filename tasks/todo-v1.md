@@ -16,15 +16,17 @@ Overall status: **partial**. The checked implementation claims from the prior
 phase sequence are reopened as partial evidence until
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md) passes its production
 gates. Strict expected-failure tests track audited defects without misreporting
-them as passing behavior. PI-00 through PI-06 and the canonical-import backend
+them as passing behavior. PI-00 through PI-07 and the canonical-import backend
 checkpoint are complete locally; the remaining strict expected failure tracks PI-09.
 
 PI-06 routes every New Project action through one accessible, reload-safe wizard;
 persists name, location, timezone, description, dates, and project status; and
 records the import-or-empty setup choice in the project-scoped setup URL. The
 caller-owned project creation claim survives reload and exact Firestore replay,
-so a lost response cannot create a second project. Structured source entry remains
-open under PI-07.
+so a lost response cannot create a second project. PI-07 adds paste and local
+`.txt`/`.md` source entry, a reload-stable import claim, bounded latest-active
+recovery, and browser/server rejection of unsupported adapter types before model
+invocation. Complete review lifecycle states remain open under PI-08.
 
 - [~] Phase 0 domain audit documents the existing canonical model, persistence,
   authorization, ADK boundary, and the concepts that must be created or extended.

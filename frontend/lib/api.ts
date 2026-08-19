@@ -299,6 +299,30 @@ export type ProjectImportStatus =
   | 'import_failed'
   | 'cancelled';
 
+export type ProjectImportSourceType = 'text' | 'markdown';
+
+export type CreateProjectImportInput = {
+  source_name: string;
+  source_text: string;
+  source_type: ProjectImportSourceType;
+};
+
+export type ProjectImportSummary = {
+  id: string;
+  source_id: string;
+  status: ProjectImportStatus;
+  version: number;
+  failure_code: string | null;
+  failure_message: string | null;
+  retryable: boolean;
+  created_at: string;
+  updated_at: string;
+  phase_count: number;
+  task_count: number;
+  material_count: number;
+  requirement_count: number;
+};
+
 type ImportSourceReference = {
   source_id: string;
   source_type: string;
@@ -331,6 +355,15 @@ export type ProjectImportReviewRecord = {
   warnings: Array<{ code: string; message: string; field: string | null; source_reference: ImportSourceReference | null }>;
   conflicts: Array<{ code: string; message: string; entity_temp_id: string | null; existing_reference: string | null; source_reference: ImportSourceReference | null }>;
   unresolved_references: string[];
+  failure_code: string | null;
+  failure_message: string | null;
+  retryable: boolean;
+  created_at: string;
+  updated_at: string;
+  phase_count: number;
+  task_count: number;
+  material_count: number;
+  requirement_count: number;
   replayed: boolean;
 };
 
@@ -446,6 +479,34 @@ function authenticatedFetch(path: string, token: string, init?: RequestInit): Pr
 }
 
 export const api = {
+  createProjectImport: async (
+    projectId: string,
+    input: CreateProjectImportInput,
+    idempotencyKey: string,
+  ): Promise<ProjectImportReviewRecord> => remote<ProjectImportReviewRecord>(
+    `/api/v1/projects/${projectId}/imports`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    },
+  ),
+  listProjectImports: async (
+    projectId: string,
+    options: { limit?: number; status?: ProjectImportStatus; nonterminal?: boolean } = {},
+  ): Promise<ProjectImportSummary[]> => {
+    const query = new URLSearchParams({ limit: String(options.limit ?? 10) });
+    if (options.status) query.set('status', options.status);
+    if (options.nonterminal) query.set('nonterminal', 'true');
+    const response = await remote<{ data: ProjectImportSummary[] }>(
+      `/api/v1/projects/${projectId}/imports?${query.toString()}`,
+    );
+    return response.data;
+  },
+  getLatestProjectImport: async (projectId: string): Promise<ProjectImportSummary | null> => {
+    const imports = await api.listProjectImports(projectId, { limit: 1, nonterminal: true });
+    return imports[0] ?? null;
+  },
   getProjectImport: async (projectId: string, importId: string): Promise<ProjectImportReviewRecord> => remote<ProjectImportReviewRecord>(
     `/api/v1/projects/${projectId}/imports/${importId}`,
   ),

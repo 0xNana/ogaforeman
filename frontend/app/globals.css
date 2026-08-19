@@ -816,6 +816,19 @@ p { font-size: 1.05rem; }
 .setup-handoff h1 { max-width: 620px; margin-top: 13px; font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1; }
 .setup-handoff > p { max-width: 590px; margin-top: 16px; color: var(--ink-soft); line-height: 1.6; }
 .setup-handoff-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.project-import-setup { max-width: 920px; }
+.project-import-setup .new-project-form { max-width: 720px; }
+.project-import-setup textarea { min-height: 300px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.84rem; }
+.import-file-field { position: relative; }
+.new-project-form .import-file-field input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+.import-file-field > span { display: flex; min-height: 64px; align-items: center; justify-content: center; gap: 8px; padding: 14px; color: var(--ink-soft) !important; background: var(--paper); border: 1px dashed var(--line-strong); border-radius: 10px; cursor: pointer; }
+.import-file-field:focus-within > span, .import-file-field:hover > span { color: var(--orange-deep) !important; border-color: var(--orange-deep); box-shadow: 0 0 0 3px var(--orange-soft); }
+.import-source-divider { display: flex; align-items: center; gap: 12px; color: var(--ink-faint); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.import-source-divider::before, .import-source-divider::after { height: 1px; flex: 1; background: var(--line); content: ''; }
+.import-source-note { margin-top: -12px; color: var(--ink-faint); font-size: 0.74rem; line-height: 1.5; }
+.import-recovery-alert { display: flex; align-items: flex-start; gap: 11px; max-width: 720px; margin-top: 24px; padding: 15px 16px; color: var(--amber); background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line)); border-radius: 10px; }
+.import-recovery-alert strong { color: var(--ink); font-size: 0.84rem; }
+.import-recovery-alert p { margin-top: 3px; color: var(--ink-soft); font-size: 0.8rem; }
 .material-create-modal { width: min(100%, 760px); max-height: min(90vh, 820px); overflow-y: auto; }
 .material-create-modal h2 { max-width: 560px; }
 .material-create-intro { margin-top: 10px; color: var(--ink-soft); font-size: 0.86rem; }

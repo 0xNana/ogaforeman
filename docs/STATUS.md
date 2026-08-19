@@ -53,9 +53,12 @@ blocks oversized transaction/document plans while preserving their reviews, and
 corrects canonical creation-activity identity and provenance metadata. The
 canonical-import backend checkpoint is complete. PI-06 adds the dedicated New
 Project wizard, complete project fields, explicit import-or-empty setup choice,
-stable creation replay, and the project-scoped setup handoff. One strict expected
-failure still covers task-incorrect shortage calculation. Structured source entry
-and PI-07 through PI-14 remain open.
+stable creation replay, and the project-scoped setup handoff. PI-07 adds typed
+structured-source creation, paste and local text/Markdown entry, a reload-stable
+import claim, and latest-nonterminal recovery through a source-safe bounded API.
+Unsupported source adapters are rejected before extraction. One strict expected
+failure still covers task-incorrect shortage calculation. PI-08 through PI-14
+remain open.
 
 Project Initialization Phase 1 has partial local implementation: strict, schema-versioned
 Pydantic contracts cover import drafts, draft-only temporary references,
@@ -285,6 +288,18 @@ Project Initialization PI-06 verification on 2026-08-19:
 - `npm ci` completed from the lockfile; `npm audit --audit-level=high` reports no
   high or critical vulnerabilities (five moderate issues remain in the
   `firebase-tools` development dependency chain)
+
+Project Initialization PI-07 verification on 2026-08-19:
+
+- required frontend setup/import gate: 11 passed; ESLint and TypeScript passed
+- focused review API and structured-source regression suite: 25 passed, including
+  latest-active recovery beyond a page of terminal records and unsupported source
+  rejection before persistence/extraction
+- production-build Playwright response-loss recovery: passed in desktop and
+  mobile Chromium with one import POST and no WCAG A/AA violations in the scanned
+  setup state
+- locked dependency sync, repository-wide Ruff check/format, app-wide mypy, and
+  documentation validation: passed
 
 Project Initialization PI-01 verification on 2026-08-19:
 

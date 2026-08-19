@@ -1,7 +1,7 @@
 # HTTP API Contract
 
 > **Implementation status:** uploads, site-update intake, approvals, project
-> snapshots, task/material setup, internal event publication, health, and dead-letter inspection have
+> snapshots, project-import creation/recovery/review, task/material setup, internal event publication, health, and dead-letter inspection have
 > typed implementations. Site-update intake reaches the claimed worker and ADK
 > workflow path; endpoints still marked as proposed below remain target contracts.
 
@@ -98,6 +98,35 @@ required `Idempotency-Key` and must reuse it after a timeout. An exact replay
 returns the original project, while reusing the key with different project fields
 returns `409 DUPLICATE_IDEMPOTENCY_KEY`. Project creation atomically writes the
 project, administrator membership, and `project.created` activity.
+
+### Project Initialization Imports
+
+```text
+POST /projects/{project_id}/imports
+GET  /projects/{project_id}/imports?limit=10&status=...&nonterminal=false
+GET  /projects/{project_id}/imports/{import_id}
+POST /projects/{project_id}/imports/{import_id}/confirm
+POST /projects/{project_id}/imports/{import_id}/cancel
+```
+
+`POST /imports` accepts bounded `source_name`, `source_text`, and optional
+`source_type`. The V1 HTTP boundary accepts only `text` and `markdown`; PDF,
+spreadsheet, and other adapter types are rejected before source persistence or
+model invocation. The caller must retain and replay its `Idempotency-Key` after a
+timeout. Exact replay resumes the same source and import identity.
+
+`GET /imports` is an authorized, newest-first recovery feed bounded to 1–50
+records. `status` filters one lifecycle state. `nonterminal=true` excludes
+`imported` and `cancelled` before applying the limit, so `limit=1` reliably
+recovers the latest active import even when newer terminal imports exist. The
+summary returns IDs, status, optimistic version, safe failure code/message,
+retryability, timestamps, and draft entity counts; it never returns source text,
+prompts, or raw model output. Reads require active project membership; creation,
+confirmation, and cancellation require project management permission.
+
+Confirmation and cancellation require `expected_version` plus a stable
+`Idempotency-Key`. Canonical project records are created only by successful
+confirmation; cancellation does not mutate canonical project truth.
 
 ### Project State
 

@@ -97,3 +97,71 @@ test('new-project retry keeps one project and lands on its reload-safe setup URL
   await page.goto('/projects');
   await expect(page.getByRole('link', { name: new RegExp(projectName) })).toHaveCount(1);
 });
+
+test('new-project import rejects unsupported files and recovers a committed extraction after reload', async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+
+  const email = `project-import-${Date.now()}@example.test`;
+  const projectName = `PI07 Import House ${Date.now()}`;
+  await page.goto('/sign-up?next=/projects/new');
+  await page.getByLabel('Full name').fill('Ama Manager');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill('local-e2e-password');
+  await page.getByRole('button', { name: /Create account/ }).click();
+
+  await page.getByLabel('Project name').fill(projectName);
+  await page.getByLabel('Location').fill('East Legon, Accra');
+  await page.getByRole('button', { name: 'Continue to setup' }).click();
+  await page.getByRole('button', { name: 'Create project' }).click();
+  await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
+  await expect(page.getByRole('heading', { name: 'Add your project plan.' })).toBeVisible();
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.project-import-setup')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
+
+  let importRequests = 0;
+  await page.route('**/api/v1/projects/*/imports', async (route, request) => {
+    if (request.method() === 'POST') importRequests += 1;
+    await route.continue();
+  });
+  await page.getByLabel('Choose a .txt or .md file').setInputFiles({
+    name: 'plan.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF unsupported'),
+  });
+  await expect(page.locator('.form-alert')).toContainText('Use a .txt or .md file');
+  expect(importRequests).toBe(0);
+
+  await page.unroute('**/api/v1/projects/*/imports');
+  let committedResponseLost = false;
+  await page.route('**/api/v1/projects/*/imports', async (route, request) => {
+    if (request.method() === 'POST') {
+      importRequests += 1;
+      if (!committedResponseLost) {
+        committedResponseLost = true;
+        await route.fetch();
+        await route.abort('failed');
+        return;
+      }
+    }
+    await route.continue();
+  });
+  await page.getByLabel('Plan source').fill('# Foundation\nTask: Excavation\nTask: Foundation');
+  await page.getByRole('button', { name: 'Extract project plan' }).click();
+  await expect(page.locator('.form-alert')).toContainText('saved in this tab');
+  expect(consoleErrors).toEqual(['Failed to load resource: net::ERR_FAILED']);
+  consoleErrors.length = 0;
+
+  await page.reload();
+  await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/imports\/imp_[a-z0-9]+$/);
+  await expect(page.getByRole('heading', { name: 'Review project initialization' })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Excavation/ })).toBeVisible();
+  expect(importRequests).toBe(1);
+  expect(consoleErrors).toEqual([]);
+});

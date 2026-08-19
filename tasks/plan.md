@@ -6,8 +6,8 @@ Project Initialization status: **partial** as of 2026-08-19. The phase notes
 below record prior slice-level implementation, but production completion is
 superseded by the open gates in
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md). Strict expected-failure
-regressions now preserve the remaining audited gaps until PI-07 through PI-14
-resolve them. PI-00 through PI-06 and the canonical-import backend checkpoint are
+regressions now preserve the remaining audited gaps until PI-08 through PI-14
+resolve them. PI-00 through PI-07 and the canonical-import backend checkpoint are
 complete locally: invalid complete drafts
 remain reviewable, all persisted conflicts block confirmation, and the durable
 import lifecycle safely resumes exact extraction and commit claims after restart.
@@ -25,7 +25,14 @@ PI-06 replaces every modal-only New Project action with one `/projects/new`
 wizard, persists all supported project details and a reload-stable caller-owned
 creation claim, and establishes a project-scoped setup URL immediately after an
 exactly-once create. The setup choice is explicit from the start: import an
-existing plan or begin empty. The import-source editor remains scoped to PI-07.
+existing plan or begin empty.
+
+PI-07 connects that handoff to a typed, project-scoped structured-source editor
+for paste, `.txt`, and `.md` input. Its source and caller-owned import claim
+survive response loss and reload; an authorized bounded feed recovers the latest
+nonterminal import before creating another. Browser and HTTP boundaries reject
+unsupported adapter types before extraction, and successful creation routes
+directly to the persisted review.
 
 ## Project Initialization — Phase 0 Domain Audit
 
@@ -148,6 +155,13 @@ full-field persistence, exact replay, one activity, and mismatched-claim rejecti
 Production-build Playwright passes the lost-response retry journey in desktop and
 mobile Chromium, including the wizard's WCAG A/AA scan and project-scoped setup
 handoff.
+
+PI-07 verification: the required frontend setup/import suite passes 11 tests,
+with ESLint and TypeScript clean. The focused review API/source suite passes 25
+tests and proves bounded latest-nonterminal recovery plus pre-extraction source
+type rejection. Production-build Playwright passes committed-response-loss
+recovery in desktop and mobile Chromium, including the setup editor's WCAG A/AA
+scan and a single import POST.
 
 ## Project Initialization — Phase 9 Review UI
 

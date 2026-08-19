@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -158,13 +158,43 @@ class ProjectImportReviewService:
         return self._validate_stored_draft(access, drafted.record)
 
     def get(self, access: ProjectAccessContext, import_id: str) -> ProjectImportRecord:
-        ensure_permission(access, ProjectPermission.MANAGE)
+        ensure_permission(access, ProjectPermission.READ)
         record = _authorized_repository(self._store, ProjectImportRecord, access).get(
             access.project_id, import_id
         )
         if record is None:
             raise ProjectImportReviewNotFoundError(f"project import {import_id} was not found")
         return record
+
+    def list(
+        self,
+        access: ProjectAccessContext,
+        *,
+        status: ProjectImportStatus | None = None,
+        nonterminal: bool = False,
+        limit: int = 10,
+    ) -> Sequence[ProjectImportRecord]:
+        ensure_permission(access, ProjectPermission.READ)
+        if not 1 <= limit <= 50:
+            raise ValueError("project import list limit must be between 1 and 50")
+        records = _authorized_repository(self._store, ProjectImportRecord, access).list(
+            access.project_id
+        )
+        if status is not None:
+            records = [record for record in records if record.status is status]
+        if nonterminal:
+            terminal_statuses = {
+                ProjectImportStatus.IMPORTED,
+                ProjectImportStatus.CANCELLED,
+            }
+            records = [record for record in records if record.status not in terminal_statuses]
+        return tuple(
+            sorted(
+                records,
+                key=lambda record: (record.updated_at, record.created_at, record.id),
+                reverse=True,
+            )[:limit]
+        )
 
     def cancel(
         self,

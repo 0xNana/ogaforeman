@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from hashlib import sha256
-from typing import cast
+from typing import Literal, cast
 
-from fastapi import APIRouter, Request, status
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi import APIRouter, Query, Request, status
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
 from app.domain.authorization import ProjectPermission
+from app.domain.import_records import ProjectImportRecord
 from app.domain.project_import import (
     DependencyDraft,
     ImportConflict,
@@ -53,7 +54,7 @@ class CreateProjectImportRequest(BaseModel):
 
     source_name: str = Field(min_length=1, max_length=500)
     source_text: str = Field(min_length=1, max_length=800_000)
-    source_type: SourceType | None = None
+    source_type: Literal[SourceType.TEXT, SourceType.MARKDOWN] | None = None
 
 
 class ProjectImportDecisionRequest(BaseModel):
@@ -81,7 +82,38 @@ class ProjectImportReviewResponse(BaseModel):
     unresolved_references: list[str] = Field(default_factory=list)
     failure_code: str | None = None
     failure_message: str | None = None
+    retryable: bool
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+    phase_count: int
+    task_count: int
+    material_count: int
+    requirement_count: int
     replayed: bool = False
+
+
+class ProjectImportSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    source_id: str
+    status: ProjectImportStatus
+    version: int
+    failure_code: str | None = None
+    failure_message: str | None = None
+    retryable: bool
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+    phase_count: int
+    task_count: int
+    material_count: int
+    requirement_count: int
+
+
+class ProjectImportListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    data: list[ProjectImportSummaryResponse]
 
 
 def _review_service(
@@ -125,8 +157,45 @@ def _response(result: ProjectImportReviewResult) -> ProjectImportReviewResponse:
         unresolved_references=list(draft.unresolved_references) if draft is not None else [],
         failure_code=record.failure_code,
         failure_message=record.failure_message,
+        retryable=_is_retryable(record.status),
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        phase_count=len(draft.phases) if draft is not None else record.phase_count,
+        task_count=len(draft.tasks) if draft is not None else record.task_count,
+        material_count=len(draft.materials) if draft is not None else record.material_count,
+        requirement_count=(
+            len(draft.material_requirements) if draft is not None else record.requirement_count
+        ),
         replayed=result.replayed,
     )
+
+
+def _summary(record: ProjectImportRecord) -> ProjectImportSummaryResponse:
+    draft = record.draft
+    return ProjectImportSummaryResponse(
+        id=record.id,
+        source_id=record.source_id,
+        status=record.status,
+        version=record.version,
+        failure_code=record.failure_code,
+        failure_message=record.failure_message,
+        retryable=_is_retryable(record.status),
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        phase_count=len(draft.phases) if draft is not None else record.phase_count,
+        task_count=len(draft.tasks) if draft is not None else record.task_count,
+        material_count=len(draft.materials) if draft is not None else record.material_count,
+        requirement_count=(
+            len(draft.material_requirements) if draft is not None else record.requirement_count
+        ),
+    )
+
+
+def _is_retryable(import_status: ProjectImportStatus) -> bool:
+    return import_status in {
+        ProjectImportStatus.EXTRACTION_FAILED,
+        ProjectImportStatus.IMPORT_FAILED,
+    }
 
 
 def _import_id(project_id: str, idempotency_key: str) -> str:
@@ -196,13 +265,31 @@ async def create_import(
     return _response(result)
 
 
+@router.get("", response_model=ProjectImportListResponse)
+async def list_imports(
+    project_id: str,
+    request: Request,
+    limit: int = Query(default=10, ge=1, le=50),
+    import_status: ProjectImportStatus | None = Query(default=None, alias="status"),
+    nonterminal: bool = Query(default=False),
+) -> ProjectImportListResponse:
+    access = configured_project_access(request, project_id, ProjectPermission.READ)
+    records = _review_service(request).list(
+        access,
+        status=import_status,
+        nonterminal=nonterminal,
+        limit=limit,
+    )
+    return ProjectImportListResponse(data=[_summary(record) for record in records])
+
+
 @router.get("/{import_id}", response_model=ProjectImportReviewResponse)
 async def get_import(
     project_id: str,
     import_id: str,
     request: Request,
 ) -> ProjectImportReviewResponse:
-    access = configured_project_access(request, project_id, ProjectPermission.MANAGE)
+    access = configured_project_access(request, project_id, ProjectPermission.READ)
     try:
         record = _review_service(request).get(access, import_id)
     except ProjectImportReviewNotFoundError as exc:
@@ -283,6 +370,8 @@ async def cancel_import(
 __all__ = [
     "CreateProjectImportRequest",
     "ProjectImportDecisionRequest",
+    "ProjectImportListResponse",
     "ProjectImportReviewResponse",
+    "ProjectImportSummaryResponse",
     "router",
 ]

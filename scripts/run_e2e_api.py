@@ -51,6 +51,13 @@ from app.domain.models import (
     ReportFact,
     Task,
 )
+from app.domain.project_import import (
+    DependencyDraft,
+    ProjectDraft,
+    ProjectImportDraft,
+    ProjectImportStatus,
+    TaskDraft,
+)
 from app.domain.events import EventType, ProjectEvent
 from app.infrastructure.firestore import create_firestore_client, encode_firestore_value
 from app.infrastructure.storage import SignedUpload, StoredObject
@@ -237,6 +244,38 @@ class DeterministicE2ESiteInterpreter:
                     description="First-floor plastering starts tomorrow.",
                     evidence="Plastering starts tomorrow",
                     confidence="high",
+                )
+            ],
+        )
+
+
+class DeterministicE2EProjectImportExtractor:
+    """Deterministic Gemini substitute for the browser import boundary."""
+
+    async def extract(
+        self,
+        *,
+        project_id: str,
+        import_id: str,
+        source_id: str,
+        source_text: str,
+    ) -> ProjectImportDraft:
+        if "Task: Excavation" not in source_text or "Task: Foundation" not in source_text:
+            raise ExpectedE2EProcessingFailure("the project source has no E2E plan fixture")
+        return ProjectImportDraft(
+            id=import_id,
+            project_id=project_id,
+            source_id=source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            project=ProjectDraft(name="Imported project plan"),
+            tasks=[
+                TaskDraft(temp_id="tmp_task_excavation", name="Excavation"),
+                TaskDraft(temp_id="tmp_task_foundation", name="Foundation"),
+            ],
+            dependencies=[
+                DependencyDraft(
+                    predecessor_temp_id="tmp_task_excavation",
+                    successor_temp_id="tmp_task_foundation",
                 )
             ],
         )
@@ -549,6 +588,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Oga Foreman local E2E API")
     app.state.auth_runtime = runtime
     app.state.project_access_provider = runtime.project_access
+    app.state.project_import_draft_extractor = DeterministicE2EProjectImportExtractor()
     app.state.intent_classifier = FakeIntentClassifier(
         {
             (

@@ -2,7 +2,7 @@
 
 ## Status
 
-Active implementation plan. PI-00 through PI-06 are complete locally; later
+Active implementation plan. PI-00 through PI-07 are complete locally; later
 tasks remain incomplete until their acceptance criteria and verification
 commands pass. This plan closes the gaps found while auditing the current
 implementation against [`PROJECT_INIT.md`](PROJECT_INIT.md).
@@ -89,9 +89,7 @@ remain V2 work and must enter through the same `ProjectImportDraft` contract.
 The implementation must not be called complete while any of these remain:
 
 - material shortage evaluation totals unrelated active-task requirements;
-- separate import IDs can duplicate the same tasks and materials;
-- the write-budget guard does not count the actual transaction plan;
-- New Project has no import/setup journey or `createProjectImport` client method;
+- the review route does not yet render every lifecycle, retry, and terminal state;
 - Phase 18 tests fail and do not execute the operational acceptance scenario;
 - the live Gemini script prints output without asserting the contract;
 - import-specific tracing, metrics, and diagnostic logging are absent;
@@ -570,7 +568,8 @@ after reload, and replaces the browser location with
 The additive create-project API persists description, dates, and status; exact
 Firestore replay returns one project and one activity, while a mismatched replay
 is rejected. Desktop and mobile Chromium exercise the committed-response-loss
-case and pass the wizard's WCAG A/AA scan. Structured source entry remains PI-07.
+case and pass the wizard's WCAG A/AA scan. Structured source entry is completed
+by PI-07 below.
 
 **Verification**
 
@@ -587,18 +586,28 @@ npm run typecheck
 
 **Work**
 
-- [ ] Add typed `createProjectImport` and bounded import-list/latest APIs to the
+- [x] Add typed `createProjectImport` and bounded import-list/latest APIs to the
   frontend client.
-- [ ] Build `/projects/{id}/setup` source paste and `.txt`/`.md` text-read states.
-- [ ] Preserve the import idempotency claim across timeout, reload, and retry.
-- [ ] Recover the latest nonterminal import and route to its current state.
+- [x] Build `/projects/{id}/setup` source paste and `.txt`/`.md` text-read states.
+- [x] Preserve the import idempotency claim across timeout, reload, and retry.
+- [x] Recover the latest nonterminal import and route to its current state.
 
 **Acceptance**
 
-- [ ] A user can start extraction from New Project without copying an import ID or
+- [x] A user can start extraction from New Project without copying an import ID or
   entering a hidden URL.
-- [ ] Project-created/import-failed state is explicit and retryable.
-- [ ] Unsupported file types are rejected before model invocation.
+- [x] Project-created/import-failed state is explicit and retryable.
+- [x] Unsupported file types are rejected before model invocation.
+
+Completed locally on 2026-08-19. The project-scoped setup route accepts pasted
+text and local `.txt`/`.md` files, retains the source plus caller-owned import
+claim through response loss and reload, and recovers the latest nonterminal
+server record without a copied import ID. Recovery uses a bounded, authorized
+summary feed that excludes terminal records before applying its limit and never
+returns source text. Unsupported adapter types are rejected at both browser and
+HTTP boundaries before persistence or extraction. Desktop and mobile Chromium
+exercise the committed-response-loss recovery path and the setup editor's WCAG
+A/AA scan.
 
 **Verification**
 

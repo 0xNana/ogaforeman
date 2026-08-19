@@ -214,7 +214,7 @@ def make_app_with_extractor(store: InMemoryRepositoryStore, extractor: object) -
 
 def _project_access(project_id: str, permission: ProjectPermission) -> ProjectAccessContext:
     assert project_id == PROJECT_ID
-    assert permission is ProjectPermission.MANAGE
+    assert permission in {ProjectPermission.READ, ProjectPermission.MANAGE}
     return ProjectAccessContext(
         actor=AuthenticatedUser(user_id=ACTOR_ID, subject="import-api-test"),
         project_id=project_id,
@@ -753,3 +753,108 @@ async def test_api_rejects_an_access_provider_that_returns_the_wrong_project() -
         response = await client.get("/api/v1/projects/prj_other123/imports/imp_missing123")
 
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_unsupported_source_types_before_persistence() -> None:
+    store = InMemoryRepositoryStore()
+    transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={
+                "source_name": "ridge-house.xlsx",
+                "source_type": SourceType.SPREADSHEET.value,
+                "source_text": "not a supported project source",
+            },
+            headers={"Idempotency-Key": "project-import-unsupported:create"},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert not store.repository(ProjectImportRecord).list(PROJECT_ID)
+
+
+@pytest.mark.asyncio
+async def test_import_list_is_bounded_latest_first_and_never_exposes_source_text() -> None:
+    store = InMemoryRepositoryStore()
+    now = datetime.now(UTC)
+    imports = store.repository(ProjectImportRecord)
+    imports.create(
+        ProjectImportRecord(
+            id="imp_older123",
+            project_id=PROJECT_ID,
+            source_id="src_older123",
+            status=ProjectImportStatus.CANCELLED,
+            created_at=now - timedelta(minutes=2),
+            updated_at=now - timedelta(minutes=2),
+        )
+    )
+    imports.create(
+        ProjectImportRecord(
+            id="imp_latest123",
+            project_id=PROJECT_ID,
+            source_id="src_latest123",
+            status=ProjectImportStatus.EXTRACTION_FAILED,
+            failure_code="dependency_unavailable",
+            failure_message="Project import extraction is temporarily unavailable.",
+            created_at=now - timedelta(minutes=1),
+            updated_at=now,
+        )
+    )
+    transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        latest = await client.get(f"/api/v1/projects/{PROJECT_ID}/imports?limit=1")
+        failed = await client.get(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            params={"status": ProjectImportStatus.EXTRACTION_FAILED.value, "limit": 10},
+        )
+        invalid_limit = await client.get(f"/api/v1/projects/{PROJECT_ID}/imports?limit=51")
+
+    assert latest.status_code == 200
+    assert [item["id"] for item in latest.json()["data"]] == ["imp_latest123"]
+    assert latest.json()["data"][0]["retryable"] is True
+    assert latest.json()["data"][0]["failure_code"] == "dependency_unavailable"
+    assert "source_text" not in latest.text
+    assert [item["id"] for item in failed.json()["data"]] == ["imp_latest123"]
+    assert invalid_limit.status_code == 400
+    assert invalid_limit.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+@pytest.mark.asyncio
+async def test_import_list_finds_latest_nonterminal_beyond_terminal_page() -> None:
+    store = InMemoryRepositoryStore()
+    now = datetime.now(UTC)
+    imports = store.repository(ProjectImportRecord)
+    imports.create(
+        ProjectImportRecord(
+            id="imp_active123",
+            project_id=PROJECT_ID,
+            source_id="src_active123",
+            status=ProjectImportStatus.EXTRACTION_FAILED,
+            created_at=now - timedelta(days=1),
+            updated_at=now - timedelta(days=1),
+        )
+    )
+    for index in range(11):
+        imports.create(
+            ProjectImportRecord(
+                id=f"imp_terminal{index:02d}",
+                project_id=PROJECT_ID,
+                source_id=f"src_terminal{index:02d}",
+                status=ProjectImportStatus.CANCELLED,
+                created_at=now + timedelta(minutes=index),
+                updated_at=now + timedelta(minutes=index),
+            )
+        )
+    transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            f"/api/v1/projects/{PROJECT_ID}/imports?limit=1&nonterminal=true"
+        )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == ["imp_active123"]

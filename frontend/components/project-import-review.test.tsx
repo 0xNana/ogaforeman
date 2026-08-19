@@ -33,6 +33,15 @@ const review: ProjectImportReviewRecord = {
   warnings: [{ code: 'UNRESOLVED_ASSIGNEE', message: 'Masonry team could not be matched.', field: 'assignee_reference', source_reference: null }],
   conflicts: [],
   unresolved_references: [],
+  failure_code: null,
+  failure_message: null,
+  retryable: false,
+  created_at: '2026-08-19T10:00:00Z',
+  updated_at: '2026-08-19T10:01:00Z',
+  phase_count: 0,
+  task_count: 1,
+  material_count: 1,
+  requirement_count: 1,
   replayed: false,
 };
 
