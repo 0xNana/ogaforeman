@@ -60,6 +60,35 @@ class RecordingImportStore(InMemoryRepositoryStore):
         return result
 
 
+class CanonicalRaceImportStore(InMemoryRepositoryStore):
+    """Inject canonical state after the import claim but before commit preflight."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.armed = False
+        self.injected = False
+
+    def run_transaction(
+        self,
+        operation: Callable[[RepositorySession], ResultT],
+    ) -> ResultT:
+        records = self.repository(ProjectImportRecord).list("prj_commit123")
+        if (
+            self.armed
+            and not self.injected
+            and any(record.status is ProjectImportStatus.IMPORTING for record in records)
+        ):
+            self.repository(Task).create(
+                Task(
+                    id="tsk_concurrent123",
+                    project_id="prj_commit123",
+                    title="Foundation",
+                )
+            )
+            self.injected = True
+        return super().run_transaction(operation)
+
+
 def _confirmed_draft() -> ProjectImportDraft:
     return ProjectImportDraft(
         id="imp_commit123",
@@ -458,10 +487,6 @@ def test_active_project_initialization_preserves_actual_state_without_history() 
     }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PI-04 must block a distinct import from duplicating canonical project truth",
-)
 def test_distinct_import_of_the_same_logical_plan_is_blocked() -> None:
     store = InMemoryRepositoryStore()
     access = ProjectAccessContext(
@@ -531,6 +556,143 @@ def test_distinct_import_of_the_same_logical_plan_is_blocked() -> None:
     assert len(store.repository(Task).list(access.project_id)) == 1
     assert len(store.repository(Material).list(access.project_id)) == 1
     assert len(store.repository(MaterialRequirement).list(access.project_id)) == 1
+
+
+def test_distinct_import_with_only_new_entities_is_committed_additively() -> None:
+    store = InMemoryRepositoryStore()
+    access = ProjectAccessContext(
+        actor=AuthenticatedUser(user_id="usr_admin123", subject="test"),
+        project_id="prj_commit123",
+        role=MemberRole.ADMIN,
+    )
+    service = ProjectImportService(store)
+    first = _confirmed_draft()
+    ProjectSourceService(store).persist_text(
+        access,
+        source_id=first.source_id,
+        name="plan.md",
+        text="Foundation requires 100 bags of cement.",
+    )
+    store.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=first.id,
+            project_id=first.project_id,
+            source_id=first.source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            draft=first.model_copy(update={"status": ProjectImportStatus.NEEDS_REVIEW}),
+        )
+    )
+    service.import_confirmed(
+        first,
+        access,
+        expected_review_version=0,
+        decision_idempotency_key="confirm-first-additive-plan",
+    )
+    original_task = store.repository(Task).list(access.project_id)[0]
+    original_material = store.repository(Material).list(access.project_id)[0]
+
+    second_data = first.model_dump()
+    second_data.update({"id": "imp_additive123", "source_id": "src_additive123"})
+    second_data["phases"] = [{"temp_id": "tmp_phase_finishes", "name": "Finishes", "sequence": 2}]
+    second_data["tasks"] = [
+        {
+            "temp_id": "tmp_task_painting",
+            "name": "Painting",
+            "phase_temp_id": "tmp_phase_finishes",
+        }
+    ]
+    second_data["materials"] = [
+        {
+            "temp_id": "tmp_material_paint",
+            "name": "Emulsion paint",
+            "canonical_unit": "litres",
+            "initial_on_hand_quantity": Decimal("0"),
+        }
+    ]
+    second_data["material_requirements"] = [
+        {
+            "task_temp_id": "tmp_task_painting",
+            "material_temp_id": "tmp_material_paint",
+            "required_quantity": Decimal("40"),
+            "unit": "litres",
+        }
+    ]
+    second = ProjectImportDraft.model_validate(second_data)
+    ProjectSourceService(store).persist_text(
+        access,
+        source_id=second.source_id,
+        name="finishes.md",
+        text="Painting requires 40 litres of emulsion paint.",
+    )
+    store.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=second.id,
+            project_id=second.project_id,
+            source_id=second.source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            draft=second.model_copy(update={"status": ProjectImportStatus.NEEDS_REVIEW}),
+        )
+    )
+
+    result = service.import_confirmed(
+        second,
+        access,
+        expected_review_version=0,
+        decision_idempotency_key="confirm-additive-plan",
+    )
+
+    assert not result.replayed
+    assert len(store.repository(Task).list(access.project_id)) == 2
+    assert len(store.repository(Material).list(access.project_id)) == 2
+    assert len(store.repository(MaterialRequirement).list(access.project_id)) == 2
+    assert store.repository(Task).require(access.project_id, original_task.id) == original_task
+    assert (
+        store.repository(Material).require(access.project_id, original_material.id)
+        == original_material
+    )
+
+
+def test_commit_transaction_rechecks_preflight_after_concurrent_canonical_write() -> None:
+    store = CanonicalRaceImportStore()
+    access = ProjectAccessContext(
+        actor=AuthenticatedUser(user_id="usr_admin123", subject="test"),
+        project_id="prj_commit123",
+        role=MemberRole.ADMIN,
+    )
+    draft = _confirmed_draft()
+    ProjectSourceService(store).persist_text(
+        access,
+        source_id=draft.source_id,
+        name="plan.md",
+        text="Foundation requires 100 bags of cement.",
+    )
+    store.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=draft.id,
+            project_id=draft.project_id,
+            source_id=draft.source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            draft=draft.model_copy(update={"status": ProjectImportStatus.NEEDS_REVIEW}),
+        )
+    )
+    store.armed = True
+
+    with pytest.raises(ProjectImportConfirmationError, match="canonical project state"):
+        ProjectImportService(store).import_confirmed(
+            draft,
+            access,
+            expected_review_version=0,
+            decision_idempotency_key="confirm-raced-plan",
+        )
+
+    assert store.injected
+    assert [task.id for task in store.repository(Task).list(access.project_id)] == [
+        "tsk_concurrent123"
+    ]
+    assert store.repository(Material).list(access.project_id) == ()
+    failed = store.repository(ProjectImportRecord).require(access.project_id, draft.id)
+    assert failed.status is ProjectImportStatus.IMPORT_FAILED
+    assert failed.failure_code == "canonical_preflight_conflict"
 
 
 def test_import_provenance_uses_trusted_source_and_canonical_target_links() -> None:

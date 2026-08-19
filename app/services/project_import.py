@@ -49,6 +49,10 @@ from app.services.project_import_validation import (
     ProjectImportValidationResult,
     ProjectImportValidator,
 )
+from app.services.project_import_diff import (
+    ProjectImportDiffConflictError,
+    ProjectImportDiffService,
+)
 
 
 class ProjectImportConfirmationError(ValueError):
@@ -87,6 +91,7 @@ class ProjectImportService:
     def __init__(self, store: RepositoryStore) -> None:
         self._store = store
         self._validator = ProjectImportValidator()
+        self._diff = ProjectImportDiffService()
 
     def import_confirmed(
         self,
@@ -114,6 +119,7 @@ class ProjectImportService:
         request_fingerprint = _decision_fingerprint(
             "confirm", decision_idempotency_key, expected_review_version
         )
+        self._preflight_confirmation(draft, access)
         claimed, source = self._claim_confirmation(
             draft,
             access,
@@ -255,6 +261,32 @@ class ProjectImportService:
 
         return self._store.run_transaction(operation)
 
+    def _preflight_confirmation(
+        self,
+        draft: ProjectImportDraft,
+        access: ProjectAccessContext,
+    ) -> None:
+        def operation(session: RepositorySession) -> None:
+            record = _authorized_repository(session, ProjectImportRecord, access).get(
+                draft.project_id, draft.id
+            )
+            if record is None:
+                raise ProjectImportConfirmationError(
+                    "a persisted needs_review record is required before confirmation"
+                )
+            # Imported records must reach the existing exact-claim replay check.
+            # Recovery claims are checked again by the canonical commit transaction.
+            if record.status is not ProjectImportStatus.NEEDS_REVIEW:
+                return
+            self._diff.ensure_additive(self._diff.compare_session(draft, session, access))
+
+        try:
+            self._store.run_transaction(operation)
+        except ProjectImportDiffConflictError as exc:
+            raise ProjectImportConfirmationError(
+                "project import conflicts with current canonical project state"
+            ) from exc
+
     def _claim_import(
         self,
         access: ProjectAccessContext,
@@ -365,6 +397,7 @@ class ProjectImportService:
                 or _draft_fingerprint(existing.draft) != _draft_fingerprint(draft)
             ):
                 raise ProjectImportConfirmationError("reviewed import no longer matches its source")
+            self._diff.ensure_additive(self._diff.compare_session(draft, session, access))
             for provenance in entities.provenance:
                 _authorized_repository(session, ImportProvenance, access).create(provenance)
             for phase in entities.phases:
@@ -468,6 +501,18 @@ class ProjectImportService:
 
         try:
             return self._store.run_transaction(operation)
+        except ProjectImportDiffConflictError as exc:
+            self._mark_import_failed(
+                access,
+                draft.id,
+                failure_code="canonical_preflight_conflict",
+                failure_message=(
+                    "Canonical project state changed after review; this import cannot be applied."
+                ),
+            )
+            raise ProjectImportConfirmationError(
+                "project import conflicts with current canonical project state"
+            ) from exc
         except (
             VersionConflictError,
             ProjectImportConfirmationError,
@@ -482,6 +527,9 @@ class ProjectImportService:
         self,
         access: ProjectAccessContext,
         import_id: str,
+        *,
+        failure_code: str = "import_commit_failed",
+        failure_message: str = "Project import commit failed and can be retried.",
     ) -> None:
         now = datetime.now(UTC)
 
@@ -495,8 +543,8 @@ class ProjectImportService:
                 record.model_copy(
                     update={
                         "status": ProjectImportStatus.IMPORT_FAILED,
-                        "failure_code": "import_commit_failed",
-                        "failure_message": "Project import commit failed and can be retried.",
+                        "failure_code": failure_code,
+                        "failure_message": failure_message,
                         "updated_at": now,
                     }
                 ),

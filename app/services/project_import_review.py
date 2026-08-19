@@ -30,6 +30,7 @@ from app.repositories.interfaces import (
 )
 from app.repositories.membership import AuthorizedProjectRepository
 from app.services.project_import import ProjectImportService
+from app.services.project_import_diff import ProjectImportDiffService
 from app.services.project_import_validation import (
     ProjectImportValidationResult,
     ProjectImportValidator,
@@ -87,6 +88,7 @@ class ProjectImportReviewService:
         self._store = store
         self._extractor = extractor
         self._validator = ProjectImportValidator()
+        self._diff = ProjectImportDiffService()
         self._importer = ProjectImportService(store)
         self._sources = ProjectSourceService(store)
 
@@ -559,11 +561,6 @@ class ProjectImportReviewService:
         validation: ProjectImportValidationResult,
     ) -> ProjectImportReviewResult:
         now = datetime.now(UTC)
-        review_status = (
-            ProjectImportStatus.NEEDS_REVIEW
-            if validation.is_valid
-            else ProjectImportStatus.VALIDATION_FAILED
-        )
 
         def operation(session: RepositorySession) -> ProjectImportReviewResult:
             imports = _authorized_repository(session, ProjectImportRecord, access)
@@ -577,9 +574,26 @@ class ProjectImportReviewService:
                 raise ProjectImportReviewStateError(
                     f"project import cannot finish validation from {record.status.value}"
                 )
+            preflight_conflicts = (
+                self._diff.blocking_conflicts(
+                    self._diff.compare_session(validation.draft, session, access)
+                )
+                if validation.is_valid
+                else ()
+            )
+            conflicts = [*validation.draft.conflicts, *preflight_conflicts]
+            review_status = (
+                ProjectImportStatus.NEEDS_REVIEW
+                if not conflicts
+                else ProjectImportStatus.VALIDATION_FAILED
+            )
             ensure_project_import_transition(record.status, review_status)
             reviewed_draft = validation.draft.model_copy(
-                update={"status": review_status, "reviewed_at": now}
+                update={
+                    "status": review_status,
+                    "reviewed_at": now,
+                    "conflicts": conflicts,
+                }
             )
             reviewed = imports.save(
                 record.model_copy(

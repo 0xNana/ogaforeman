@@ -46,9 +46,10 @@ failures and blocks every persisted conflict at both confirmation boundaries;
 and PI-02 enforces the complete durable lifecycle with safe, exact-claim restart
 recovery. PI-03 makes canonical import provenance complete, derives trusted
 source metadata from persisted project sources, and exposes tenant-authorized
-explanation lookups. Three strict expected failures still cover duplicate imports,
-write-budget undercounting, and task-incorrect shortage calculation. The New Project
-import journey and PI-04 through PI-14
+explanation lookups. PI-04 blocks canonical duplicate/change/ambiguity conflicts
+before review and reruns its additive-only preflight inside the commit transaction.
+Two strict expected failures still cover write-budget undercounting and
+task-incorrect shortage calculation. The New Project import journey and PI-05 through PI-14
 remain open.
 
 Project Initialization Phase 1 has partial local implementation: strict, schema-versioned
@@ -130,9 +131,12 @@ quantity data is sufficient, avoiding manual re-initialization.
 Project Initialization Phase 16 has partial local implementation: project imports emit user-facing
 activity events during extraction, review, initialization, and individual entity creation
 (task, dependency, material, requirement) while preserving actor, source, and timestamps.
-Project Initialization Phase 17 has partial local implementation: the core data
-structures and `ProjectImportDiffService` interface (`EntityDiff`, `DiffOperation`)
-exist, while canonical duplicate/change preflight remains open under PI-04.
+Project Initialization Phase 17 has partial local implementation:
+`ProjectImportDiffService` compares authorized canonical phases, tasks/milestones,
+dependencies, materials/aliases, and requirements. Normalized matches and ambiguous
+or changed relationships persist as blocking review conflicts; only wholly new
+entities are additive, and the guard reruns in the commit transaction. Full
+changed/removed reconciliation remains deferred by V1 policy.
 
 The Daily Site Update vertical slice is implemented locally through the
 authenticated API, persisted event/run state, ADK execution bridge, typed
@@ -233,6 +237,19 @@ Project Initialization PI-03 verification on 2026-08-19:
   local emulator
 - site-update regression verification after the typing-only variable fix: 10 passed
 - repository-wide Ruff check/format and app-wide mypy (152 modules): passed
+
+Project Initialization PI-04 verification on 2026-08-19:
+
+- required deterministic diff and importer gate: 25 passed
+- focused review, validation, and provenance regressions: 32 passed, with only
+  the PI-05 write-budget guard retained as a strict expected failure
+- fresh-client Firestore lifecycle and distinct-import duplicate gate: 3 passed
+  against the local emulator
+- exact replay, additive-only second import, normalized duplicate/change detection,
+  persisted review conflicts, and commit-time concurrency recheck are covered
+- dependency sync, repository-wide Ruff check/format, and app-wide mypy: passed
+- the optional all-non-backing run was stopped in the known long-running capacity
+  baseline; no completion claim is made for that broader command
 
 Project Initialization PI-01 verification on 2026-08-19:
 

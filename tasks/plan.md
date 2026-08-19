@@ -6,12 +6,15 @@ Project Initialization status: **partial** as of 2026-08-19. The phase notes
 below record prior slice-level implementation, but production completion is
 superseded by the open gates in
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md). Strict expected-failure
-regressions now preserve the remaining audited gaps until PI-04 through PI-14
-resolve them. PI-00 through PI-03 are complete locally: invalid complete drafts
+regressions now preserve the remaining audited gaps until PI-05 through PI-14
+resolve them. PI-00 through PI-04 are complete locally: invalid complete drafts
 remain reviewable, all persisted conflicts block confirmation, and the durable
 import lifecycle safely resumes exact extraction and commit claims after restart.
 Canonical import provenance is complete, trusted from persisted sources, and
 resolvable through tenant-authorized target, dependency, and direct-record APIs.
+Canonical preflight now persists normalized duplicate/change/ambiguity conflicts
+before review, permits only wholly additive imports, and reruns under the commit
+transaction so concurrent canonical writes cannot create partial or duplicate truth.
 
 ## Project Initialization — Phase 0 Domain Audit
 
@@ -109,6 +112,13 @@ dependencies, materials, opening inventory ledger entries, and requirements.
 Focused service/provenance/API tests pass 21 tests with only the PI-04 duplicate
 import regression xfailed; Firestore persistence and authorization pass 22 tests
 against the emulator. Repository-wide Ruff/format and app-wide mypy pass.
+
+PI-04 verification: the required diff/importer suite passes 25 tests. Focused
+review, validation, and provenance regressions pass 32 tests with only the PI-05
+write-budget guard retained as a strict expected failure. Three Firestore
+lifecycle tests pass against the local emulator, including distinct-import
+duplicate suppression through a fresh client. Repository-wide Ruff/format and
+app-wide mypy pass.
 
 ## Project Initialization — Phase 9 Review UI
 

@@ -14,7 +14,7 @@ from app.domain.import_records import ProjectImportRecord
 from app.domain.models import Task
 from app.domain.project_import import ProjectImportDraft, ProjectImportStatus, SourceType
 from app.repositories.firestore import FirestoreRepositoryStore
-from app.services.project_import import ProjectImportService
+from app.services.project_import import ProjectImportConfirmationError, ProjectImportService
 from app.services.project_import_review import ProjectImportReviewService
 from app.services.project_sources import ProjectSourceService
 
@@ -158,3 +158,65 @@ def test_canonical_commit_resumes_from_firestore_importing_after_fresh_client_re
     assert not result.replayed
     assert final.status is ProjectImportStatus.IMPORTED
     assert [task.title for task in tasks] == ["Foundation"]
+
+
+def test_distinct_duplicate_import_is_blocked_by_firestore_canonical_preflight() -> None:
+    cloud_project = f"oga-project-import-duplicate-{uuid4().hex}"
+    store = FirestoreRepositoryStore(firestore.Client(project=cloud_project))
+    first = _draft(ProjectImportStatus.CONFIRMED)
+    ProjectSourceService(store).persist_text(
+        _access(),
+        source_id=first.source_id,
+        name="first-plan.md",
+        text="Task: Foundation",
+        source_type=SourceType.MARKDOWN,
+    )
+    store.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=first.id,
+            project_id=first.project_id,
+            source_id=first.source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            draft=first.model_copy(update={"status": ProjectImportStatus.NEEDS_REVIEW}),
+        )
+    )
+    ProjectImportService(store).import_confirmed(
+        first,
+        _access(),
+        expected_review_version=0,
+        decision_idempotency_key="confirm-firestore-first",
+    )
+
+    second = first.model_copy(
+        update={
+            "id": "imp_importduplicate123",
+            "source_id": "src_importduplicate123",
+        }
+    )
+    ProjectSourceService(store).persist_text(
+        _access(),
+        source_id=second.source_id,
+        name="second-plan.md",
+        text="Task: Foundation",
+        source_type=SourceType.MARKDOWN,
+    )
+    store.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=second.id,
+            project_id=second.project_id,
+            source_id=second.source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            draft=second.model_copy(update={"status": ProjectImportStatus.NEEDS_REVIEW}),
+        )
+    )
+
+    with pytest.raises(ProjectImportConfirmationError, match="canonical project state"):
+        ProjectImportService(store).import_confirmed(
+            second,
+            _access(),
+            expected_review_version=0,
+            decision_idempotency_key="confirm-firestore-duplicate",
+        )
+
+    restarted = FirestoreRepositoryStore(firestore.Client(project=cloud_project))
+    assert [task.title for task in restarted.repository(Task).list(PROJECT_ID)] == ["Foundation"]

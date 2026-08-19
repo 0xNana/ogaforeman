@@ -2,7 +2,7 @@
 
 ## Status
 
-Active implementation plan. PI-00 through PI-03 are complete locally; later
+Active implementation plan. PI-00 through PI-04 are complete locally; later
 tasks remain incomplete until their acceptance criteria and verification
 commands pass. This plan closes the gaps found while auditing the current
 implementation against [`PROJECT_INIT.md`](PROJECT_INIT.md).
@@ -476,19 +476,25 @@ The Firestore command must run against a local emulator.
 
 **Depends on:** PI-01, PI-03
 
+**Status:** complete locally on 2026-08-19. Deterministic review preflight now
+compares phases, tasks/milestones, dependencies, materials/aliases, and
+task-material requirements with authorized canonical truth. All reconciliation
+operations block in V1, and the same preflight is rerun inside the canonical
+commit transaction.
+
 **Work**
 
-- [ ] Replace the all-`ADDED` diff stub with deterministic canonical preflight.
-- [ ] Detect normalized task/material duplicates and changed requirements.
-- [ ] Rerun preflight inside the commit transaction.
-- [ ] Block changed, removed, or ambiguous reconciliation in V1 with an explicit
+- [x] Replace the all-`ADDED` diff stub with deterministic canonical preflight.
+- [x] Detect normalized task/material duplicates and changed requirements.
+- [x] Rerun preflight inside the commit transaction.
+- [x] Block changed, removed, or ambiguous reconciliation in V1 with an explicit
   safe conflict instead of silently applying it.
 
 **Acceptance**
 
-- [ ] Exact import replay is a no-op.
-- [ ] A second import of the same logical plan creates zero canonical duplicates.
-- [ ] A second import containing only genuinely new entities can be reviewed and
+- [x] Exact import replay is a no-op.
+- [x] A second import of the same logical plan creates zero canonical duplicates.
+- [x] A second import containing only genuinely new entities can be reviewed and
   committed without modifying existing entities.
 
 **Verification**

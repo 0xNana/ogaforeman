@@ -282,6 +282,52 @@ async def test_confirming_a_conflicted_review_is_rejected_without_canonical_muta
 
 
 @pytest.mark.asyncio
+async def test_canonical_matches_are_persisted_as_blocking_review_conflicts() -> None:
+    store = InMemoryRepositoryStore()
+    store.repository(Task).create(
+        Task(
+            id="tsk_existing123",
+            project_id=PROJECT_ID,
+            title="foundation!",
+        )
+    )
+    store.repository(Material).create(
+        Material(
+            id="mat_existing123",
+            project_id=PROJECT_ID,
+            name="Cement",
+            normalized_name="cement",
+            unit="bags",
+        )
+    )
+    transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={"source_name": "ridge-house.md", "source_text": "Task: Foundation"},
+            headers={"Idempotency-Key": "project-import-canonical-conflict:create"},
+        )
+        review = created.json()
+        confirmed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports/{review['id']}/confirm",
+            json={"expected_version": review["version"]},
+            headers={"Idempotency-Key": "project-import-canonical-conflict:confirm"},
+        )
+
+    assert created.status_code == 201
+    assert review["status"] == "validation_failed"
+    assert {item["code"] for item in review["conflicts"]} >= {
+        "CANONICAL_TASK_CHANGED",
+        "CANONICAL_MATERIAL_CHANGED",
+        "CANONICAL_REQUIREMENT_CONFLICTED",
+    }
+    assert confirmed.status_code == 422
+    assert confirmed.json()["error"]["code"] == "PROJECT_IMPORT_VALIDATION_FAILED"
+    assert _canonical_counts(store) == (0, 1, 1, 0)
+
+
+@pytest.mark.asyncio
 async def test_invalid_cross_references_are_persisted_and_cannot_be_confirmed() -> None:
     store = InMemoryRepositoryStore()
     app = make_app_with_extractor(store, InvalidReferencesDraftExtractor())

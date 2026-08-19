@@ -16,8 +16,8 @@ Overall status: **partial**. The checked implementation claims from the prior
 phase sequence are reopened as partial evidence until
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md) passes its production
 gates. Strict expected-failure tests track audited defects without misreporting
-them as passing behavior. PI-00 through PI-03 are complete locally; three strict
-expected failures remain for PI-04, PI-05, and PI-09.
+them as passing behavior. PI-00 through PI-04 are complete locally; two strict
+expected failures remain for PI-05 and PI-09.
 
 - [~] Phase 0 domain audit documents the existing canonical model, persistence,
   authorization, ADK boundary, and the concepts that must be created or extended.
@@ -81,9 +81,11 @@ expected failures remain for PI-04, PI-05, and PI-09.
   `project.initialized`, `task.created`, `dependency.created`, `material.created`,
   `material.requirement.created`), avoiding internal extraction spam while preserving audit
   fields (actor, source, import ID, and timestamp).
-- [~] Phase 17 establishes the `ProjectImportDiffService` interface and declarative
-  operations (`ADDED`, `CHANGED`, `REMOVED`, `CONFLICTED`), while canonical
-  duplicate/change preflight remains open.
+- [~] Phase 17 provides deterministic, authorized canonical preflight through
+  `ProjectImportDiffService`: normalized duplicate/change/ambiguous matches are
+  persisted as review conflicts, only genuinely new entities remain additive,
+  and the same guard reruns inside the commit transaction. Full reconciliation
+  remains deferred by policy.
 
 - [ ] P0 Approval continuation resumes the same durable ADK session and
   invocation after worker/container restart and completes the original run once.
