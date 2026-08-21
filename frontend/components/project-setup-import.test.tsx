@@ -81,11 +81,11 @@ describe('ProjectImportSetup', () => {
     render(<ProjectImportSetup projectId="prj_ridge" ownerKey="firebase-user" />);
     await screen.findByRole('heading', { name: 'Add your project plan.' });
 
-    fireEvent.change(screen.getByLabelText('Choose a .txt or .md file'), {
-      target: { files: [new File(['not supported'], 'plan.pdf', { type: 'application/pdf' })] },
+    fireEvent.change(screen.getByLabelText('Choose a project file'), {
+      target: { files: [new File(['not supported'], 'plan.xer', { type: 'application/octet-stream' })] },
     });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Use a .txt or .md file');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Use a Word, Excel, PDF, CSV, text, or Markdown file');
     expect(screen.getByRole('heading', { name: 'Add your project plan.' })).toBeVisible();
     expect(createProjectImport).not.toHaveBeenCalled();
   });
@@ -99,7 +99,7 @@ describe('ProjectImportSetup', () => {
     const file = new File(['Task: Foundation'], fileName, { type: 'text/plain' });
     Object.defineProperty(file, 'text', { value: vi.fn().mockResolvedValue('Task: Foundation') });
 
-    fireEvent.change(screen.getByLabelText('Choose a .txt or .md file'), {
+    fireEvent.change(screen.getByLabelText('Choose a project file'), {
       target: { files: [file] },
     });
     await waitFor(() => expect(screen.getByLabelText('Plan source')).toHaveValue('Task: Foundation'));
@@ -108,6 +108,51 @@ describe('ProjectImportSetup', () => {
     await waitFor(() => expect(createProjectImport).toHaveBeenCalledWith(
       'prj_ridge',
       expect.objectContaining({ source_name: fileName, source_type: sourceType }),
+      expect.stringMatching(/^project-import:/),
+    ));
+  });
+
+  it('rejects an oversized office file before import creation', async () => {
+    render(<ProjectImportSetup projectId="prj_ridge" ownerKey="firebase-user" />);
+    await screen.findByRole('heading', { name: 'Add your project plan.' });
+    const file = new File([new Uint8Array([1])], 'ridge-plan.xlsx');
+    Object.defineProperty(file, 'size', { value: 3_000_001 });
+
+    fireEvent.change(screen.getByLabelText('Choose a project file'), {
+      target: { files: [file] },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('larger than the 3 MB');
+    expect(createProjectImport).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['ridge-plan.docx', 'file'],
+    ['ridge-plan.pdf', 'file'],
+    ['ridge-plan.xlsx', 'spreadsheet'],
+    ['ridge-plan.xls', 'spreadsheet'],
+    ['ridge-plan.csv', 'spreadsheet'],
+  ] as const)('reads supported binary source %s as %s', async (fileName, sourceType) => {
+    render(<ProjectImportSetup projectId="prj_ridge" ownerKey="firebase-user" />);
+    await screen.findByRole('heading', { name: 'Add your project plan.' });
+    const file = new File([new Uint8Array([1, 2, 3])], fileName);
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: vi.fn().mockResolvedValue(Uint8Array.from([1, 2, 3]).buffer),
+    });
+
+    fireEvent.change(screen.getByLabelText('Choose a project file'), {
+      target: { files: [file] },
+    });
+    await waitFor(() => expect(screen.getByText(fileName)).toBeVisible());
+    fireEvent.click(screen.getByRole('button', { name: 'Extract project plan' }));
+
+    await waitFor(() => expect(createProjectImport).toHaveBeenCalledWith(
+      'prj_ridge',
+      {
+        source_name: fileName,
+        source_type: sourceType,
+        source_data_base64: 'AQID',
+      },
       expect.stringMatching(/^project-import:/),
     ));
   });

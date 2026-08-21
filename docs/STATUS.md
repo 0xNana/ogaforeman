@@ -54,9 +54,11 @@ corrects canonical creation-activity identity and provenance metadata. The
 canonical-import backend checkpoint is complete. PI-06 adds the dedicated New
 Project wizard, complete project fields, explicit import-or-empty setup choice,
 stable creation replay, and the project-scoped setup handoff. PI-07 adds typed
-structured-source creation, paste and local text/Markdown entry, a reload-stable
-import claim, and latest-nonterminal recovery through a source-safe bounded API.
-Unsupported source adapters are rejected before extraction. PI-08 completes the
+source creation, paste plus local text, Markdown, Word, Excel, CSV, and text-based
+PDF entry, bounded server parsing, a reload-stable import claim, and
+latest-nonterminal recovery through a source-safe bounded API. BIM, Primavera,
+MS Project, invalid, and oversized sources are rejected before extraction. PI-08
+completes the
 review UI lifecycle, persists stable decision claims across reload and response
 loss, recovers optimistic conflicts, refreshes imported project state before
 routing, and returns cancellation to setup. PI-09 and PI-10 now prove that Golden
@@ -314,6 +316,22 @@ Project Initialization PI-07 verification on 2026-08-19:
   setup state
 - locked dependency sync, repository-wide Ruff check/format, app-wide mypy, and
   documentation validation: passed
+
+Project Initialization office-document adapter extension on 2026-08-21:
+
+- real generated `.docx`, `.xlsx`, legacy `.xls`, `.pdf`, and `.csv` adapter
+  fixtures pass, including format/type mismatch, empty, oversized, and
+  image-only PDF rejection
+- focused source/import backend gate: 43 passed, including binary exact replay
+  with one extraction and invalid/unsupported rejection before persistence or
+  model invocation
+- repository-wide non-backing gate: 692 passed with 30 backing-service tests
+  deselected; locked sync, Ruff check/format, and app-wide mypy passed
+- frontend gate: 97 tests, ESLint, TypeScript, and production build passed
+- production-build CSV import/recovery passed in desktop and mobile Chromium,
+  including unsupported Primavera rejection and committed-response-loss replay
+- `npm audit --audit-level=high` reports no high or critical findings; five
+  moderate findings remain in the Firebase CLI development dependency chain
 
 Project Initialization PI-08 verification on 2026-08-21:
 

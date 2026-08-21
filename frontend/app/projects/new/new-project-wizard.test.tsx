@@ -67,7 +67,7 @@ describe('NewProjectWizard', () => {
     Object.defineProperty(file, 'text', {
       value: vi.fn().mockResolvedValue('# Ridge plan\nTask: Foundation'),
     });
-    fireEvent.change(screen.getByLabelText('Choose a .txt or .md file'), {
+    fireEvent.change(screen.getByLabelText('Choose a project file'), {
       target: { files: [file] },
     });
 
@@ -87,17 +87,46 @@ describe('NewProjectWizard', () => {
     });
   });
 
+  it('stages a selected Word document without browser-side text extraction', async () => {
+    render(<NewProjectWizard ownerKey="firebase-user" />);
+
+    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Ridge House' } });
+    fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'East Legon' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to setup' }));
+
+    const file = new File([new Uint8Array([80, 75, 3, 4])], 'ridge-plan.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: vi.fn().mockResolvedValue(Uint8Array.from([80, 75, 3, 4]).buffer),
+    });
+    fireEvent.change(screen.getByLabelText('Choose a project file'), {
+      target: { files: [file] },
+    });
+    expect(await screen.findByText('ridge-plan.docx')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects/prj_ridge/setup?method=import'));
+    expect(JSON.parse(
+      window.sessionStorage.getItem('oga:project-import:create-claim:prj_ridge') ?? '{}',
+    )).toMatchObject({
+      source_name: 'ridge-plan.docx',
+      source_type: 'file',
+      source_data_base64: 'UEsDBA==',
+    });
+  });
+
   it('rejects unsupported files before project creation', async () => {
     render(<NewProjectWizard />);
 
     fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Ridge House' } });
     fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'East Legon' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue to setup' }));
-    fireEvent.change(screen.getByLabelText('Choose a .txt or .md file'), {
-      target: { files: [new File(['PDF'], 'ridge-plan.pdf', { type: 'application/pdf' })] },
+    fireEvent.change(screen.getByLabelText('Choose a project file'), {
+      target: { files: [new File(['XER'], 'ridge-plan.xer', { type: 'application/octet-stream' })] },
     });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Use a .txt or .md file');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Use a Word, Excel, PDF, CSV, text, or Markdown file');
     expect(createProject).not.toHaveBeenCalled();
   });
 

@@ -299,13 +299,22 @@ export type ProjectImportStatus =
   | 'import_failed'
   | 'cancelled';
 
-export type ProjectImportSourceType = 'text' | 'markdown';
+export type ProjectImportSourceType = 'text' | 'markdown' | 'file' | 'spreadsheet';
 
 export type CreateProjectImportInput = {
   source_name: string;
-  source_text: string;
-  source_type: ProjectImportSourceType;
-};
+} & (
+  | {
+    source_text: string;
+    source_type: 'text' | 'markdown';
+    source_data_base64?: never;
+  }
+  | {
+    source_data_base64: string;
+    source_type: 'file' | 'spreadsheet';
+    source_text?: never;
+  }
+);
 
 export type ProjectImportSummary = {
   id: string;

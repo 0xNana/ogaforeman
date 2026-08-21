@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import binascii
 from hashlib import sha256
 from typing import Literal, cast
 
 from fastapi import APIRouter, Query, Request, status
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
@@ -41,7 +44,7 @@ from app.services.project_import import (
     ProjectImportAlreadyCommittedError,
     ProjectImportConfirmationError,
 )
-from app.services.project_source_adapter import StructuredTextInputError
+from app.services.project_source_adapter import ProjectDocumentAdapter, StructuredTextInputError
 from app.services.project_sources import ProjectSourceConflictError
 
 
@@ -54,8 +57,29 @@ class CreateProjectImportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source_name: str = Field(min_length=1, max_length=500)
-    source_text: str = Field(min_length=1, max_length=800_000)
-    source_type: Literal[SourceType.TEXT, SourceType.MARKDOWN] | None = None
+    source_text: str | None = Field(default=None, min_length=1, max_length=800_000)
+    source_data_base64: str | None = Field(default=None, max_length=13_333_336)
+    source_type: (
+        Literal[
+            SourceType.TEXT,
+            SourceType.MARKDOWN,
+            SourceType.FILE,
+            SourceType.SPREADSHEET,
+        ]
+        | None
+    ) = None
+
+    @model_validator(mode="after")
+    def validate_source_payload(self) -> "CreateProjectImportRequest":
+        has_text = self.source_text is not None
+        has_file = self.source_data_base64 is not None
+        if has_text == has_file:
+            raise ValueError("provide exactly one project source payload")
+        if has_file and self.source_type not in {SourceType.FILE, SourceType.SPREADSHEET}:
+            raise ValueError("file sources require a supported file source type")
+        if has_text and self.source_type in {SourceType.FILE, SourceType.SPREADSHEET}:
+            raise ValueError("file source types require encoded file content")
+        return self
 
 
 class ProjectImportDecisionRequest(BaseModel):
@@ -271,13 +295,33 @@ async def create_import(
     }:
         _enforce_extraction_rate_limit(request, access)
     try:
+        source_text: str | None = payload.source_text
+        source_type: SourceType | None = payload.source_type
+        if payload.source_data_base64 is not None:
+            try:
+                source_data = base64.b64decode(payload.source_data_base64, validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise StructuredTextInputError("project file encoding is invalid") from exc
+            if len(source_data) > ProjectDocumentAdapter.MAX_FILE_BYTES:
+                raise StructuredTextInputError("project file exceeds the input limit")
+            assert source_type in {SourceType.FILE, SourceType.SPREADSHEET}
+            document = await asyncio.to_thread(
+                ProjectDocumentAdapter(
+                    name=payload.source_name,
+                    source_type=source_type,
+                ).load,
+                source_data,
+            )
+            source_text = document.text
+            source_type = document.source_type
+        assert source_text is not None
         result = await service.extract_text(
             access,
             import_id=import_id,
             source_id=_source_id(project_id, idempotency_key),
             source_name=payload.source_name,
-            source_text=payload.source_text,
-            source_type=payload.source_type,
+            source_text=source_text,
+            source_type=source_type,
             extraction_idempotency_key=idempotency_key,
         )
     except StructuredTextInputError as exc:

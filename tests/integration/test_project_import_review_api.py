@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from decimal import Decimal
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -973,6 +974,44 @@ async def test_api_rejects_an_access_provider_that_returns_the_wrong_project() -
 
 
 @pytest.mark.asyncio
+async def test_create_accepts_a_csv_file_and_persists_extracted_source_text() -> None:
+    store = InMemoryRepositoryStore()
+    extractor = CountingDraftExtractor()
+    transport = httpx.ASGITransport(
+        app=make_app_with_extractor(store, extractor),
+        raise_app_exceptions=False,
+    )
+    payload = {
+        "source_name": "ridge-house.csv",
+        "source_type": SourceType.SPREADSHEET.value,
+        "source_data_base64": base64.b64encode(b"Task,Due\nFoundation,2026-09-10\n").decode(
+            "ascii"
+        ),
+    }
+    headers = {"Idempotency-Key": "project-import-csv:create"}
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json=payload,
+            headers=headers,
+        )
+        replayed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json=payload,
+            headers=headers,
+        )
+
+    assert first.status_code == 201
+    assert first.json()["status"] == "needs_review"
+    assert replayed.status_code == 201
+    assert replayed.json()["replayed"] is True
+    assert replayed.json()["id"] == first.json()["id"]
+    assert extractor.calls == 1
+    assert len(store.repository(ProjectImportRecord).list(PROJECT_ID)) == 1
+
+
+@pytest.mark.asyncio
 async def test_create_rejects_unsupported_source_types_before_persistence() -> None:
     store = InMemoryRepositoryStore()
     transport = httpx.ASGITransport(app=make_app(store), raise_app_exceptions=False)
@@ -981,15 +1020,41 @@ async def test_create_rejects_unsupported_source_types_before_persistence() -> N
         response = await client.post(
             f"/api/v1/projects/{PROJECT_ID}/imports",
             json={
-                "source_name": "ridge-house.xlsx",
-                "source_type": SourceType.SPREADSHEET.value,
-                "source_text": "not a supported project source",
+                "source_name": "ridge-house.ifc",
+                "source_type": SourceType.EXTERNAL.value,
+                "source_data_base64": base64.b64encode(b"unsupported BIM source").decode("ascii"),
             },
             headers={"Idempotency-Key": "project-import-unsupported:create"},
         )
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+    assert not store.repository(ProjectImportRecord).list(PROJECT_ID)
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_invalid_file_content_before_model_or_persistence() -> None:
+    store = InMemoryRepositoryStore()
+    extractor = CountingDraftExtractor()
+    transport = httpx.ASGITransport(
+        app=make_app_with_extractor(store, extractor),
+        raise_app_exceptions=False,
+    )
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={
+                "source_name": "ridge-house.pdf",
+                "source_type": SourceType.FILE.value,
+                "source_data_base64": base64.b64encode(b"not a PDF").decode("ascii"),
+            },
+            headers={"Idempotency-Key": "project-import-invalid-pdf:create"},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "PROJECT_SOURCE_INVALID"
+    assert extractor.calls == 0
     assert not store.repository(ProjectImportRecord).list(PROJECT_ID)
 
 

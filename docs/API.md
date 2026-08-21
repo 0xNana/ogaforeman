@@ -109,13 +109,17 @@ POST /projects/{project_id}/imports/{import_id}/confirm
 POST /projects/{project_id}/imports/{import_id}/cancel
 ```
 
-`POST /imports` accepts bounded `source_name`, `source_text`, and optional
-`source_type`. The V1 HTTP boundary accepts only `text` and `markdown`; PDF,
-spreadsheet, and other adapter types are rejected before source persistence or
-model invocation. The caller must retain and replay its `Idempotency-Key` after a
-timeout. Exact replay resumes the same source and import identity. Extraction is
-rate-limited per canonical user and project (with IP as an additional abuse
-signal) before source persistence or model invocation.
+`POST /imports` accepts `source_name`, `source_type`, and exactly one bounded
+payload: `source_text` for `text`/`markdown`, or `source_data_base64` for `file`
+and `spreadsheet`. Supported files are `.docx`, `.xlsx`, `.xls`, `.csv`, and
+text-based `.pdf`; Google Docs must first be exported to `.docx` or `.pdf`.
+Bounded server adapters validate the extension/type pair and format, then enforce
+archive expansion, page, row, cell, raw-file, and 800 KB extracted-text limits
+before model invocation. BIM, Primavera, MS Project, invalid, encrypted, and
+image-only PDF sources are rejected. The caller must retain and replay its
+`Idempotency-Key` after a timeout. Exact replay resumes the same source and import
+identity. Extraction is rate-limited per canonical user and project (with IP as
+an additional abuse signal) before source persistence or model invocation.
 
 `GET /imports` is an authorized, newest-first recovery feed bounded to 1–50
 records. `status` filters one lifecycle state. `nonterminal=true` excludes

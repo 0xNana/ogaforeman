@@ -115,22 +115,22 @@ test('new-project import rejects unsupported files and recovers a committed extr
   await page.getByLabel('Project name').fill(projectName);
   await page.getByLabel('Location').fill('East Legon, Accra');
   await page.getByRole('button', { name: 'Continue to setup' }).click();
-  await page.getByLabel('Choose a .txt or .md file').setInputFiles({
-    name: 'plan.pdf',
-    mimeType: 'application/pdf',
-    buffer: Buffer.from('%PDF unsupported'),
+  await page.getByLabel('Choose a project file').setInputFiles({
+    name: 'plan.xer',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from('Primavera unsupported'),
   });
-  await expect(page.locator('.form-alert')).toContainText('Use a .txt or .md file');
-  await page.getByLabel('Choose a .txt or .md file').setInputFiles({
-    name: 'ridge-plan.md',
-    mimeType: 'text/markdown',
-    buffer: Buffer.from('# Foundation\nTask: Excavation\nTask: Foundation'),
+  await expect(page.locator('.form-alert')).toContainText('Use a Word, Excel, PDF, CSV, text, or Markdown file');
+  await page.getByLabel('Choose a project file').setInputFiles({
+    name: 'ridge-plan.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('Task: Excavation\nTask: Foundation'),
   });
-  await expect(page.getByText('ridge-plan.md')).toBeVisible();
+  await expect(page.getByText('ridge-plan.csv')).toBeVisible();
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
   await expect(page.getByRole('heading', { name: 'Add your project plan.' })).toBeVisible();
-  await expect(page.getByLabel('Plan source')).toHaveValue('# Foundation\nTask: Excavation\nTask: Foundation');
+  await expect(page.getByText('ridge-plan.csv')).toBeVisible();
 
   const accessibility = await new AxeBuilder({ page })
     .include('.project-import-setup')

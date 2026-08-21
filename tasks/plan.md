@@ -27,12 +27,13 @@ creation claim, and establishes a project-scoped setup URL immediately after an
 exactly-once create. The setup choice is explicit from the start: import an
 existing plan or begin empty.
 
-PI-07 connects that handoff to a typed, project-scoped structured-source editor
-for paste, `.txt`, and `.md` input. Its source and caller-owned import claim
-survive response loss and reload; an authorized bounded feed recovers the latest
-nonterminal import before creating another. Browser and HTTP boundaries reject
-unsupported adapter types before extraction, and successful creation routes
-directly to the persisted review.
+PI-07 connects that handoff to a typed, project-scoped source editor for paste,
+`.txt`, `.md`, `.docx`, `.xlsx`, `.xls`, `.csv`, and text-based `.pdf` input.
+Its source and caller-owned import claim survive response loss and reload; an
+authorized bounded feed recovers the latest nonterminal import before creating
+another. Bounded server adapters normalize supported office/PDF sources before
+ADK extraction. Browser and HTTP boundaries reject BIM, Primavera, MS Project,
+invalid formats, and oversized sources before model invocation.
 
 PI-08 makes that review route lifecycle-complete and decision-safe. Active,
 validation-failed, extraction-failed, review, import-failed, cancelled, and

@@ -1,10 +1,27 @@
 import type { CreateProjectImportInput, ProjectImportSourceType } from '@/lib/api';
 
 export const MAX_PROJECT_IMPORT_SOURCE_BYTES = 800_000;
-export const PROJECT_IMPORT_FILE_ACCEPT = '.txt,.md,text/plain,text/markdown';
-export const PROJECT_IMPORT_FILE_ERROR = 'Use a .txt or .md file. PDF, spreadsheet, and project-schedule files are not supported in V1.';
-export const PROJECT_IMPORT_SIZE_ERROR = 'That source is larger than the 800 KB import limit.';
-export const PROJECT_IMPORT_READ_ERROR = 'OG could not read that text file. Choose it again or paste the plan below.';
+export const MAX_PROJECT_IMPORT_FILE_BYTES = 3_000_000;
+export const PROJECT_IMPORT_FILE_ACCEPT = [
+  '.txt',
+  '.md',
+  '.docx',
+  '.pdf',
+  '.xlsx',
+  '.xls',
+  '.csv',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+].join(',');
+export const PROJECT_IMPORT_FILE_ERROR = 'Use a Word, Excel, PDF, CSV, text, or Markdown file. BIM, Primavera, and MS Project files are not supported.';
+export const PROJECT_IMPORT_SIZE_ERROR = 'That file is larger than the 3 MB import limit.';
+export const PROJECT_IMPORT_TEXT_SIZE_ERROR = 'That source is larger than the 800 KB import limit.';
+export const PROJECT_IMPORT_READ_ERROR = 'OG could not read that project file. Choose it again or paste the plan below.';
 
 const CLAIM_STORAGE_PREFIX = 'oga:project-import:create-claim';
 const volatileClaims = new Map<string, ProjectImportClaim>();
@@ -24,7 +41,20 @@ function storageKey(projectId: string): string {
 }
 
 function isSourceType(value: unknown): value is ProjectImportSourceType {
-  return value === 'text' || value === 'markdown';
+  return value === 'text'
+    || value === 'markdown'
+    || value === 'file'
+    || value === 'spreadsheet';
+}
+
+function hasValidPayload(value: Partial<ProjectImportClaim>): boolean {
+  if (value.source_type === 'text' || value.source_type === 'markdown') {
+    return typeof value.source_text === 'string';
+  }
+  if (value.source_type === 'file' || value.source_type === 'spreadsheet') {
+    return typeof value.source_data_base64 === 'string';
+  }
+  return false;
 }
 
 function freshClaim(projectId: string, ownerKey: string): ProjectImportClaim {
@@ -51,8 +81,8 @@ export function restoreProjectImportClaim(projectId: string, ownerKey: string): 
       || value.projectId !== projectId
       || typeof value.idempotencyKey !== 'string'
       || typeof value.source_name !== 'string'
-      || typeof value.source_text !== 'string'
       || !isSourceType(value.source_type)
+      || !hasValidPayload(value)
     ) return freshClaim(projectId, ownerKey);
     return value as ProjectImportClaim;
   } catch {
@@ -89,23 +119,59 @@ export function clearProjectImportClaim(projectId: string): void {
 
 export async function readProjectImportFile(file: File): Promise<ProjectImportFileResult> {
   const extension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
-  if (extension !== '.txt' && extension !== '.md') return { ok: false, error: PROJECT_IMPORT_FILE_ERROR };
-  if (file.size > MAX_PROJECT_IMPORT_SOURCE_BYTES) return { ok: false, error: PROJECT_IMPORT_SIZE_ERROR };
+  const sourceTypeByExtension: Record<string, ProjectImportSourceType> = {
+    '.txt': 'text',
+    '.md': 'markdown',
+    '.docx': 'file',
+    '.pdf': 'file',
+    '.xlsx': 'spreadsheet',
+    '.xls': 'spreadsheet',
+    '.csv': 'spreadsheet',
+  };
+  const sourceType = sourceTypeByExtension[extension];
+  if (!sourceType) return { ok: false, error: PROJECT_IMPORT_FILE_ERROR };
+  const sizeLimit = sourceType === 'text' || sourceType === 'markdown'
+    ? MAX_PROJECT_IMPORT_SOURCE_BYTES
+    : MAX_PROJECT_IMPORT_FILE_BYTES;
+  if (file.size > sizeLimit) {
+    return {
+      ok: false,
+      error: sourceType === 'text' || sourceType === 'markdown'
+        ? PROJECT_IMPORT_TEXT_SIZE_ERROR
+        : PROJECT_IMPORT_SIZE_ERROR,
+    };
+  }
 
   try {
-    const source_text = await file.text();
-    if (new TextEncoder().encode(source_text).byteLength > MAX_PROJECT_IMPORT_SOURCE_BYTES) {
-      return { ok: false, error: PROJECT_IMPORT_SIZE_ERROR };
+    if (sourceType === 'text' || sourceType === 'markdown') {
+      const source_text = await file.text();
+      if (new TextEncoder().encode(source_text).byteLength > MAX_PROJECT_IMPORT_SOURCE_BYTES) {
+        return { ok: false, error: PROJECT_IMPORT_TEXT_SIZE_ERROR };
+      }
+      return {
+        ok: true,
+        source: { source_name: file.name, source_text, source_type: sourceType },
+      };
     }
+    const bytes = new Uint8Array(await file.arrayBuffer());
     return {
       ok: true,
       source: {
         source_name: file.name,
-        source_text,
-        source_type: extension === '.md' ? 'markdown' : 'text',
+        source_data_base64: bytesToBase64(bytes),
+        source_type: sourceType,
       },
     };
   } catch {
     return { ok: false, error: PROJECT_IMPORT_READ_ERROR };
   }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 32_768;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
 }

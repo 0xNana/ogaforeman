@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { clearNewProjectClaim } from '@/components/new-project-wizard';
 import {
   api,
+  type CreateProjectImportInput,
   type ProjectImportSummary,
 } from '@/lib/api';
 import {
@@ -18,6 +19,13 @@ import {
   readProjectImportFile,
   restoreProjectImportClaim,
 } from '@/lib/project-import-claim';
+
+function isTextSource(source: CreateProjectImportInput): source is Extract<
+  CreateProjectImportInput,
+  { source_type: 'text' | 'markdown' }
+> {
+  return source.source_type === 'text' || source.source_type === 'markdown';
+}
 
 export function ProjectImportSetup({ projectId, ownerKey }: Readonly<{ projectId: string; ownerKey: string }>) {
   const router = useRouter();
@@ -55,12 +63,12 @@ export function ProjectImportSetup({ projectId, ownerKey }: Readonly<{ projectId
     queueMicrotask(() => void recoverLatest());
   }, [recoverLatest]);
 
-  function updateSource(sourceText: string, sourceName = claim.source_name, sourceType = claim.source_type) {
+  function updateSource(source: CreateProjectImportInput) {
     setClaim((current) => ({
-      ...current,
-      source_name: sourceName,
-      source_text: sourceText,
-      source_type: sourceType,
+      ownerKey: current.ownerKey,
+      projectId: current.projectId,
+      idempotencyKey: current.idempotencyKey,
+      ...source,
     }));
     setError('');
   }
@@ -74,29 +82,38 @@ export function ProjectImportSetup({ projectId, ownerKey }: Readonly<{ projectId
       event.target.value = '';
       return;
     }
-    updateSource(result.source.source_text, result.source.source_name, result.source.source_type);
+    updateSource(result.source);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
-    const byteSize = new TextEncoder().encode(claim.source_text).byteLength;
-    if (!claim.source_text.trim()) {
-      setError('Paste your project plan or choose a .txt or .md file.');
-      return;
-    }
-    if (byteSize > MAX_PROJECT_IMPORT_SOURCE_BYTES) {
-      setError('That source is larger than the 800 KB import limit.');
-      return;
+    if (isTextSource(claim)) {
+      const byteSize = new TextEncoder().encode(claim.source_text).byteLength;
+      if (!claim.source_text.trim()) {
+        setError('Paste your project plan or choose a supported project file.');
+        return;
+      }
+      if (byteSize > MAX_PROJECT_IMPORT_SOURCE_BYTES) {
+        setError('That source is larger than the 800 KB import limit.');
+        return;
+      }
     }
     persistProjectImportClaim(claim);
     setSubmitting(true);
     try {
-      const created = await api.createProjectImport(projectId, {
-        source_name: claim.source_name,
-        source_text: claim.source_text,
-        source_type: claim.source_type,
-      }, claim.idempotencyKey);
+      const input: CreateProjectImportInput = isTextSource(claim)
+        ? {
+          source_name: claim.source_name,
+          source_text: claim.source_text,
+          source_type: claim.source_type,
+        }
+        : {
+          source_name: claim.source_name,
+          source_data_base64: claim.source_data_base64,
+          source_type: claim.source_type,
+        };
+      const created = await api.createProjectImport(projectId, input, claim.idempotencyKey);
       clearProjectImportClaim(projectId);
       router.replace(`/projects/${projectId}/imports/${created.id}`);
     } catch {
@@ -115,14 +132,14 @@ export function ProjectImportSetup({ projectId, ownerKey }: Readonly<{ projectId
     <span className="setup-handoff-icon"><FileText size={24} /></span>
     <span className="eyebrow">Project created</span>
     <h1 id="project-import-title">{isRetry ? 'Extraction needs another try.' : 'Add your project plan.'}</h1>
-    <p className="new-project-lede">Paste structured text, Markdown, or an OG template. OG will extract a draft for review; nothing becomes project truth until you confirm it.</p>
+    <p className="new-project-lede">Choose a Word, Excel, PDF, CSV, text, or Markdown plan. OG will extract a draft for review; nothing becomes project truth until you confirm it.</p>
     {isRetry ? <div className="import-recovery-alert" role="status"><AlertTriangle size={19} /><div><strong>The previous extraction did not finish.</strong><p>{latest.failure_message ?? 'Your saved source can be retried safely.'}</p></div></div> : null}
     <form className="new-project-form" onSubmit={submit}>
       {error ? <p className="form-alert" role="alert">{error}</p> : null}
-      <label className="import-file-field">Choose a .txt or .md file<input aria-label="Choose a .txt or .md file" type="file" accept={PROJECT_IMPORT_FILE_ACCEPT} onChange={(event) => void chooseFile(event)} /><span><Upload size={16} /> {claim.source_name === 'pasted-project.md' ? 'No file selected' : claim.source_name}</span></label>
+      <label className="import-file-field">Choose a project file<input aria-label="Choose a project file" type="file" accept={PROJECT_IMPORT_FILE_ACCEPT} onChange={(event) => void chooseFile(event)} /><span><Upload size={16} /> {claim.source_name === 'pasted-project.md' ? 'No file selected' : claim.source_name}</span></label>
       <div className="import-source-divider"><span>or paste the plan</span></div>
-      <label>Plan source<textarea aria-label="Plan source" autoFocus value={claim.source_text} onChange={(event) => updateSource(event.target.value, 'pasted-project.md', 'markdown')} maxLength={MAX_PROJECT_IMPORT_SOURCE_BYTES} rows={16} placeholder={'# Ridge House plan\n\nTask: Site clearing\nDue: 2026-09-05\n\nMaterials:\n- Cement: 100 bags'} /></label>
-      <p className="import-source-note">Only text is read from your browser. PDFs, spreadsheets, Primavera, MS Project, and BIM files are not accepted in V1.</p>
+      <label>Plan source<textarea aria-label="Plan source" autoFocus value={isTextSource(claim) ? claim.source_text : ''} onChange={(event) => updateSource({ source_name: 'pasted-project.md', source_text: event.target.value, source_type: 'markdown' })} maxLength={MAX_PROJECT_IMPORT_SOURCE_BYTES} rows={16} placeholder={'# Ridge House plan\n\nTask: Site clearing\nDue: 2026-09-05\n\nMaterials:\n- Cement: 100 bags'} /></label>
+      <p className="import-source-note">Google Docs can be exported as Word or PDF. Scanned PDFs need selectable text. BIM, Primavera, and MS Project files are not accepted.</p>
       <div className="new-project-actions"><Link className="btn btn-quiet" href={`/projects/${projectId}`}>Do this later</Link><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? <><Loader2 className="spinner" size={16} /> Extracting plan…</> : <>{isRetry || error ? 'Retry extraction' : 'Extract project plan'} <ArrowRight size={16} /></>}</button></div>
     </form>
   </section>;

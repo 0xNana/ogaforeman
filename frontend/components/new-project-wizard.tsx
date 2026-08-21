@@ -203,12 +203,12 @@ export function NewProjectWizard({ ownerKey = 'test-user' }: Readonly<{ ownerKey
       <form className="new-project-form" onSubmit={submit}>
         {error ? <p className="form-alert" role="alert">{error}</p> : null}
         <fieldset className="setup-methods"><legend className="sr-only">Choose a setup method</legend>
-          <label className={draft.setupMethod === 'import' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="import" checked={draft.setupMethod === 'import'} onChange={() => update('setupMethod', 'import')} /><span className="setup-method-icon"><FileUp size={22} /></span><span><strong>Import an existing plan</strong><small>Recommended · Choose a text or Markdown file now, or paste a plan after creation.</small></span></label>
+          <label className={draft.setupMethod === 'import' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="import" checked={draft.setupMethod === 'import'} onChange={() => update('setupMethod', 'import')} /><span className="setup-method-icon"><FileUp size={22} /></span><span><strong>Import an existing plan</strong><small>Recommended · Choose a Word, Excel, PDF, CSV, text, or Markdown file.</small></span></label>
           <label className={draft.setupMethod === 'empty' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="empty" checked={draft.setupMethod === 'empty'} onChange={() => update('setupMethod', 'empty')} /><span className="setup-method-icon"><ListPlus size={22} /></span><span><strong>Start empty</strong><small>Add tasks and materials manually after the project is created.</small></span></label>
         </fieldset>
         {draft.setupMethod === 'import' ? <div className="setup-import-source">
-          <label className="import-file-field">Choose a .txt or .md file<input aria-label="Choose a .txt or .md file" type="file" accept={PROJECT_IMPORT_FILE_ACCEPT} onChange={(event) => void chooseImportFile(event)} /><span><Upload size={16} /> {draft.importSource?.source_name ?? 'Select project file'}</span></label>
-          <p>Plain text or Markdown, up to 800 KB.</p>
+          <label className="import-file-field">Choose a project file<input aria-label="Choose a project file" type="file" accept={PROJECT_IMPORT_FILE_ACCEPT} onChange={(event) => void chooseImportFile(event)} /><span><Upload size={16} /> {draft.importSource?.source_name ?? 'Select project file'}</span></label>
+          <p>Word, Excel, PDF, and CSV up to 3 MB; text and Markdown up to 800 KB.</p>
         </div> : null}
         <div className="project-draft-summary"><span>Creating</span><strong>{draft.name.trim()}</strong><small>{draft.location.trim()}</small></div>
         <div className="new-project-actions"><button className="btn btn-quiet" type="button" onClick={() => update('step', 'details')} disabled={submitting}><ArrowLeft size={16} /> Back</button><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Creating project…' : hasSubmitted ? 'Try creating again' : 'Create project'} {!submitting ? <ArrowRight size={16} /> : null}</button></div>

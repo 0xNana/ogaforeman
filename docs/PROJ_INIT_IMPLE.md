@@ -2,9 +2,9 @@
 
 ## Status
 
-Active implementation plan. PI-00 through PI-08 are complete locally; later
-tasks remain incomplete until their acceptance criteria and verification
-commands pass. This plan closes the gaps found while auditing the current
+Implemented locally. PI-00 through PI-14 and the bounded office-document adapter
+extension are complete; external staging preservation and rollback evidence
+remain release gates. This plan closes the gaps found while auditing the current
 implementation against [`PROJECT_INIT.md`](PROJECT_INIT.md).
 
 This document does not expand the four-workflow V1 scope. Project initialization
@@ -24,7 +24,7 @@ Project details
 Choose setup method
     ├── Import an existing plan (recommended V1 path)
     │       ↓
-    │   Paste text / Markdown / OG template
+    │   Word / Excel / PDF / CSV / text / Markdown / OG template
     │       ↓
     │   Extract → validate → review
     │       ↓
@@ -51,7 +51,8 @@ V1 must support:
 - project details: name, location, timezone, description, start date, target end
   date, and status;
 - a visible setup choice inside the New Project journey;
-- pasted text, Markdown, and the OG structured-text template;
+- pasted text, Markdown, the OG structured-text template, `.docx`, `.xlsx`,
+  legacy `.xls`, `.csv`, and text-based `.pdf` sources;
 - durable source persistence and checksum;
 - Gemini schema-constrained extraction through native ADK execution;
 - deterministic normalization, validation, duplicate detection, and commit;
@@ -61,9 +62,10 @@ V1 must support:
 - project-scoped provenance, activity, observability, recovery, and authorization;
 - canonical task-specific material and dependency reasoning after import.
 
-V1 does not add CSV, Excel, PDF/BOQ, Primavera, MS Project, BIM, quantity takeoff,
-cost estimating, resource leveling, or a reconciliation editor. Those adapters
-remain V2 work and must enter through the same `ProjectImportDraft` contract.
+V1 does not add Primavera, MS Project, BIM, scanned-document OCR, quantity
+takeoff, cost estimating, resource leveling, or a reconciliation editor. Those
+capabilities remain later work and must enter through the same
+`ProjectImportDraft` contract.
 
 ## Non-negotiable implementation rules
 
@@ -125,14 +127,19 @@ project and latest import instead of creating duplicates.
 
 The user chooses one of two explicit paths:
 
-1. **Import an existing plan** — recommended; accepts pasted text, `.txt`, or
-   `.md` content and enters extraction/review.
+1. **Import an existing plan** — recommended; accepts pasted text, `.txt`,
+   `.md`, `.docx`, `.xlsx`, `.xls`, `.csv`, or text-based `.pdf` content and
+   enters extraction/review. Google Docs are imported after export to `.docx`
+   or `.pdf`.
 2. **Start with an empty project** — continues to existing manual task/material
    setup and leaves readiness derived as `PARTIALLY_CONFIGURED` until tasks exist.
 
-Selecting a local `.txt` or `.md` file may read the file as text in the browser and
-submit the existing structured-text API contract. It must not create a generic file
-adapter or imply PDF/spreadsheet support.
+Selecting local text/Markdown reads text in the browser. Office documents, CSV,
+and PDF retain their encoded bytes through the caller-owned retry claim and are
+parsed by bounded server-side adapters before entering the same normalized text,
+ADK extraction, review, and confirmation lifecycle. Archive expansion, page,
+row, cell, raw-file, and extracted-text limits are enforced before model
+invocation. BIM, Primavera, and MS Project remain rejected.
 
 ### Durable import lifecycle
 
@@ -587,8 +594,9 @@ npm run typecheck
 
 - [x] Add typed `createProjectImport` and bounded import-list/latest APIs to the
   frontend client.
-- [x] Build direct `.txt`/`.md` selection in `/projects/new`, stage the source
-  through project creation, and retain source paste/editing in `/projects/{id}/setup`.
+- [x] Build direct `.txt`/`.md`/`.docx`/`.xlsx`/`.xls`/`.csv`/`.pdf` selection
+  in `/projects/new`, stage the source through project creation, and retain
+  source paste/editing in `/projects/{id}/setup`.
 - [x] Preserve the import idempotency claim across timeout, reload, and retry.
 - [x] Recover the latest nonterminal import and route to its current state.
 
@@ -600,11 +608,11 @@ npm run typecheck
 - [x] Unsupported file types are rejected before model invocation.
 
 Completed locally on 2026-08-19 and extended on 2026-08-21. `/projects/new`
-accepts local `.txt`/`.md` files without manual transcription and stages the
-source into the project-scoped setup route. That route also accepts pasted text,
-retains the source plus caller-owned import claim through response loss and
-reload, and recovers the latest nonterminal server record without a copied
-import ID. Recovery uses a bounded, authorized
+accepts local text, Markdown, Word, Excel, CSV, and text-based PDF files without
+manual transcription and stages the source into the project-scoped setup route.
+That route also accepts pasted text, retains the source plus caller-owned import
+claim through response loss and reload, and recovers the latest nonterminal
+server record without a copied import ID. Recovery uses a bounded, authorized
 summary feed that excludes terminal records before applying its limit and never
 returns source text. Unsupported adapter types are rejected at both browser and
 HTTP boundaries before persistence or extraction. Desktop and mobile Chromium

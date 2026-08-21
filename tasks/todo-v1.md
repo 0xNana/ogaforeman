@@ -24,10 +24,11 @@ PI-06 routes every New Project action through one accessible, reload-safe wizard
 persists name, location, timezone, description, dates, and project status; and
 records the import-or-empty setup choice in the project-scoped setup URL. The
 caller-owned project creation claim survives reload and exact Firestore replay,
-so a lost response cannot create a second project. PI-07 adds paste and local
-`.txt`/`.md` source entry, a reload-stable import claim, bounded latest-active
-recovery, and browser/server rejection of unsupported adapter types before model
-invocation. PI-08 renders the complete review lifecycle, persists stable decision
+so a lost response cannot create a second project. PI-07 adds paste plus local
+text, Markdown, Word, Excel, CSV, and text-based PDF source entry, a reload-stable
+import claim, bounded latest-active recovery, bounded server parsing, and
+browser/server rejection of unsupported adapter types before model invocation.
+PI-08 renders the complete review lifecycle, persists stable decision
 claims across reload/response loss, recovers optimistic conflicts, and routes
 imported/cancelled outcomes to refreshed overview/setup destinations.
 
