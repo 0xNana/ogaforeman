@@ -130,7 +130,19 @@ class AdkEventExecutor:
                                     )
         if result is None:
             raise RuntimeError("ADK event workflow completed without a result")
+        self._persist_adk_identity(event.project_id, result.run_id, app_name)
         return result
+
+    def _persist_adk_identity(self, project_id: str, run_id: str, app_name: str) -> None:
+        run = self._store.repository(AgentRun).get(project_id, run_id)
+        if run is None or run.adk_session_id is None or "/" in run.adk_session_id:
+            return
+        updated = run.model_copy(
+            update={
+                "adk_session_id": f"{app_name}/{run.adk_session_id}",
+            }
+        )
+        self._store.repository(AgentRun).save(updated, expected_version=run.version)
 
     async def resume_approved(self, event: ProjectEvent) -> RoutedEventExecution:
         """Resume the persisted ADK invocation that produced an approval."""
@@ -154,15 +166,7 @@ class AdkEventExecutor:
             raise RuntimeError(f"agent run for material request {request.id} was not found")
         run = runs[0]
         if not run.adk_session_id or not run.adk_invocation_id:
-            # For testing with in-memory stores or incomplete persistence,
-            # generate session IDs from the run's trace_id
-            if run.trace_id and not run.adk_session_id:
-                run.adk_session_id = f"{session_app_name(self._settings, self._store)}/{run.id}"
-            if run.trigger_event_id and not run.adk_invocation_id:
-                run.adk_invocation_id = f"inv_{run.trigger_event_id.removeprefix('evt_')}"
-
-            if not run.adk_session_id or not run.adk_invocation_id:
-                raise RuntimeError("approval run is missing its persisted ADK invocation")
+            raise RuntimeError("approval run is missing its persisted ADK invocation")
 
         async def continue_typed() -> dict[str, str]:
             continuation = ApprovalContinuationService(self._store).handle_approval_granted(

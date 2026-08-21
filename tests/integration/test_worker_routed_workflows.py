@@ -500,46 +500,40 @@ def test_approved_material_continuation_completes_after_firestore_restart() -> N
     project_id = f"prj_approval{uuid4().hex}"
     manager_id = "usr_manager123"
     first_store = FirestoreRepositoryStore(firestore.Client(project=firestore_project))
-    first_store.repository(Approval).create(
-        Approval(
-            id="app_purchase123",
+    first_store.repository(ProjectMember).create(
+        ProjectMember(
             project_id=project_id,
-            action_type=ApprovalActionType.PURCHASE,
-            proposed_action={"material_id": "mat_cement123", "quantity": "150"},
-            reason="Cement is required for tomorrow's plastering.",
-            requested_by="system",
-            requested_at=NOW,
+            user_id=FOREMAN_ID,
+            role=MemberRole.FOREMAN,
+            status=MemberStatus.ACTIVE,
         )
     )
-    first_store.repository(MaterialRequest).create(
-        MaterialRequest(
-            id="mrq_cement123",
+    first_store.repository(Material).create(
+        Material(
+            id="mat_cement123",
             project_id=project_id,
-            material_id="mat_cement123",
-            quantity=Decimal("150"),
+            name="Cement Bags",
+            normalized_name="cement bags",
             unit="bags",
-            reason="Cement is required for tomorrow's plastering.",
-            supplier="Delayed Logistics",
-            source_event_id="evt_shortage123",
-            status=MaterialRequestStatus.PROPOSED,
-            approval_id="app_purchase123",
-            created_at=NOW,
-            updated_at=NOW,
+            available_quantity=Decimal("0"),
         )
     )
-    first_store.repository(AgentRun).create(
-        AgentRun(
-            id="run_material123",
-            project_id=project_id,
-            trigger_event_id="evt_shortage123",
-            workflow=WorkflowName.MATERIAL_SHORTAGE,
-            status=AgentRunStatus.WAITING_FOR_APPROVAL,
-            trace_id="trc_material123",
-            started_at=NOW,
-            adk_session_id="ses_123",
-            adk_invocation_id="inv_123",
-        )
+    shortage_event = _event(
+        "evt_shortage123",
+        EventType.MATERIAL_LOW,
+        {
+            "material_ref": "mat_cement123",
+            "quantity": 150,
+            "unit": "bags",
+            "supplier": "Delayed Logistics",
+            "reason": "Cement is required for tomorrow's plastering.",
+        },
+        project_id=project_id,
     )
+    shortage = process_event(shortage_event.model_dump_json().encode(), store=first_store)
+    assert shortage.status == "completed"
+    approval = first_store.repository(Approval).list(project_id)[0]
+    approved_at = datetime.now(UTC)
     access = ProjectAccessContext(
         actor=AuthenticatedUser(user_id=manager_id, subject="sub_manager123"),
         project_id=project_id,
@@ -549,9 +543,9 @@ def test_approved_material_continuation_completes_after_firestore_restart() -> N
         access,
         ResolutionCommand(
             project_id=project_id,
-            approval_id="app_purchase123",
+            approval_id=approval.id,
             expected_version=0,
-            occurred_at=NOW,
+            occurred_at=approved_at,
         ),
         MutationContext(
             project_id=project_id,
@@ -559,7 +553,7 @@ def test_approved_material_continuation_completes_after_firestore_restart() -> N
             actor_id=manager_id,
             source_event_id="evt_decision123",
             idempotency_key="approval:firestore:restart",
-            occurred_at=NOW,
+            occurred_at=approved_at,
         ),
     )
     approval_message = next(
@@ -577,12 +571,15 @@ def test_approved_material_continuation_completes_after_firestore_restart() -> N
     assert first.status == "completed"
     assert replay.status == "duplicate"
     assert (
-        final_store.repository(AgentRun).require(project_id, "run_material123").status
+        final_store.repository(AgentRun)
+        .require(project_id, run_id_for_event("evt_shortage123"))
+        .status
         is AgentRunStatus.COMPLETED
     )
+    request = final_store.repository(MaterialRequest).list(project_id)[0]
     assert (
-        final_store.repository(MaterialRequest).require(project_id, "mrq_cement123").status
+        final_store.repository(MaterialRequest).require(project_id, request.id).status
         is MaterialRequestStatus.DELAYED
     )
     assert len(final_store.repository(Issue).list(project_id)) == 1
-    assert len(final_store.repository(ProcessedEvent).list(project_id)) == 2
+    assert len(final_store.repository(ProcessedEvent).list(project_id)) == 3

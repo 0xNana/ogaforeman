@@ -62,6 +62,7 @@ from app.domain.models import (
 from app.repositories.firestore import FirestoreRepositoryStore
 from app.repositories.interfaces import RepositoryStore
 from app.repositories.memory import InMemoryRepositoryStore
+from app.repositories.runs import run_id_for_event
 from app.services.approvals import ApprovalService, ResolutionCommand
 from app.services.entity_resolution import MatchConfidence, resolve_task
 from app.services.fact_router import route_facts
@@ -132,8 +133,6 @@ def _approval_state(store: RepositoryStore) -> None:
             workflow="material_shortage",
             status=AgentRunStatus.WAITING_FOR_APPROVAL,
             trace_id="trc_material123",
-            adk_session_id="ses_123",
-            adk_invocation_id="inv_123",
         )
     )
 
@@ -237,12 +236,50 @@ def test_pr03_rejection_atomically_closes_linked_request() -> None:
 def test_pr04_approval_event_resumes_persisted_run_after_restart() -> None:
     firestore_project = f"oga-readiness-{uuid4().hex}"
     store = FirestoreRepositoryStore(firestore.Client(project=firestore_project))
-    _approval_state(store)
+    store.repository(ProjectMember).create(
+        ProjectMember(
+            project_id="prj_readiness123",
+            user_id="usr_foreman123",
+            role=MemberRole.FOREMAN,
+            status=MemberStatus.ACTIVE,
+        )
+    )
+    store.repository(Material).create(
+        Material(
+            id="mat_cement123",
+            project_id="prj_readiness123",
+            name="Cement Bags",
+            normalized_name="cement bags",
+            unit="bags",
+            available_quantity=Decimal("0"),
+        )
+    )
+    shortage_event = ProjectEvent(
+        event_id="evt_shortage123",
+        project_id="prj_readiness123",
+        event_type=EventType.MATERIAL_LOW,
+        source=EventSource.WEB,
+        occurred_at=datetime(2026, 8, 8, 10, 0, tzinfo=UTC),
+        received_at=datetime(2026, 8, 8, 10, 0, tzinfo=UTC),
+        actor=EventActor(type=EventActorType.USER, id="usr_foreman123"),
+        idempotency_key="readiness:material:low",
+        correlation_id="cor_shortage123",
+        payload={
+            "material_ref": "mat_cement123",
+            "quantity": 100,
+            "unit": "bags",
+            "supplier": "Delayed Logistics",
+            "reason": "Cement is required for tomorrow's plastering.",
+        },
+    )
+    shortage = process_event(shortage_event.model_dump_json().encode(), store=store)
+    assert shortage.status == "completed"
+    approval = store.repository(Approval).list("prj_readiness123")[0]
     ApprovalService(store).approve(
         _manager_access(),
         ResolutionCommand(
             project_id="prj_readiness123",
-            approval_id="app_purchase123",
+            approval_id=approval.id,
             expected_version=0,
         ),
         _approval_context("readiness:approve:123"),
@@ -263,13 +300,10 @@ def test_pr04_approval_event_resumes_persisted_run_after_restart() -> None:
     final_store = FirestoreRepositoryStore(firestore.Client(project=firestore_project))
     run = final_store.repository(AgentRun).require(
         "prj_readiness123",
-        "run_material123",
+        run_id_for_event("evt_shortage123"),
     )
 
-    request = final_store.repository(MaterialRequest).require(
-        "prj_readiness123",
-        "mrq_cement123",
-    )
+    request = final_store.repository(MaterialRequest).list("prj_readiness123")[0]
     processed = final_store.repository(ProcessedEvent).list("prj_readiness123")
     actions = final_store.repository(OutboxMessage).list("prj_readiness123")
 
@@ -280,6 +314,7 @@ def test_pr04_approval_event_resumes_persisted_run_after_restart() -> None:
     assert {item.event_type for item in processed} == {
         EventType.APPROVAL_GRANTED.value,
         EventType.DELIVERY_DELAYED.value,
+        EventType.MATERIAL_LOW.value,
     }
     assert any(
         item.message_type == "supplier:submit_material_request" and item.status.value == "completed"
