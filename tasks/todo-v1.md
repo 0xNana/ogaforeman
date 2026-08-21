@@ -16,7 +16,7 @@ Overall status: **partial**. The checked implementation claims from the prior
 phase sequence are reopened as partial evidence until
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md) passes its production
 gates. Strict expected-failure tests track audited defects without misreporting
-them as passing behavior. PI-00 through PI-07 and the canonical-import backend
+them as passing behavior. PI-00 through PI-08 and the canonical-import backend
 checkpoint are complete locally; the remaining strict expected failure tracks PI-09.
 
 PI-06 routes every New Project action through one accessible, reload-safe wizard;
@@ -26,7 +26,9 @@ caller-owned project creation claim survives reload and exact Firestore replay,
 so a lost response cannot create a second project. PI-07 adds paste and local
 `.txt`/`.md` source entry, a reload-stable import claim, bounded latest-active
 recovery, and browser/server rejection of unsupported adapter types before model
-invocation. Complete review lifecycle states remain open under PI-08.
+invocation. PI-08 renders the complete review lifecycle, persists stable decision
+claims across reload/response loss, recovers optimistic conflicts, and routes
+imported/cancelled outcomes to refreshed overview/setup destinations.
 
 - [~] Phase 0 domain audit documents the existing canonical model, persistence,
   authorization, ADK boundary, and the concepts that must be created or extended.
@@ -71,7 +73,10 @@ invocation. Complete review lifecycle states remain open under PI-08.
 - [~] Phase 9 presents each persisted import draft as a focused read-only review
   of its task, dependency, material, and task-grouped requirement records, with
   explicit warnings and conflict blockers before the version-checked cancel or
-  confirm-and-initialize decision; in-place editing remains V2 scope.
+  confirm-and-initialize decision. PI-08 adds every active/failure/terminal state,
+  reload-stable decision claims, duplicate-click suppression, stale-version
+  recovery, refreshed completion routing, and 360 px/WCAG browser evidence;
+  in-place editing remains V2 scope.
 - [~] Phase 10 initializes an active, mid-project site from explicit task state
   (`planned`, `in_progress`, `completed`, or `blocked`) and opening material
   quantity without fabricating historical task or inventory events.

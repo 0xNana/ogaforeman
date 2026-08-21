@@ -2,7 +2,7 @@
 
 ## Status date
 
-2026-08-19
+2026-08-21
 
 ## Summary
 
@@ -57,7 +57,10 @@ stable creation replay, and the project-scoped setup handoff. PI-07 adds typed
 structured-source creation, paste and local text/Markdown entry, a reload-stable
 import claim, and latest-nonterminal recovery through a source-safe bounded API.
 Unsupported source adapters are rejected before extraction. One strict expected
-failure still covers task-incorrect shortage calculation. PI-08 through PI-14
+failure still covers task-incorrect shortage calculation. PI-08 completes the
+review UI lifecycle, persists stable decision claims across reload and response
+loss, recovers optimistic conflicts, refreshes imported project state before
+routing, and returns cancellation to setup. PI-09 through PI-14
 remain open.
 
 Project Initialization Phase 1 has partial local implementation: strict, schema-versioned
@@ -111,9 +114,12 @@ before canonical writes.
 Project Initialization Phase 9 has partial local implementation: the authenticated import
 review route makes the pending canonical records legible as a read-only summary,
 tables/lists for tasks, dependencies, materials, and task-grouped requirements,
-plus explicit warning and conflict items. A conflict disables initialization;
-cancel and confirm retain client-stable idempotency keys and the persisted review
-version, while richer in-place corrections remain V2 scope.
+plus explicit warning and conflict items. It reconstructs active, validation,
+extraction, review, commit-failure, cancelled, and imported states from the API.
+A conflict disables initialization; cancel and confirm retain reload-stable
+idempotency keys and the persisted review version, rapid duplicate decisions are
+guarded, stale versions reload, and completed decisions route to refreshed project
+state or setup. Richer in-place corrections remain V2 scope.
 Project Initialization Phase 10 has partial local implementation: an active project can start
 from its actual site position. Confirmed import tasks retain explicit planned,
 in-progress, completed, or blocked status; completed work requires its supplied
@@ -300,6 +306,17 @@ Project Initialization PI-07 verification on 2026-08-19:
   setup state
 - locked dependency sync, repository-wide Ruff check/format, app-wide mypy, and
   documentation validation: passed
+
+Project Initialization PI-08 verification on 2026-08-21:
+
+- required frontend review/setup gate: 26 passed; ESLint and TypeScript passed
+- production-build Playwright decision/recovery gate: 4 passed across desktop and
+  mobile Chromium, with mobile fixed at 360 px
+- confirm and cancel both replay the same persisted decision after committed
+  response loss; the refreshed snapshot contains one Excavation and one Foundation
+  task after confirmation
+- keyboard order passed and the review state had no WCAG A/AA violations in the
+  desktop or 360 px scans
 
 Project Initialization PI-01 verification on 2026-08-19:
 

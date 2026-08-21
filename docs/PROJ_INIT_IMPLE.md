@@ -2,7 +2,7 @@
 
 ## Status
 
-Active implementation plan. PI-00 through PI-07 are complete locally; later
+Active implementation plan. PI-00 through PI-08 are complete locally; later
 tasks remain incomplete until their acceptance criteria and verification
 commands pass. This plan closes the gaps found while auditing the current
 implementation against [`PROJECT_INIT.md`](PROJECT_INIT.md).
@@ -89,7 +89,6 @@ remain V2 work and must enter through the same `ProjectImportDraft` contract.
 The implementation must not be called complete while any of these remain:
 
 - material shortage evaluation totals unrelated active-task requirements;
-- the review route does not yet render every lifecycle, retry, and terminal state;
 - Phase 18 tests fail and do not execute the operational acceptance scenario;
 - the live Gemini script prints output without asserting the contract;
 - import-specific tracing, metrics, and diagnostic logging are absent;
@@ -624,18 +623,34 @@ npm run typecheck
 
 **Work**
 
-- [ ] Render lifecycle loading, validation-failed, extraction-failed, review,
+- [x] Render lifecycle loading, validation-failed, extraction-failed, review,
   import-failed, cancelled, and imported states.
-- [ ] Show blocking conflicts separately from warnings and explain why confirmation
+- [x] Show blocking conflicts separately from warnings and explain why confirmation
   is disabled.
-- [ ] Add stable retry/cancel/confirm actions with optimistic-version recovery.
-- [ ] Return imported users to the initialized overview and cancelled users to setup.
+- [x] Add stable retry/cancel/confirm actions with optimistic-version recovery.
+- [x] Return imported users to the initialized overview and cancelled users to setup.
 
 **Acceptance**
 
-- [ ] Reloading any setup/review URL reconstructs state from the API.
-- [ ] Double-click, stale version, timeout, and exact replay create one decision.
-- [ ] Keyboard, screen-reader, 360 px, and desktop journeys remain usable.
+- [x] Reloading any setup/review URL reconstructs state from the API.
+- [x] Double-click, stale version, timeout, and exact replay create one decision.
+- [x] Keyboard, screen-reader, 360 px, and desktop journeys remain usable.
+
+Completed locally on 2026-08-21. The review route now renders every durable
+lifecycle category from the authorized API, polls active work, separates blocking
+conflicts from warnings, and preserves confirm/cancel claims in session storage so
+response loss and reload reuse the exact server decision. A synchronous in-flight
+guard suppresses rapid duplicate clicks, optimistic conflicts reload the latest
+version, successful initialization refreshes the project snapshot before routing,
+and cancellation returns to import setup. Horizontally scrollable review tables
+are keyboard focusable at mobile widths.
+
+Focused component/setup verification passes 26 tests with ESLint and TypeScript
+clean. Production-build Playwright passes four real-API/Firestore journeys across
+desktop Chromium and a 360 px mobile viewport: confirm and cancel both recover
+from committed response loss, confirmation produces one copy of each imported
+task in the refreshed snapshot, keyboard order is correct, and the review has no
+WCAG A/AA violations in the scanned state.
 
 **Verification**
 
@@ -647,11 +662,11 @@ npm run test:e2e -- project-initialization.spec.ts
 
 ### Frontend checkpoint — New Project to initialized project
 
-- [ ] New Project → Import existing plan → Review → Confirm works through real APIs.
+- [x] New Project → Import existing plan → Review → Confirm works through real APIs.
 - [ ] New Project → Start empty reaches manual setup and honest readiness.
 - [ ] Extraction failure, validation failure, cancellation, and commit retry are
   covered in browser tests.
-- [ ] No browser fixture or hard-coded import ID supplies production screen state.
+- [x] No browser fixture or hard-coded import ID supplies production screen state.
 
 ### PI-09 — Correct task-specific material reasoning
 

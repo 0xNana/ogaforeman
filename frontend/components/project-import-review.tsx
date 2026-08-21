@@ -1,32 +1,86 @@
 'use client';
 
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  RotateCw,
+  XCircle,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { api, type ProjectImportReviewRecord } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
+import { ProjectImportDraftDetails } from '@/components/project-import-draft-details';
+import {
+  api,
+  ApiRequestError,
+  type ProjectImportReviewRecord,
+  type ProjectImportStatus,
+} from '@/lib/api';
 
 type ProjectImportReviewProps = {
   projectId: string;
   importId: string;
-  onFinished: (status: 'imported' | 'cancelled') => void;
+  onFinished: (status: 'imported' | 'cancelled') => void | Promise<void>;
 };
+
+type Decision = 'confirm' | 'cancel';
+
+const ACTIVE_STATES = new Set<ProjectImportStatus>([
+  'uploaded',
+  'extracting',
+  'draft',
+  'validating',
+  'confirmed',
+  'importing',
+]);
+
+const ACTIVE_STATE_COPY: Partial<Record<ProjectImportStatus, { title: string; text: string }>> = {
+  uploaded: { title: 'Source uploaded.', text: 'OG is preparing the saved source for extraction.' },
+  extracting: { title: 'Extracting project plan.', text: 'OG is turning the saved source into a structured draft.' },
+  draft: { title: 'Draft extracted.', text: 'The draft is saved and waiting for deterministic validation.' },
+  validating: { title: 'Validating project plan.', text: 'OG is checking references, units, dependencies, and safe write limits.' },
+  confirmed: { title: 'Initialization confirmed.', text: 'Your decision is saved and the canonical import is ready to continue.' },
+  importing: { title: 'Initializing project.', text: 'OG is atomically creating the reviewed project records.' },
+};
+
+function decisionStorageKey(projectId: string, importId: string, action: Decision): string {
+  return `oga:project-import:decision-claim:${projectId}:${importId}:${action}`;
+}
+
+function restoreDecisionKey(projectId: string, importId: string, action: Decision): string {
+  const key = decisionStorageKey(projectId, importId, action);
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (stored) return stored;
+    const created = `project-import-${action}:${crypto.randomUUID()}`;
+    window.sessionStorage.setItem(key, created);
+    return created;
+  } catch {
+    return `project-import-${action}:${crypto.randomUUID()}`;
+  }
+}
 
 export function ProjectImportReview({ projectId, importId, onFinished }: Readonly<ProjectImportReviewProps>) {
   const [review, setReview] = useState<ProjectImportReviewRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [decision, setDecision] = useState<'confirm' | 'cancel' | null>(null);
+  const [decision, setDecision] = useState<Decision | null>(null);
+  const decisionInFlight = useRef(false);
   const keys = useRef({
-    confirm: `project-import-confirm:${crypto.randomUUID()}`,
-    cancel: `project-import-cancel:${crypto.randomUUID()}`,
+    confirm: restoreDecisionKey(projectId, importId, 'confirm'),
+    cancel: restoreDecisionKey(projectId, importId, 'cancel'),
   });
 
   const loadReview = useCallback(async () => {
     setError(null);
     try {
-      setReview(await api.getProjectImport(projectId, importId));
+      const current = await api.getProjectImport(projectId, importId);
+      setReview(current);
+      return current;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The import review could not be loaded.');
+      setError(errorMessage(cause, 'The import review could not be loaded.'));
+      return null;
     }
   }, [importId, projectId]);
 
@@ -34,22 +88,61 @@ export function ProjectImportReview({ projectId, importId, onFinished }: Readonl
     queueMicrotask(() => void loadReview());
   }, [loadReview]);
 
-  const taskNames = useMemo(() => new Map(review?.tasks.map((task) => [task.temp_id, task.name])), [review?.tasks]);
-  if (error && !review) return <ReviewState icon={<AlertTriangle />} title="We couldn’t load this import." text={error} onRetry={loadReview} />;
-  if (!review) return <div className="loading-stack" aria-busy="true" aria-label="Loading import review"><p className="loading-label">Loading import review…</p><div className="loading-block loading-heading" /><div className="loading-block loading-card" /></div>;
+  useEffect(() => {
+    if (!review || !ACTIVE_STATES.has(review.status)) return;
+    const timer = window.setTimeout(() => void loadReview(), 2_500);
+    return () => window.clearTimeout(timer);
+  }, [loadReview, review]);
 
-  const isDecisionable = review.status === 'needs_review' || review.status === 'import_failed';
+  if (error && !review) {
+    return (
+      <ImportStatePage>
+        <ReviewState
+          alert
+          icon={<AlertTriangle />}
+          title="We couldn’t load this import."
+          text={error}
+          actions={<button className="btn btn-primary btn-small" type="button" onClick={() => void loadReview()}>Try again</button>}
+        />
+      </ImportStatePage>
+    );
+  }
+  if (!review) return <ImportLoading />;
+
+  const activeCopy = ACTIVE_STATE_COPY[review.status];
+  if (activeCopy) {
+    return (
+      <ImportStatePage>
+        <ReviewState
+          busy
+          icon={<Loader2 className="spinner" />}
+          title={activeCopy.title}
+          text={activeCopy.text}
+          actions={<button className="btn btn-quiet" type="button" onClick={() => void loadReview()}><RotateCw size={16} /> Check status</button>}
+        />
+        <StateError message={error} />
+      </ImportStatePage>
+    );
+  }
+
   const hasConflicts = review.conflicts.length > 0;
+  const canCancel = ['needs_review', 'validation_failed', 'extraction_failed', 'import_failed'].includes(review.status);
+  const canConfirm = ['needs_review', 'import_failed'].includes(review.status) && !hasConflicts;
   const expectedVersion = review.version;
-  const groupedRequirements = review.requirements.reduce<Map<string, typeof review.requirements>>((groups, requirement) => {
-    const group = groups.get(requirement.task_temp_id) ?? [];
-    group.push(requirement);
-    groups.set(requirement.task_temp_id, group);
-    return groups;
-  }, new Map());
 
-  async function decide(action: 'confirm' | 'cancel') {
-    if (!isDecisionable || decision) return;
+  async function recoverCurrentVersion() {
+    try {
+      setReview(await api.getProjectImport(projectId, importId));
+      setError('This import changed while you were deciding. The latest version is loaded; review it before trying again.');
+    } catch (cause) {
+      setError(errorMessage(cause, 'The latest import version could not be loaded.'));
+    }
+  }
+
+  async function decide(action: Decision) {
+    if (decisionInFlight.current) return;
+    if (action === 'confirm' ? !canConfirm : !canCancel) return;
+    decisionInFlight.current = true;
     setDecision(action);
     setError(null);
     try {
@@ -57,54 +150,93 @@ export function ProjectImportReview({ projectId, importId, onFinished }: Readonl
         ? await api.confirmProjectImport(projectId, importId, expectedVersion, keys.current.confirm)
         : await api.cancelProjectImport(projectId, importId, expectedVersion, keys.current.cancel);
       setReview(result);
-      if (result.status === 'imported' || result.status === 'cancelled') onFinished(result.status);
+      if (result.status === 'imported' || result.status === 'cancelled') await onFinished(result.status);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The import decision could not be saved.');
+      if (cause instanceof ApiRequestError && cause.code === 'PROJECT_IMPORT_VERSION_CONFLICT') {
+        await recoverCurrentVersion();
+      } else {
+        setError(errorMessage(cause, 'The import decision could not be saved.'));
+      }
     } finally {
+      decisionInFlight.current = false;
       setDecision(null);
     }
   }
 
-  return <div className="import-review-page">
-    <PageHeader eyebrow="Project setup" title="Review project initialization" description="Check what OG will create. Nothing becomes project truth until you confirm." />
-    <section className="import-summary" aria-label="Import summary">
-      <SummaryCount count={review.tasks.length} label="Task" />
-      <SummaryCount count={review.dependencies.length} label="Dependency" />
-      <SummaryCount count={review.materials.length} label="Material" />
-      <SummaryCount count={review.requirements.length} label="Requirement" />
-      <SummaryCount count={review.warnings.length + review.unresolved_references.length} label="Warning" />
-    </section>
+  if (review.status === 'extraction_failed') {
+    return (
+      <ImportStatePage>
+        <ReviewState
+          icon={<AlertTriangle />}
+          title="Extraction did not finish."
+          text={review.failure_message ?? 'OG could not create a review draft from the saved source.'}
+          code={review.failure_code}
+          actions={(
+            <>
+              <button className="btn btn-quiet" type="button" disabled={decision !== null} onClick={() => void decide('cancel')}>Cancel Import</button>
+              <Link className="btn btn-primary" href={`/projects/${projectId}/setup?method=import`}>Return to setup</Link>
+            </>
+          )}
+        />
+        <StateError message={error} />
+      </ImportStatePage>
+    );
+  }
 
-    {hasConflicts ? <section className="import-review-alert" role="alert" aria-labelledby="import-conflicts-title"><AlertTriangle size={20} aria-hidden="true" /><div><h2 id="import-conflicts-title">This draft can’t be initialized yet</h2><ul>{review.conflicts.map((conflict) => <li key={`${conflict.code}-${conflict.message}`}><strong>{conflict.code}</strong><span>{conflict.message}</span></li>)}</ul></div></section> : null}
+  if (review.status === 'imported' || review.status === 'cancelled') {
+    const imported = review.status === 'imported';
+    return (
+      <ImportStatePage>
+        <ReviewState
+          icon={imported ? <CheckCircle2 /> : <XCircle />}
+          title={imported ? 'Project initialized.' : 'Import cancelled.'}
+          text={imported ? 'OG has created the reviewed project records.' : 'No canonical project records were created from this draft.'}
+          actions={(
+            <Link className="btn btn-primary" href={imported ? `/projects/${projectId}` : `/projects/${projectId}/setup?method=import`}>
+              {imported ? 'Open project overview' : 'Return to setup'}
+            </Link>
+          )}
+        />
+        <StateError message={error} />
+      </ImportStatePage>
+    );
+  }
 
-    <ReviewSection title="Tasks" description="Proposed work records">
-      <div className="data-table-wrapper"><table className="data-table import-review-table"><thead><tr><th>Task</th><th>Trade</th><th>Location</th><th>Planned dates</th><th>Status</th></tr></thead><tbody>{review.tasks.length ? review.tasks.map((task) => <tr key={task.temp_id}><th scope="row">{task.name}</th><td>{task.trade ?? 'Not specified'}</td><td>{task.location ?? 'Not specified'}</td><td>{dateRange(task.planned_start, task.planned_finish)}</td><td>{label(task.initial_status)}</td></tr>) : <EmptyRow columns={5} text="No tasks will be created." />}</tbody></table></div>
-    </ReviewSection>
+  return (
+    <div className="import-review-page">
+      <PageHeader eyebrow="Project setup" title="Review project initialization" description="Check what OG will create. Nothing becomes project truth until you confirm." />
+      <ProjectImportDraftDetails review={review} />
 
-    <ReviewSection title="Dependencies" description="Work that must finish before the next task starts">
-      {review.dependencies.length ? <ul className="import-dependency-list">{review.dependencies.map((dependency) => <li key={`${dependency.predecessor_temp_id}-${dependency.successor_temp_id}`}><strong>{taskNames.get(dependency.predecessor_temp_id) ?? dependency.predecessor_temp_id}</strong><span aria-hidden="true">→</span><strong>{taskNames.get(dependency.successor_temp_id) ?? dependency.successor_temp_id}</strong></li>)}</ul> : <p className="import-empty-copy">No dependencies will be created.</p>}
-    </ReviewSection>
-
-    <ReviewSection title="Materials" description="Initial inventory that OG will track">
-      <div className="data-table-wrapper"><table className="data-table import-review-table"><thead><tr><th>Material</th><th>Opening stock</th><th>Unit</th><th>Location</th></tr></thead><tbody>{review.materials.length ? review.materials.map((material) => <tr key={material.temp_id}><th scope="row">{material.name}</th><td>{material.initial_on_hand_quantity}</td><td>{material.canonical_unit}</td><td>{material.location ?? 'Not specified'}</td></tr>) : <EmptyRow columns={4} text="No materials will be created." />}</tbody></table></div>
-    </ReviewSection>
-
-    <ReviewSection title="Requirements" description="Materials grouped by the task that needs them">
-      {groupedRequirements.size ? <div className="import-requirement-groups">{[...groupedRequirements].map(([taskId, requirements]) => <section key={taskId}><h3>{taskNames.get(taskId) ?? taskId}</h3><ul>{requirements.map((requirement) => <li key={`${requirement.task_temp_id}-${requirement.material_temp_id}`}><strong>{review.materials.find((material) => material.temp_id === requirement.material_temp_id)?.name ?? requirement.material_temp_id}</strong><span>{requirement.required_quantity} {requirement.unit}</span><small>{requirement.required_by ? `Needed by ${requirement.required_by}` : 'Required date not specified'}</small></li>)}</ul></section>)}</div> : <p className="import-empty-copy">No task material requirements were found.</p>}
-    </ReviewSection>
-
-    <ReviewSection title="Warnings" description="Review these source details before deciding">
-      {review.warnings.length || review.unresolved_references.length ? <ul className="import-warning-list">{review.warnings.map((warning) => <li key={`${warning.code}-${warning.message}`}><AlertTriangle size={18} aria-hidden="true" /><div><strong>{warning.code}</strong><p>{warning.message}</p></div></li>)}{review.unresolved_references.map((reference) => <li key={reference}><AlertTriangle size={18} aria-hidden="true" /><div><strong>UNRESOLVED_REFERENCE</strong><p>{reference}</p></div></li>)}</ul> : <p className="import-empty-copy">No warnings were found in this draft.</p>}
-    </ReviewSection>
-
-    {error ? <p className="form-error" role="alert">{error} <button className="inline-action" type="button" onClick={() => void loadReview()}>Reload review</button></p> : null}
-    {isDecisionable ? <div className="import-review-actions"><button className="btn btn-quiet" type="button" disabled={decision !== null} onClick={() => void decide('cancel')}>{decision === 'cancel' ? <><Loader2 className="spinner" size={16} /> Cancelling…</> : 'Cancel Import'}</button><button className="btn btn-accent" type="button" disabled={decision !== null || hasConflicts} onClick={() => void decide('confirm')}>{decision === 'confirm' ? <><Loader2 className="spinner" size={16} /> Initializing…</> : 'Confirm & Initialize'}</button>{hasConflicts ? <p>Cancel this draft, correct the source, then start a new review.</p> : null}</div> : <ReviewState icon={review.status === 'imported' ? <CheckCircle2 /> : <XCircle />} title={review.status === 'imported' ? 'Project initialized.' : 'Import cancelled.'} text={review.status === 'imported' ? 'OG has created the reviewed project records.' : 'No canonical project records were created from this draft.'} />}
-  </div>;
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      <div className="import-review-actions">
+        <button className="btn btn-quiet" type="button" disabled={decision !== null || !canCancel} onClick={() => void decide('cancel')}>
+          {decision === 'cancel' ? <><Loader2 className="spinner" size={16} /> Cancelling…</> : 'Cancel Import'}
+        </button>
+        <button className="btn btn-accent" type="button" disabled={decision !== null || !canConfirm} onClick={() => void decide('confirm')}>
+          {decision === 'confirm'
+            ? <><Loader2 className="spinner" size={16} /> Initializing…</>
+            : review.status === 'import_failed' ? 'Retry initialization' : 'Confirm & Initialize'}
+        </button>
+        {!canConfirm ? <p>Confirmation is disabled because this draft has blocking conflicts.</p> : null}
+      </div>
+    </div>
+  );
 }
 
-function SummaryCount({ count, label: itemLabel }: Readonly<{ count: number; label: string }>) { const label = `${count} ${itemLabel}${count === 1 ? '' : 's'}`; return <div aria-label={label}><strong>{count}</strong><span>{itemLabel}{count === 1 ? '' : 's'}</span></div>; }
-function ReviewSection({ title, description, children }: Readonly<{ title: string; description: string; children: React.ReactNode }>) { return <section className="import-review-section" aria-labelledby={`review-${title.toLowerCase()}`}><header><h2 id={`review-${title.toLowerCase()}`}>{title}</h2><p>{description}</p></header>{children}</section>; }
-function EmptyRow({ columns, text }: Readonly<{ columns: number; text: string }>) { return <tr><td colSpan={columns} className="secondary-cell">{text}</td></tr>; }
-function ReviewState({ icon, title, text, onRetry }: Readonly<{ icon: React.ReactNode; title: string; text: string; onRetry?: () => Promise<void> }>) { return <div className="empty-state"><span className="empty-state-icon">{icon}</span><h2>{title}</h2><p>{text}</p>{onRetry ? <button className="btn btn-primary btn-small" type="button" onClick={() => void onRetry()}>Try again</button> : null}</div>; }
-function dateRange(start: string | null, finish: string | null) { return start && finish ? `${start} – ${finish}` : start ?? finish ?? 'Not specified'; }
-function label(value: string) { return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()); }
+function ImportLoading() {
+  return <div className="loading-stack" aria-busy="true" aria-label="Loading import review"><p className="loading-label">Loading import review…</p><div className="loading-block loading-heading" /><div className="loading-block loading-card" /></div>;
+}
+
+function ImportStatePage({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <div className="import-review-page"><PageHeader eyebrow="Project setup" title="Project initialization" description="This page reflects the latest durable import state." />{children}</div>;
+}
+
+function ReviewState({ icon, title, text, code, actions, busy = false, alert = false }: Readonly<{ icon: React.ReactNode; title: string; text: string; code?: string | null; actions?: React.ReactNode; busy?: boolean; alert?: boolean }>) {
+  return <section className="import-state" role={alert ? 'alert' : busy ? 'status' : undefined} aria-busy={busy || undefined}><span className="import-state-icon" aria-hidden="true">{icon}</span><div><h2>{title}</h2><p>{text}</p>{code ? <code>{code}</code> : null}{actions ? <div className="import-state-actions">{actions}</div> : null}</div></section>;
+}
+
+function StateError({ message }: Readonly<{ message: string | null }>) {
+  return message ? <p className="form-error" role="alert">{message}</p> : null;
+}
+
+function errorMessage(cause: unknown, fallback: string) { return cause instanceof Error ? cause.message : fallback; }

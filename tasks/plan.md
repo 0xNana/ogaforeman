@@ -2,12 +2,12 @@
 
 ## ADK Execution Authority Migration — P0 through P4
 
-Project Initialization status: **partial** as of 2026-08-19. The phase notes
+Project Initialization status: **partial** as of 2026-08-21. The phase notes
 below record prior slice-level implementation, but production completion is
 superseded by the open gates in
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md). Strict expected-failure
-regressions now preserve the remaining audited gaps until PI-08 through PI-14
-resolve them. PI-00 through PI-07 and the canonical-import backend checkpoint are
+regressions now preserve the remaining audited gaps until PI-09 through PI-14
+resolve them. PI-00 through PI-08 and the canonical-import backend checkpoint are
 complete locally: invalid complete drafts
 remain reviewable, all persisted conflicts block confirmation, and the durable
 import lifecycle safely resumes exact extraction and commit claims after restart.
@@ -33,6 +33,12 @@ survive response loss and reload; an authorized bounded feed recovers the latest
 nonterminal import before creating another. Browser and HTTP boundaries reject
 unsupported adapter types before extraction, and successful creation routes
 directly to the persisted review.
+
+PI-08 makes that review route lifecycle-complete and decision-safe. Active,
+validation-failed, extraction-failed, review, import-failed, cancelled, and
+imported records reconstruct from the API; conflicts and warnings stay distinct;
+stable browser claims survive response loss and reload; and successful decisions
+refresh and route to the correct project destination.
 
 ## Project Initialization — Phase 0 Domain Audit
 
@@ -163,18 +169,30 @@ type rejection. Production-build Playwright passes committed-response-loss
 recovery in desktop and mobile Chromium, including the setup editor's WCAG A/AA
 scan and a single import POST.
 
+PI-08 verification: the required frontend review/setup suite passes 26 tests,
+with ESLint and TypeScript clean. Production-build Playwright passes four
+real-API/Firestore journeys in desktop and mobile Chromium, including a 360 px
+viewport, keyboard navigation, WCAG A/AA scans, committed-response-loss replay
+for confirmation/cancellation, and a refreshed canonical snapshot with one copy
+of each imported task.
+
 ## Project Initialization — Phase 9 Review UI
 
-Prior slice evidence recorded on 2026-08-18. The authenticated review route renders
+PI-08 completed locally on 2026-08-21. The authenticated review route renders
 the persisted draft as a focused, read-only summary of tasks, dependencies,
 materials, task-grouped requirements, and explicit warnings before canonical
 state changes. Conflicts visibly block confirmation; cancellation and
 confirmation preserve stable client idempotency keys and the server-provided
-optimistic version. Terminal decisions return the user to the project; in-place
-draft editing remains V2 scope.
+optimistic version. All active, failure, review, and terminal lifecycle states
+reconstruct from the API; duplicate clicks are synchronously guarded, response-loss
+retries reuse the same decision claim, stale versions reload safely, and imported
+or cancelled decisions route to the refreshed overview or setup respectively.
+In-place draft editing remains V2 scope.
 
-Verification: frontend API-boundary and review-component tests, full frontend
-unit suite, TypeScript, ESLint, and production build pass locally.
+Verification: 26 focused component/setup tests, TypeScript, and ESLint pass.
+Four production-build Playwright journeys pass across desktop and 360 px mobile
+Chromium with real API/Firestore state, keyboard coverage, and no scanned WCAG
+A/AA violations.
 
 ## Project Initialization — Phase 10 Initial Actual State
 
