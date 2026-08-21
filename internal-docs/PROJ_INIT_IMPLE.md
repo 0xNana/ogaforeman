@@ -54,7 +54,8 @@ V1 must support:
 - pasted text, Markdown, the OG structured-text template, `.docx`, `.xlsx`,
   legacy `.xls`, `.csv`, and text-based `.pdf` sources;
 - durable source persistence and checksum;
-- Gemini schema-constrained extraction through native ADK execution;
+- Gemini schema-constrained extraction through the Google Gen AI / Vertex model
+  API; project initialization is an ingestion pipeline, not an agent workflow;
 - deterministic normalization, validation, duplicate detection, and commit;
 - review of tasks, dates, dependencies, materials, requirements, warnings,
   conflicts, initial task state, and opening inventory;
@@ -71,9 +72,10 @@ capabilities remain later work and must enter through the same
 
 - Gemini interprets source content. It never supplies canonical IDs, authorization,
   confirmation, write tokens, or trusted provenance metadata.
-- ADK owns extraction orchestration. Do not introduce another workflow runtime.
-- Deterministic services own validation, state transitions, canonical IDs,
-  duplicate detection, authorization, transactions, and retries.
+- The Project Ingestion Service owns the bounded extraction pipeline, durable
+  import-job lifecycle, validation lifecycle, review state, and commit boundary.
+- Deterministic services own normalization, validation, state transitions,
+  canonical IDs, duplicate detection, authorization, transactions, and retries.
 - Firestore is the source of truth for sources, import state, drafts, canonical
   records, claims, provenance, and activity.
 - Every state-changing operation is idempotent and atomically emits its required
@@ -145,8 +147,8 @@ Later additive imports cannot rename an already-populated project.
 Selecting local text/Markdown reads text in the browser. Office documents, CSV,
 and PDF retain their encoded bytes through the caller-owned retry claim and are
 parsed by bounded server-side adapters before entering the same normalized text,
-ADK extraction, review, and confirmation lifecycle. Archive expansion, page,
-row, cell, raw-file, and extracted-text limits are enforced before model
+direct Gemini extraction, review, and confirmation lifecycle. Archive expansion,
+page, row, cell, raw-file, and extracted-text limits are enforced before model
 invocation. BIM, Primavera, and MS Project remain rejected.
 
 ### Durable import lifecycle
@@ -188,6 +190,13 @@ Rules:
 - cancellation is unavailable after a commit claim reaches `CONFIRMED` or
   `IMPORTING`;
 - terminal records retain source/import identity and bounded failure information.
+
+`ProjectImport` is the durable import job. It persists `id`, `project_id`,
+`source_id`, `status`, `extraction_attempt`, `schema_version`, `model`, `draft`,
+`warnings`, `conflicts`, `created_at`, `updated_at`, `confirmed_at`, `imported_at`,
+and `error_code` directly or through the versioned draft/diagnostic fields. A
+worker restart resumes the exact persisted import claim; no ADK session or
+invocation state participates in recovery.
 
 ### Validation boundary
 
@@ -328,8 +337,8 @@ import.confirm
 import.commit
 ```
 
-Structured logs include `project_id`, `import_id`, `source_id`, ADK session and
-invocation IDs, trace ID, status, attempt, duration, prompt/model registry key,
+Structured logs include `project_id`, `import_id`, `source_id`, trace ID, status,
+extraction/import attempt, duration, schema version, prompt/model registry key,
 validation outcome, and commit outcome. IDs belong in log fields, not metric labels.
 
 Metrics use bounded labels and cover:
@@ -419,7 +428,7 @@ import service before canonical writes. The focused verification suite passes
 **Status:** complete locally on 2026-08-19. The explicit transition table is
 enforced at every import mutation, extraction failures persist safe diagnostics,
 and exact request claims resume from failed/expired extraction and confirmed
-commit stages. The required workflow/API suite passes 20 tests; two additional
+commit stages. The required extraction-service/API suite passes 20 tests; two additional
 restart tests pass against the Firestore emulator with fresh repository clients.
 
 **Work**
@@ -441,7 +450,7 @@ restart tests pass against the Firestore emulator with fresh repository clients.
 
 ```bash
 .venv/bin/python -m pytest -q \
-  tests/workflows/test_project_import_extraction.py \
+  tests/unit/test_project_import_extraction.py \
   tests/integration/test_project_import_review_api.py
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 \
   .venv/bin/python -m pytest -q \
@@ -831,9 +840,9 @@ or manually inspected response is not a passing gate.
 
 **Work**
 
-- [x] Update API, domain model, workflow, security, operations, and traceability docs.
-- [x] Record any lifecycle/provenance decision that changes an accepted architecture
-  in an ADR. No accepted architecture changed, so no new ADR was required.
+- [x] Update API, domain model, ingestion, security, operations, and traceability docs.
+- [x] Amend ADR-001 for the corrected direct-Gemini ingestion boundary; no new
+  workflow runtime or ADR is required.
 - [x] Add deployment smoke and rollback checks for project creation/import/recovery.
 - [x] Update status and task checklists only from passing recorded evidence.
 
@@ -874,7 +883,8 @@ browser/API/Firestore-backed scenario is recorded:
 1. An administrator selects **New Project**.
 2. They create Ridge House and choose **Import an existing plan**.
 3. They paste the accepted structured-text fixture.
-4. OG persists the source and import, extracts through ADK/Gemini, and shows review.
+4. OG persists the source and import, extracts through the direct Gemini service,
+   and shows review.
 5. The user sees the exact tasks, dependencies, materials, requirements, opening
    inventory, warnings, and conflicts before mutation.
 6. Confirmation creates canonical state once with complete provenance and activity.

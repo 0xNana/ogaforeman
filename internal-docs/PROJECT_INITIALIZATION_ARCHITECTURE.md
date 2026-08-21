@@ -36,13 +36,15 @@ remain local to the draft and must never be accepted as canonical Firestore IDs.
 
 - Deterministic project/task/material/issue/report services already own domain
   mutations and validation.
-- ADK `Runner` and durable `SessionService` own agentic orchestration and HITL
-  continuation. Project initialization extraction must be another ADK workflow,
-  not a second workflow runtime.
-- Gemini/ADK may produce typed draft candidates only. Validation, ID generation,
+- The Project Ingestion Service owns source loading, direct Gemini structured
+  extraction, import-job claims, restart recovery, draft assembly, validation
+  handoff, review state, and the deterministic commit boundary.
+- Gemini may produce typed draft candidates only. Validation, ID generation,
   conflict handling, authorization, and commits remain deterministic services.
-- `AgentRun` is an observable execution projection. It must not become the import
-  draft or the import state machine.
+- Project initialization creates no ADK `Runner`, session, invocation, or
+  `AgentRun`. `ProjectImport` is the durable ingestion job and state machine.
+- ADK remains the runtime for OG's autonomous, event-driven, conversational,
+  tool-using, HITL, and long-running operational workflows.
 
 ## Phase 0 gaps and constraints
 

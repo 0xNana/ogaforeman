@@ -33,7 +33,7 @@ PI-07 connects that handoff to a typed, project-scoped source editor for paste,
 Its source and caller-owned import claim survive response loss and reload; an
 authorized bounded feed recovers the latest nonterminal import before creating
 another. Bounded server adapters normalize supported office/PDF sources before
-ADK extraction. Browser and HTTP boundaries reject BIM, Primavera, MS Project,
+direct Gemini extraction. Browser and HTTP boundaries reject BIM, Primavera, MS Project,
 invalid formats, and oversized sources before model invocation.
 
 PI-08 makes that review route lifecycle-complete and decision-safe. Active,
@@ -45,7 +45,7 @@ refresh and route to the correct project destination.
 ## Project Initialization — Phase 0 Domain Audit
 
 Prior slice evidence recorded on 2026-08-17. The existing canonical domain,
-repositories, services, ADK boundary, and missing import concepts are mapped in
+repositories, services, operational ADK boundary, and missing import concepts are mapped in
 [`internal-docs/PROJECT_INITIALIZATION_ARCHITECTURE.md`](../internal-docs/PROJECT_INITIALIZATION_ARCHITECTURE.md).
 No import models or writes are introduced until the Phase 1 contracts are defined.
 
@@ -91,19 +91,20 @@ require a persisted source before canonical records are committed.
 Prior slice evidence recorded on 2026-08-17. `StructuredTextProjectAdapter` accepts
 pasted text, Markdown, and OG-template variations, normalizes bounded source
 text and labels, preserves unresolved dates, and computes a stable checksum for
-the ADK/Gemini extraction boundary.
+the direct Gemini extraction boundary.
 
-## Project Initialization — Phase 6 ADK Project Extraction Workflow
+## Project Initialization — Phase 6 Gemini Project Extraction Service
 
-PI-02 completed locally on 2026-08-19. A native resumable ADK workflow
-exposes `source_received`, `load_source`, schema-constrained Gemini extraction,
-schema validation, draft normalization, deterministic validation, and
-`needs_review` nodes. The application persists and guards `UPLOADED`,
+PI-02 completed locally on 2026-08-19 and corrected on 2026-08-21. A bounded
+application service calls Google Gen AI / Vertex directly for schema-constrained
+Gemini extraction, then produces a normalized typed draft for deterministic
+validation and review. The application persists and guards `UPLOADED`,
 `EXTRACTING`, `DRAFT`, `VALIDATING`, review/failure, confirmation/import, and
 terminal transitions. Dependency outages persist safe retryable failures;
 expired and failed exact claims resume without changing import identity. Gemini
 emits only draft-shaped data; application code adds import/source identity and
-produces the normalized `ProjectImportDraft`.
+produces the normalized `ProjectImportDraft`. Recovery uses the durable import
+job and never creates an ADK session, invocation, runner, or workflow graph.
 
 ## Project Initialization — Phase 7 Normalization Layer
 
@@ -116,20 +117,20 @@ duplicates without semantic merging.
 ## Project Initialization — Phase 8 Review API
 
 Prior slice evidence recorded on 2026-08-18. Authenticated project-scoped import
-routes now extract and persist review drafts through the native ADK Runner,
+routes now extract and persist review drafts through the Project Ingestion Service,
 expose the complete review payload, and require an optimistic version plus
 idempotency key for confirmation or cancellation. Draft cancellation discards
 the review without writing canonical project entities; confirmation is only
 possible from the persisted review record, commits the validated draft once,
-and safely replays only the original request claim. Extraction leases and
-persisted ADK session/invocation identity support recovery after failure or
+and safely replays only the original request claim. Extraction leases, attempts,
+drafts, and failure state on `ProjectImport` support recovery after failure or
 worker restart, while reads and decisions remain available during extractor
 outages. PI-01 rejects persisted blocking conflicts through both the review API
 and direct import service before any canonical entity write. PI-02 adds safe
 failure diagnostics and exact-claim recovery across process and Firestore-client
 restart.
 
-PI-02 verification: the required workflow/API gate passes 20 tests, the focused
+PI-02 verification: the required extraction-service/API gate passes 20 tests, the focused
 import/validation/API regression set passes 39 tests with only PI-03 through
 PI-05 strict expected failures, and two fresh-client lifecycle restart tests pass
 against the Firestore emulator. Ruff and format pass repository-wide; focused

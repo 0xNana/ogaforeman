@@ -11,7 +11,6 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from app.agents.errors import AgentDependencyUnavailableError
 from app.api.errors import install_error_handlers, install_request_id_middleware
 from app.api.limits import InMemoryRateLimiter
 from app.api.v1.router import api_router
@@ -31,7 +30,11 @@ from app.domain.project_import import (
     SourceType,
 )
 from app.repositories.memory import InMemoryRepositoryStore
-from app.agents.project_import_extraction import ProjectImportCandidate
+from app.services.project_import_extraction import (
+    ProjectImportCandidate,
+    ProjectImportModelOutputInvalidError,
+    ProjectImportModelUnavailableError,
+)
 from app.services.project_import_review import (
     ProjectImportReviewService,
     ProjectImportReviewStateError,
@@ -43,6 +46,8 @@ ACTOR_ID = "usr_admin123"
 
 
 class FixedDraftExtractor:
+    model_id = "fixture-gemini-model"
+
     async def extract(
         self,
         *,
@@ -111,7 +116,13 @@ class CountingDraftExtractor(FixedDraftExtractor):
 class ProviderUnavailableDraftExtractor:
     async def extract(self, **kwargs) -> ProjectImportDraft:
         del kwargs
-        raise AgentDependencyUnavailableError("private provider quota detail")
+        raise ProjectImportModelUnavailableError("private provider quota detail")
+
+
+class MalformedOutputDraftExtractor:
+    async def extract(self, **kwargs) -> ProjectImportDraft:
+        del kwargs
+        raise ProjectImportModelOutputInvalidError("private malformed model output")
 
 
 class PromptInjectionDraftExtractor:
@@ -331,7 +342,10 @@ async def test_extraction_rate_limit_precedes_source_persistence_and_model_call(
     assert limited.status_code == 429
     assert limited.json()["error"]["code"] == "RATE_LIMITED"
     assert extractor.calls == 1
-    assert len(store.repository(ProjectImportRecord).list(PROJECT_ID)) == 1
+    records = store.repository(ProjectImportRecord).list(PROJECT_ID)
+    assert len(records) == 1
+    assert records[0].schema_version == 1
+    assert records[0].model == "fixture-gemini-model"
 
 
 @pytest.mark.asyncio
@@ -750,6 +764,28 @@ async def test_provider_quota_failure_returns_safe_retryable_dependency_response
 
 
 @pytest.mark.asyncio
+async def test_malformed_model_output_creates_no_canonical_records() -> None:
+    store = InMemoryRepositoryStore()
+    app = make_app_with_extractor(store, MalformedOutputDraftExtractor())
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={"source_name": "ridge-house.md", "source_text": "Task: Foundation"},
+            headers={"Idempotency-Key": "project-import-malformed:create"},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "PROJECT_IMPORT_EXTRACTION_INVALID"
+    record = store.repository(ProjectImportRecord).list(PROJECT_ID)[0]
+    assert record.status is ProjectImportStatus.EXTRACTION_FAILED
+    assert record.failure_code == "extraction_invalid"
+    assert record.draft is None
+    assert _canonical_counts(store) == (0, 0, 0, 0)
+
+
+@pytest.mark.asyncio
 async def test_extraction_failure_persists_only_safe_reloadable_diagnostics() -> None:
     store = InMemoryRepositoryStore()
     app = make_app_with_extractor(store, SecretFailingExtractor())
@@ -805,8 +841,6 @@ async def test_restart_resumes_persisted_draft_at_validation_without_reextractin
             extraction_request_fingerprint=sha256(
                 f"{PROJECT_ID}\x00{key}\x00{source_id}".encode()
             ).hexdigest(),
-            extraction_session_id=import_id,
-            extraction_invocation_id=f"extract:{import_id}",
             extraction_attempt=1,
             created_at=now,
             updated_at=now,
@@ -984,8 +1018,7 @@ async def test_failed_extraction_retries_with_the_same_durable_claim() -> None:
     assert extractor.calls == 2
     record = store.repository(ProjectImportRecord).require(PROJECT_ID, second.json()["id"])
     assert record.extraction_attempt == 2
-    assert record.extraction_session_id == record.id
-    assert record.extraction_invocation_id == f"extract:{record.id}"
+    assert record.schema_version == 1
 
 
 @pytest.mark.asyncio

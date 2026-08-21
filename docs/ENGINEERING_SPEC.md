@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build a production-ready, event-driven OG Foreman public beta that turns unstructured site updates into durable project state and completed follow-through. The codebase must preserve a strict boundary: Gemini reasons, ADK workflows coordinate, typed tools perform actions, and Firestore holds project truth. Hackathon demo fixtures do not relax production controls.
+Build a production-ready, event-driven OG Foreman public beta that turns unstructured site updates into durable project state and completed follow-through. The codebase must preserve a strict boundary: Gemini reasons or performs bounded schema-constrained extraction, ADK coordinates agentic workflows, typed tools perform actions, application services own deterministic ingestion, and Firestore holds project truth. Gemini use alone does not require ADK. Hackathon demo fixtures do not relax production controls.
 
 ## Technology Stack
 

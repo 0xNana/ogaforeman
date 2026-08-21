@@ -363,6 +363,10 @@ class FirestoreRepository(Generic[EntityT], ProjectRepository[EntityT]):
         if "version" in self._entity_type.model_fields:
             data["version"] = repository_version
         if self._entity_type is ProjectImportRecord:
+            # Pre-correction import records may contain ADK correlation fields.
+            # They were never domain truth and are intentionally not written back.
+            data.pop("extraction_session_id", None)
+            data.pop("extraction_invocation_id", None)
             # Draft contracts are strict at the model boundary. Firestore
             # stores enum/date/decimal values in their JSON-compatible form,
             # so validate the durable record through Pydantic's JSON parser on

@@ -1374,10 +1374,10 @@ def test_project_import_record_round_trips_firestore_json_values() -> None:
         project_id="prj_firestore123",
         source_id="src_firestore123",
         status=ProjectImportStatus.NEEDS_REVIEW,
+        schema_version=1,
+        model="gemini-configured-model",
         extraction_idempotency_key="import-retry-key",
         extraction_request_fingerprint="a" * 64,
-        extraction_session_id="imp_firestore123",
-        extraction_invocation_id="extract:imp_firestore123",
         extraction_attempt=2,
         draft=ProjectImportDraft(
             id="imp_firestore123",
@@ -1388,6 +1388,8 @@ def test_project_import_record_round_trips_firestore_json_values() -> None:
         ),
     )
     payload = firestore_document_data(record, version=3)
+    payload["extraction_session_id"] = "imp_legacy_session123"
+    payload["extraction_invocation_id"] = "extract:imp_legacy_session123"
 
     class Snapshot:
         def to_dict(self) -> dict[str, object]:
@@ -1400,4 +1402,7 @@ def test_project_import_record_round_trips_firestore_json_values() -> None:
     assert restored.draft is not None
     assert restored.draft.tasks[0].initial_status is DraftTaskStatus.PROPOSED
     assert restored.extraction_attempt == 2
-    assert restored.extraction_session_id == "imp_firestore123"
+    assert restored.schema_version == 1
+    assert restored.model == "gemini-configured-model"
+    assert "extraction_session_id" not in firestore_document_data(restored, version=3)
+    assert "extraction_invocation_id" not in firestore_document_data(restored, version=3)

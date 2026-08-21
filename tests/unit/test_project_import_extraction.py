@@ -1,27 +1,24 @@
-from typing import Any
+import asyncio
 from decimal import Decimal
 
 import pytest
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
 
-from app.agents.project_import_execution import AdkProjectImportExecutor
-from app.agents.project_import_extraction import (
+from app.domain.import_records import ProjectImportRecord
+from app.services.project_import_extraction import (
+    ProjectImportExtractionService,
     ProjectImportCandidate,
-    build_project_import_app,
-    build_project_import_workflow,
+    ProjectImportModelUnavailableError,
 )
 from app.domain.project_import import (
     PROJECT_IMPORT_STATUS_TRANSITIONS,
     DraftTaskStatus,
     ProjectImportStatus,
 )
-from app.config.settings import Settings
-from app.repositories.memory import InMemoryRepositoryStore
 
 
 class FakeProjectExtractor:
+    model_id = "fixture-gemini-model"
+
     async def extract(self, source_text: str) -> ProjectImportCandidate:
         assert "Foundation" in source_text
         return ProjectImportCandidate.model_validate(
@@ -67,6 +64,13 @@ class AliasUnitProjectExtractor:
         )
 
 
+class SlowProjectExtractor:
+    async def extract(self, source_text: str) -> ProjectImportCandidate:
+        del source_text
+        await asyncio.sleep(0.05)
+        raise AssertionError("bounded extraction should time out first")
+
+
 def test_project_import_status_transition_table_is_complete_and_terminal_safe() -> None:
     assert PROJECT_IMPORT_STATUS_TRANSITIONS == {
         ProjectImportStatus.UPLOADED: frozenset(
@@ -108,125 +112,45 @@ def test_project_import_status_transition_table_is_complete_and_terminal_safe() 
     }
 
 
-def test_project_import_graph_exposes_native_extraction_nodes() -> None:
-    workflow = build_project_import_workflow(
-        source_text="Task: Foundation",
+@pytest.mark.asyncio
+async def test_project_import_extraction_service_returns_a_scoped_typed_draft() -> None:
+    service = ProjectImportExtractionService(FakeProjectExtractor())
+
+    draft = await service.extract(
         project_id="prj_extract123",
         import_id="imp_extract123",
         source_id="src_extract123",
-        extractor=FakeProjectExtractor(),
+        source_text="Task: Foundation",
     )
 
-    assert workflow.graph is not None
-    assert [node.name for node in workflow.graph.nodes if node.name != "__START__"] == [
-        "source_received",
-        "load_source",
-        "gemini_extraction",
-        "schema_validation",
-        "normalize_draft",
-        "deterministic_validation",
-        "needs_review",
-    ]
+    assert draft.id == "imp_extract123"
+    assert draft.project_id == "prj_extract123"
+    assert draft.source_id == "src_extract123"
+    assert draft.status is ProjectImportStatus.NEEDS_REVIEW
+    assert draft.tasks[0].name == "Foundation"
+    assert service.model_id == "fixture-gemini-model"
 
 
 @pytest.mark.asyncio
-async def test_project_import_runner_records_extraction_trace() -> None:
-    app = build_project_import_app(
-        "project-import-test",
-        source_text="Task: Foundation",
+async def test_extraction_service_normalizes_gemini_unit_aliases() -> None:
+    service = ProjectImportExtractionService(AliasUnitProjectExtractor())
+
+    draft = await service.extract(
         project_id="prj_extract123",
         import_id="imp_extract123",
         source_id="src_extract123",
-        extractor=FakeProjectExtractor(),
-        timeout_seconds=10,
-    )
-    runner = Runner(
-        app=app,
-        session_service=InMemorySessionService(),
-        auto_create_session=True,
-    )
-
-    events = [
-        event
-        async for event in runner.run_async(
-            user_id="usr_extract123",
-            session_id="imp_extract123",
-            invocation_id="evt_extract123",
-            new_message=types.Content(
-                role="user", parts=[types.Part(text="Extract this project source.")]
-            ),
-        )
-    ]
-
-    node_names = {
-        node_name
-        for event in events
-        if event.actions and event.actions.agent_state
-        for node_name in event.actions.agent_state.get("nodes", {})
-    }
-    assert {
-        "source_received",
-        "load_source",
-        "gemini_extraction",
-        "schema_validation",
-        "normalize_draft",
-        "deterministic_validation",
-        "needs_review",
-    } <= node_names
-
-
-@pytest.mark.asyncio
-async def test_workflow_normalizes_gemini_unit_aliases_before_validation() -> None:
-    app = build_project_import_app(
-        "project-import-normalization-test",
         source_text="Task: Foundation",
-        project_id="prj_extract123",
-        import_id="imp_extract123",
-        source_id="src_extract123",
-        extractor=AliasUnitProjectExtractor(),
-        timeout_seconds=10,
-    )
-    runner = Runner(
-        app=app,
-        session_service=InMemorySessionService(),
-        auto_create_session=True,
     )
 
-    events = [
-        event
-        async for event in runner.run_async(
-            user_id="usr_extract123",
-            session_id="imp_extract123",
-            invocation_id="evt_normalize123",
-            new_message=types.Content(role="user", parts=[types.Part(text="Extract source.")]),
-        )
-    ]
-
-    draft = next(
-        event.actions.state_delta["draft"]
-        for event in events
-        if event.actions and "draft" in event.actions.state_delta
-    )
-    assert draft["materials"][0]["canonical_unit"] == "pieces"
-    assert draft["material_requirements"][0]["unit"] == "pieces"
+    assert draft.materials[0].canonical_unit == "pieces"
+    assert draft.material_requirements[0].unit == "pieces"
 
 
 @pytest.mark.asyncio
-async def test_adk_project_import_executor_returns_the_typed_draft(tmp_path: Any) -> None:
-    settings = Settings(
-        use_fake_model=True,
-        adk_session_backend="database",
-        adk_session_database_url=f"sqlite+aiosqlite:///{tmp_path / 'executor.db'}",
-        agent_workflow_timeout_seconds=45,
-        event_claim_lease_seconds=60,
-    )
-    executor = AdkProjectImportExecutor(
-        InMemoryRepositoryStore(),
-        settings,
-        FakeProjectExtractor(),
-    )
+async def test_project_import_extraction_requires_no_adk_session_state() -> None:
+    service = ProjectImportExtractionService(FakeProjectExtractor())
 
-    draft = await executor.extract(
+    draft = await service.extract(
         project_id="prj_extract123",
         import_id="imp_executor123",
         source_id="src_executor123",
@@ -234,6 +158,18 @@ async def test_adk_project_import_executor_returns_the_typed_draft(tmp_path: Any
     )
 
     assert draft.id == "imp_executor123"
-    assert draft.project_id == "prj_extract123"
-    assert draft.source_id == "src_executor123"
-    assert draft.tasks[0].name == "Foundation"
+    assert "extraction_session_id" not in ProjectImportRecord.model_fields
+    assert "extraction_invocation_id" not in ProjectImportRecord.model_fields
+
+
+@pytest.mark.asyncio
+async def test_project_import_extraction_is_time_bounded() -> None:
+    service = ProjectImportExtractionService(SlowProjectExtractor(), timeout_seconds=0.001)
+
+    with pytest.raises(ProjectImportModelUnavailableError, match="timed out"):
+        await service.extract(
+            project_id="prj_extract123",
+            import_id="imp_timeout123",
+            source_id="src_timeout123",
+            source_text="Task: Foundation",
+        )

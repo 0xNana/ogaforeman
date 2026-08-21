@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     event_claim_lease_seconds: int = Field(default=300, ge=30, le=600)
     event_claim_max_attempts: int = Field(default=3, ge=1, le=10)
     agent_workflow_timeout_seconds: int = Field(default=45, ge=5, le=300)
+    project_import_extraction_timeout_seconds: int = Field(default=45, ge=5, le=300)
     adk_session_backend: str = "auto"
     adk_session_database_url: str = "sqlite+aiosqlite:///./.adk/sessions.db"
     adk_agent_engine_id: str | None = None
@@ -131,6 +132,11 @@ class Settings(BaseSettings):
         if self.agent_workflow_timeout_seconds >= self.event_claim_lease_seconds:
             raise ValueError(
                 "agent_workflow_timeout_seconds must be shorter than event_claim_lease_seconds"
+            )
+        if self.project_import_extraction_timeout_seconds >= self.event_claim_lease_seconds:
+            raise ValueError(
+                "project_import_extraction_timeout_seconds must be shorter than "
+                "event_claim_lease_seconds"
             )
         if self.allow_remote_firestore_in_local:
             if self.oga_env is not RuntimeEnvironment.LOCAL:

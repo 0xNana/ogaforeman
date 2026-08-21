@@ -10,8 +10,6 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from app.agents.errors import AgentDependencyUnavailableError, AgentOutputInvalidError
-from app.agents.project_import_registry import PROJECT_IMPORT_RUNTIME
 from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.authorization import ProjectAccessContext, ProjectPermission, ensure_permission
 from app.domain.enums import ActorType
@@ -40,6 +38,11 @@ from app.observability.project_import import (
 from app.observability.tracing import new_trace_id
 from app.services.project_import import ProjectImportService
 from app.services.project_import_diff import ProjectImportDiffService
+from app.services.project_import_extraction import (
+    ProjectImportModelOutputInvalidError,
+    ProjectImportModelUnavailableError,
+)
+from app.services.project_import_registry import PROJECT_IMPORT_EXTRACTION
 from app.services.project_import_validation import (
     ProjectImportValidationResult,
     ProjectImportValidator,
@@ -130,8 +133,8 @@ class ProjectImportReviewService:
             project_id=access.project_id,
             import_id=import_id,
             attempt=0,
-            prompt_key=PROJECT_IMPORT_RUNTIME.prompt_key,
-            model_key=PROJECT_IMPORT_RUNTIME.model_key,
+            prompt_key=PROJECT_IMPORT_EXTRACTION.prompt_key,
+            model_key=PROJECT_IMPORT_EXTRACTION.model_key,
         ):
             source = StructuredTextProjectAdapter(
                 name=source_name,
@@ -160,8 +163,8 @@ class ProjectImportReviewService:
             project_id=access.project_id,
             import_id=import_id,
             attempt=extraction_attempt,
-            prompt_key=PROJECT_IMPORT_RUNTIME.prompt_key,
-            model_key=PROJECT_IMPORT_RUNTIME.model_key,
+            prompt_key=PROJECT_IMPORT_EXTRACTION.prompt_key,
+            model_key=PROJECT_IMPORT_EXTRACTION.model_key,
         ) as observation:
             if claimed.should_validate:
                 observation.outcome = ProjectImportOutcome.REPLAYED
@@ -186,7 +189,7 @@ class ProjectImportReviewService:
                     except ValueError as exc:
                         raise ProjectImportExtractionError(str(exc)) from exc
                 except Exception as exc:
-                    failure = _translate_agent_failure(exc)
+                    failure = _translate_extraction_failure(exc)
                     self._mark_extraction_failed(
                         access,
                         import_id,
@@ -341,8 +344,8 @@ class ProjectImportReviewService:
             project_id=access.project_id,
             import_id=import_id,
             attempt=record.import_attempt + 1,
-            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_RUNTIME.prompt_key,
-            model_key=record.model_registry_key or PROJECT_IMPORT_RUNTIME.model_key,
+            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_EXTRACTION.prompt_key,
+            model_key=record.model_registry_key or PROJECT_IMPORT_EXTRACTION.model_key,
         ) as observation:
             now = datetime.now(UTC)
             confirmed_draft = record.draft.model_copy(
@@ -404,13 +407,13 @@ class ProjectImportReviewService:
                     project_id=access.project_id,
                     source_id=source_id,
                     status=ProjectImportStatus.UPLOADED,
+                    schema_version=1,
+                    model=_extractor_model_id(self._extractor),
                     extraction_idempotency_key=key,
                     extraction_request_fingerprint=request_fingerprint,
-                    extraction_session_id=import_id,
-                    extraction_invocation_id=f"extract:{import_id}",
                     telemetry_trace_id=trace_id,
-                    prompt_registry_key=PROJECT_IMPORT_RUNTIME.prompt_key,
-                    model_registry_key=PROJECT_IMPORT_RUNTIME.model_key,
+                    prompt_registry_key=PROJECT_IMPORT_EXTRACTION.prompt_key,
+                    model_registry_key=PROJECT_IMPORT_EXTRACTION.model_key,
                     diagnostic_stage=ProjectImportStage.SOURCE.value,
                     created_at=now,
                     updated_at=now,
@@ -600,8 +603,8 @@ class ProjectImportReviewService:
             project_id=access.project_id,
             import_id=record.id,
             attempt=record.extraction_attempt,
-            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_RUNTIME.prompt_key,
-            model_key=record.model_registry_key or PROJECT_IMPORT_RUNTIME.model_key,
+            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_EXTRACTION.prompt_key,
+            model_key=record.model_registry_key or PROJECT_IMPORT_EXTRACTION.model_key,
         ):
             validating = (
                 self._start_validation(access, record.id)
@@ -623,8 +626,8 @@ class ProjectImportReviewService:
             project_id=access.project_id,
             import_id=record.id,
             attempt=record.extraction_attempt,
-            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_RUNTIME.prompt_key,
-            model_key=record.model_registry_key or PROJECT_IMPORT_RUNTIME.model_key,
+            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_EXTRACTION.prompt_key,
+            model_key=record.model_registry_key or PROJECT_IMPORT_EXTRACTION.model_key,
         ) as observation:
             reviewed = self._finish_validation(access, validating.id, validation)
             if reviewed.record.status is ProjectImportStatus.VALIDATION_FAILED:
@@ -901,14 +904,19 @@ class ProjectImportReviewService:
             raise ValueError("extracted provenance must use the authorized source")
 
 
-def _translate_agent_failure(error: Exception) -> Exception:
-    if isinstance(error, AgentDependencyUnavailableError):
+def _translate_extraction_failure(error: Exception) -> Exception:
+    if isinstance(error, ProjectImportModelUnavailableError):
         return ProjectImportDependencyUnavailableError(
             "project import extraction dependency is unavailable"
         )
-    if isinstance(error, AgentOutputInvalidError):
+    if isinstance(error, ProjectImportModelOutputInvalidError):
         return ProjectImportExtractionError("project import extraction output is invalid")
     return error
+
+
+def _extractor_model_id(extractor: ProjectImportDraftExtractor | None) -> str | None:
+    value = getattr(extractor, "model_id", None)
+    return value if isinstance(value, str) else None
 
 
 def _activity(

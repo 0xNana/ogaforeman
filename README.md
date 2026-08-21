@@ -4,7 +4,7 @@ OG Foreman turns construction-site updates into verified project state and opera
 
 OG is an event-driven operations system, not a general-purpose chatbot.
 
-> Gemini reasons. Google ADK workflows coordinate. Typed tools mutate. Firestore is the source of truth. Humans approve consequential actions.
+> Gemini reasons or performs bounded extraction. Google ADK coordinates agentic workflows. Typed tools mutate. Application services own deterministic ingestion. Firestore is the source of truth. Humans approve consequential actions.
 
 ## Status
 

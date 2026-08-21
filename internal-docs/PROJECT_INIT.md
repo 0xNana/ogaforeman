@@ -110,7 +110,7 @@ Gemini must not invent the 100-bag requirement.
 
 # 3. Responsibility Boundaries
 
-## Gemini / ADK
+## Gemini extraction
 
 Responsible for:
 
@@ -120,7 +120,20 @@ Responsible for:
 * resolving semantic relationships
 * identifying likely tasks/materials/dependencies
 * generating typed draft structures
-* reasoning over canonical project context
+* producing schema-constrained candidate facts from untrusted source content
+
+Gemini is called directly through the Google Gen AI / Vertex model API for this
+bounded transformation. Use of Gemini alone does not require an agent runtime.
+
+## Project Ingestion Service
+
+Owns:
+
+* source loading and bounded input handling
+* direct Gemini extraction calls
+* import-job claims, attempts, failures, and restart recovery
+* draft assembly and handoff to deterministic normalization and validation
+* review state and deterministic commit boundary
 
 ## Deterministic application code
 
@@ -161,12 +174,12 @@ Authoritative store for:
 Owns:
 
 * agent/workflow orchestration
-* extraction workflow execution
 * operational workflows
 * HITL interruption/resume
 * session/runtime continuity
 
-Do not create another workflow runtime for initialization.
+ADK is not used for project initialization. It remains the runtime for OG's
+autonomous, event-driven, conversational, tool-using, and resumable operations.
 
 ---
 
@@ -708,18 +721,17 @@ Adapter produces source text suitable for Gemini extraction.
 
 ---
 
-# PHASE 6 — ADK Project Extraction Workflow
+# PHASE 6 — Gemini Project Extraction Service
 
-Build a native ADK workflow.
+Build a bounded application ingestion service that calls Gemini through the
+Google Gen AI / Vertex model API with schema-constrained output.
 
 Conceptual:
 
 ```text
-source_received
+persisted ProjectImport claim
       ↓
-load_source
-      ↓
-Gemini extraction
+direct Gemini extraction
       ↓
 schema validation
       ↓
@@ -757,9 +769,9 @@ Gemini must not produce:
 
 ## Gate
 
-ADK event/trace shows actual extraction workflow nodes.
-
-No hidden procedural custom runtime.
+The service returns a typed `ProjectImportDraft` without constructing an ADK
+`Runner`, session, invocation, workflow graph, or agent. Restart recovery uses
+the persisted `ProjectImport` status, attempt, lease, draft, and error fields.
 
 ---
 
@@ -838,7 +850,7 @@ A draft can be extracted, reviewed, cancelled, and discarded without changing pr
 
 # PHASE 9 — Review UI
 
-Build one focused review workflow.
+Build one focused review flow.
 
 Do not build Excel inside the browser.
 
@@ -1336,9 +1348,10 @@ Record:
 import_id
 project_id
 source_id
-ADK session/invocation
 trace_id
 status
+extraction/import attempt
+schema version
 duration
 model
 validation result
@@ -1602,7 +1615,7 @@ Do not declare Project Initialization complete until:
 * [ ] Source provenance exists.
 * [ ] Import lifecycle is durable.
 * [ ] One production source adapter exists.
-* [ ] Gemini extraction runs through ADK.
+* [ ] Gemini extraction calls Google Gen AI / Vertex directly with no ADK session.
 * [ ] Extraction uses structured output.
 * [ ] Gemini cannot create canonical IDs.
 * [ ] Deterministic validation exists.

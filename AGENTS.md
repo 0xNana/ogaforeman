@@ -12,7 +12,8 @@ Before changing code, read:
 
 - Implement only the active task and phase.
 - Keep the four-workflow V1 scope locked.
-- Gemini reasons; ADK workflows coordinate; typed tools mutate; Firestore is truth.
+- Gemini reasons or performs bounded extraction; ADK coordinates agentic workflows;
+  typed tools mutate; Firestore is truth.
 - Never use `_PROJECT_DB` in a production path.
 - Every event consumer, workflow step, mutation, approval decision, notification, and external action must be idempotent or guarded by a persisted claim.
 - Every mutation must atomically emit an `ActivityEvent`.

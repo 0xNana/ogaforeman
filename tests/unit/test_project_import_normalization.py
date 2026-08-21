@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.agents.project_import_extraction import ProjectImportCandidate
+from app.services.project_import_extraction import ProjectImportCandidate
 from app.domain.project_import import SourceType
 from app.services.project_import_normalization import (
     ProjectImportNormalizer,

@@ -75,7 +75,7 @@ class StructuredTextProjectAdapter:
     """Accept reasonable pasted text, Markdown, and OG-template variation.
 
     This adapter deliberately does not extract canonical entities. It only
-    normalizes source text so the ADK/Gemini extraction boundary receives a
+    normalizes source text so the direct Gemini extraction boundary receives a
     stable, bounded document while preserving evidence and unresolved dates.
     """
 
@@ -135,7 +135,7 @@ class StructuredTextProjectAdapter:
         return "\n".join(normalized_lines) + "\n"
 
     def extract(self, text: str) -> str:
-        """Return normalized source text for the ADK/Gemini extraction step."""
+        """Return normalized source text for the direct Gemini extraction step."""
 
         return self.load(text).text
 

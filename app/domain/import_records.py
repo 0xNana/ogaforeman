@@ -48,6 +48,8 @@ class ProjectImportRecord(DomainModel):
     project_id: CanonicalId
     source_id: CanonicalId
     status: ProjectImportStatus
+    schema_version: int = Field(default=1, ge=1)
+    model: str | None = Field(default=None, min_length=1, max_length=200)
     draft: ProjectImportDraft | None = None
     reviewed_at: AwareDatetime | None = None
     confirmed_at: AwareDatetime | None = None
@@ -55,8 +57,6 @@ class ProjectImportRecord(DomainModel):
     completed_at: AwareDatetime | None = None
     extraction_idempotency_key: IdempotencyKey | None = None
     extraction_request_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
-    extraction_session_id: CanonicalId | None = None
-    extraction_invocation_id: IdempotencyKey | None = None
     extraction_lease_until: AwareDatetime | None = None
     extraction_attempt: int = Field(default=0, ge=0)
     import_attempt: int = Field(default=0, ge=0)

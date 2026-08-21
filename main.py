@@ -14,8 +14,6 @@ from app.api.events import router as event_router
 from app.api.health import create_runtime_health_router
 from app.api.runtime_auth import ConfiguredAuthRuntime
 from app.api.uploads import router as upload_router
-from app.agents.project_import_execution import AdkProjectImportExecutor
-from app.agents.project_import_extraction import GeminiProjectImportExtractor
 from app.api.v1.router import api_router
 from app.config import get_settings
 from app.infrastructure.pubsub import PubSubClient
@@ -31,6 +29,10 @@ from app.observability.tracing import cloud_trace_exporter
 from app.services.site_update_intake import SiteUpdateIntakeService
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_operations import ConversationScheduleService
+from app.services.project_import_extraction import (
+    GeminiProjectExtractor,
+    ProjectImportExtractionService,
+)
 
 
 settings = get_settings()
@@ -60,10 +62,9 @@ if settings.auth_audience:
         app.state.intent_classifier = GeminiIntentClassifier(settings)
         app.state.action_interpreter = GeminiActionInterpreter(settings)
         app.state.clarification_resolver = GeminiClarificationResolver(settings)
-        app.state.project_import_draft_extractor = AdkProjectImportExecutor(
-            app.state.auth_runtime.store,
-            settings,
-            GeminiProjectImportExtractor(settings),
+        app.state.project_import_draft_extractor = ProjectImportExtractionService(
+            GeminiProjectExtractor(settings),
+            timeout_seconds=settings.project_import_extraction_timeout_seconds,
         )
         if settings.conversation_proposal_signing_key is not None:
             app.state.conversation_proposal_signing_key = (

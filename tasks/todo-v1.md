@@ -32,8 +32,13 @@ PI-08 renders the complete review lifecycle, persists stable decision
 claims across reload/response loss, recovers optimistic conflicts, and routes
 imported/cancelled outcomes to refreshed overview/setup destinations.
 
+- [x] P0 architecture correction removes the project-import ADK Runner, workflow
+  graph, session, and invocation state. The Project Ingestion Service calls Gemini
+  directly, while persisted `ProjectImport` claims own recovery and deterministic
+  services retain normalization, validation, review, and canonical commit.
+
 - [~] Phase 0 domain audit documents the existing canonical model, persistence,
-  authorization, ADK boundary, and the concepts that must be created or extended.
+  authorization, operational ADK boundary, and the concepts that must be created or extended.
 - [~] Phase 1 canonical import contracts validate a complete residential draft
   without Gemini, persistence, or arbitrary canonical IDs from extraction output.
 - [~] Phase 2 deterministic validation rejects invalid references, duplicate or
@@ -56,12 +61,11 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
 - [~] Phase 5 structured text adapter accepts pasted text, Markdown, and OG
   template variation and produces normalized source text for extraction without
   inventing dates or canonical entities.
-- [~] Phase 6 native ADK extraction workflow persists a resumable node trace,
-  session/invocation identity, extraction lease/attempt, and recoverable failure
-  state from source receipt through schema-constrained Gemini extraction,
-  normalization, deterministic validation, and needs-review handoff. PI-02 now
-  persists and enforces every lifecycle transition and safely resumes exact
-  expired/failed claims.
+- [~] Phase 6 bounded Gemini extraction service calls Google Gen AI / Vertex
+  directly, returns a schema-constrained candidate, and hands it to deterministic
+  normalization, validation, and needs-review handling. `ProjectImport` persists
+  every lifecycle transition, lease, attempt, draft, and recoverable failure so
+  exact expired/failed claims resume without an ADK session or invocation.
 - [~] Phase 7 deterministically normalizes known Gemini unit aliases before
   canonical draft validation, and detects punctuation-only task-name duplicates
   without merging distinct activities.
@@ -69,7 +73,7 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
   confirmation, cancellation, and draft discard; canonical project truth remains
   unchanged until server-authoritative confirmation, with durable request claims,
   stale-replay conflicts, outage-safe reads/decisions, project-scope checks, and
-  a bounded local SQLite ADK fallback that safely serializes concurrent writes;
+  direct bounded Gemini extraction behind the application import lifecycle;
   persisted conflicts block both API and direct-service confirmation, and
   dependency outages leave reloadable records with safe retry diagnostics.
 - [~] Phase 9 presents each persisted import draft as a focused read-only review

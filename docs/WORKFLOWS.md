@@ -17,7 +17,7 @@ Each workflow persists `AgentRun` and a checkpoint after externally visible step
 ```text
 authorized project creation
   -> persist bounded source and exact create claim
-  -> resumable ADK extraction using untrusted-source delimiters
+  -> direct Gemini structured extraction using untrusted-source delimiters
   -> schema validation and deterministic normalization
   -> deterministic validation and additive-only conflict preflight
   -> persist review draft plus safe trace/registry diagnostics
@@ -31,6 +31,8 @@ The model owns only draft temporary references. Canonical IDs, persisted source
 provenance, authorization, confirmation authority, and mutation execution remain
 deterministic. Retry, refresh, and process restart resume the same persisted
 source/import claim; exact replay cannot create another canonical mutation set.
+Project initialization is an application ingestion pipeline. Its retries and
+restart recovery use persisted `ProjectImport` state, never an ADK session.
 
 ## Daily Site Update
 

@@ -1,4 +1,4 @@
-"""Typed runtime registry for project-import extraction."""
+"""Typed model and prompt registry for project-import extraction."""
 
 from __future__ import annotations
 
@@ -8,8 +8,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
-class ProjectImportRuntimeRegistry:
-    workflow_name: str = "project_import_extraction_workflow"
+class ProjectImportExtractionRegistry:
     prompt_key: str = "project_import_extraction.v1"
     model_key: str = "project_import_gemini.configured"
     prompt_file: str = "project_import_extraction_v1.txt"
@@ -30,7 +29,7 @@ def _prompt_text(filename: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-PROJECT_IMPORT_RUNTIME = ProjectImportRuntimeRegistry()
+PROJECT_IMPORT_EXTRACTION = ProjectImportExtractionRegistry()
 
 
-__all__ = ["PROJECT_IMPORT_RUNTIME", "ProjectImportRuntimeRegistry"]
+__all__ = ["PROJECT_IMPORT_EXTRACTION", "ProjectImportExtractionRegistry"]

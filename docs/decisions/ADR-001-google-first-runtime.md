@@ -20,12 +20,18 @@ Use Google ADK 2.x Runner/SessionService for agentic execution and workflow orch
 
 ## Responsibility boundaries
 
-All AI-mediated, autonomous, event-driven, and resumable workflows in OG
-Foreman execute through Google ADK and an ADK Runner. Deterministic
-application operations may invoke domain services directly when no agent
-reasoning or orchestration is required. Firestore remains canonical
-construction-domain state; ADK owns agent execution state; domain services own
-authoritative mutations.
+Google ADK is OG Foreman's runtime for AI-mediated autonomous, event-driven,
+tool-using, conversational-agent, and resumable workflows. Use of Gemini alone
+does not require ADK. Bounded AI transformations such as schema-constrained
+project-document extraction may call Google Gen AI / Vertex directly when no
+agent orchestration, tool selection, autonomous continuation, or agent session
+is required. Deterministic application operations and ingestion pipelines remain
+application services.
+
+Firestore remains canonical construction-domain state; ADK owns agent execution
+state; domain services own authoritative mutations. Project initialization uses
+durable `ProjectImport` application state for retries and restart recovery, not
+ADK session state.
 
 Google ADK is OG Foreman's sole agent orchestration runtime. ADK owns workflow
 execution, durable session/runtime state, node routing, HITL interruption and

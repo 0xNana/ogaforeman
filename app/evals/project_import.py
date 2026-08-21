@@ -11,8 +11,8 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.agents.project_import_extraction import ProjectImportCandidate
-from app.agents.project_import_registry import PROJECT_IMPORT_RUNTIME
+from app.services.project_import_extraction import ProjectImportCandidate
+from app.services.project_import_registry import PROJECT_IMPORT_EXTRACTION
 
 
 class ProjectImportEvalExpectation(BaseModel):
@@ -81,7 +81,7 @@ class ProjectImportEvalExtractor(Protocol):
 
 def load_project_import_dataset(path: str | Path) -> ProjectImportEvalDataset:
     dataset = ProjectImportEvalDataset.model_validate_json(Path(path).read_text(encoding="utf-8"))
-    if dataset.prompt_registry_key != PROJECT_IMPORT_RUNTIME.prompt_key:
+    if dataset.prompt_registry_key != PROJECT_IMPORT_EXTRACTION.prompt_key:
         raise ValueError("evaluation prompt key does not match the runtime registry")
     return dataset
 
@@ -116,7 +116,7 @@ async def run_project_import_evaluation(
     return ProjectImportEvalReport(
         dataset_version=dataset.version,
         prompt_registry_key=dataset.prompt_registry_key,
-        model_registry_key=PROJECT_IMPORT_RUNTIME.model_key,
+        model_registry_key=PROJECT_IMPORT_EXTRACTION.model_key,
         model_id=model_id,
         commit_sha=_commit_sha(),
         generated_at=datetime.now(UTC),

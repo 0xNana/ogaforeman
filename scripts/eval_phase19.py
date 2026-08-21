@@ -6,9 +6,9 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from app.agents.project_import_extraction import GeminiProjectImportExtractor
 from app.config.settings import Settings
 from app.evals.project_import import load_project_import_dataset, run_project_import_evaluation
+from app.services.project_import_extraction import GeminiProjectExtractor
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,7 +31,7 @@ async def run(args: argparse.Namespace) -> int:
     dataset = load_project_import_dataset(args.dataset)
     report = await run_project_import_evaluation(
         dataset,
-        GeminiProjectImportExtractor(settings, prefer_vertex=args.backend == "vertex"),
+        GeminiProjectExtractor(settings, prefer_vertex=args.backend == "vertex"),
         model_id=settings.gemini_model_id,
     )
     output = Path(args.output)

@@ -85,8 +85,6 @@ async def test_validation_resumes_from_firestore_draft_after_fresh_client_restar
             extraction_request_fingerprint=sha256(
                 f"{PROJECT_ID}\x00{key}\x00{SOURCE_ID}".encode()
             ).hexdigest(),
-            extraction_session_id=IMPORT_ID,
-            extraction_invocation_id=f"extract:{IMPORT_ID}",
             extraction_attempt=1,
             created_at=now,
             updated_at=now,

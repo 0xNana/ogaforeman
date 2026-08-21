@@ -6,7 +6,7 @@ Accepted for V1 implementation. See ADRs in `docs/decisions/` for rationale.
 
 ## Architectural Rule
 
-> Gemini reasons. ADK workflows coordinate. Typed tools perform actions. Firestore remains the source of truth.
+> Gemini reasons or performs bounded extraction. ADK coordinates agentic workflows. Typed tools perform actions. Application services own deterministic ingestion. Firestore remains the source of truth.
 
 No model response, agent session, browser cache, or process-local object is authoritative project state.
 

@@ -99,20 +99,21 @@ status, replay protection, and required linkage before import commit.
 Project Initialization Phase 5 has partial local implementation: the structured text adapter
 accepts pasted/Markdown/OG-template variation, normalizes bounded source text,
 preserves unresolved dates, and produces a checksum-stable extraction input.
-Project Initialization Phase 6 has partial local implementation: a native resumable ADK
-workflow exposes source receipt/loading, schema-constrained Gemini extraction,
-schema validation, draft normalization, deterministic validation, and the
-needs-review handoff. Import records persist the ADK session/invocation identity,
-lease, attempt, and every lifecycle transition from upload through terminal
+Project Initialization Phase 6 has partial local implementation: a bounded Project
+Ingestion Service calls Google Gen AI / Vertex directly for schema-constrained
+Gemini extraction, then assembles the draft before deterministic normalization,
+validation, and needs-review handling. Import records persist the lease, attempt,
+draft, failure data, and every lifecycle transition from upload through terminal
 outcome. Dependency outages and extraction failures retain safe diagnostics and
-exact failed/expired claims resume; canonical IDs and mutation authority remain
-application-owned.
+exact failed/expired claims resume without ADK session state; canonical IDs and
+mutation authority remain application-owned. Firestore reads discard the two
+legacy import-only ADK correlation fields and never write them back.
 Project Initialization Phase 7 has partial local implementation: known unit aliases are
 canonically normalized between extraction and draft validation, while task names
 retain their displayed text and use conservative Unicode/case/punctuation keys
 only for duplicate detection.
 Project Initialization Phase 8 has partial local implementation: the authenticated review API
-extracts durable drafts through ADK, exposes tasks/dependencies/materials/
+extracts durable drafts through the direct Gemini ingestion service, exposes tasks/dependencies/materials/
 requirements/warnings/conflicts/unresolved references, and keeps canonical
 project records unchanged until explicit confirmation. Cancellation discards the
 draft without mutating project truth; confirmation and cancellation use durable
@@ -120,6 +121,18 @@ idempotency claims, terminal stale-request conflicts, extractor-independent
 reads, safe failure projections, restart recovery, and project-scope enforcement.
 Persisted blocking conflicts are rejected by the API and direct import service
 before canonical writes.
+
+Project Initialization P0 architecture correction verification on 2026-08-21:
+
+- direct Gemini extraction service, schema boundary, normalization, lifecycle,
+  review API, importer, provenance, operational-import, and eval coverage: 117 passed
+- fresh-client Firestore import validation/commit recovery: 3 passed
+- full non-backing backend suite: 697 passed; locked eight-case site-update eval
+  and three-run Golden rehearsal passed
+- full backing-services gate: 28 passed and 2 pre-existing operational ADK
+  approval-continuation fixtures failed because their seeded run IDs do not match
+  the continuation event's deterministic run ID; project-import backing tests passed
+- Ruff, formatting, app-wide mypy, documentation validation, and diff checks passed
 Project Initialization Phase 9 has partial local implementation: the authenticated import
 review route makes the pending canonical records legible as a read-only summary,
 tables/lists for tasks, dependencies, materials, and task-grouped requirements,
@@ -396,12 +409,11 @@ Project Initialization Phase 8 verification on 2026-08-18:
 
 - review API lifecycle, outage recovery, stale replay, authorization, and
   discard/confirm gates: 7 passed
-- project initialization regression suite: 43 passed (39 unit/API, 4 workflow)
+- project initialization regression suite: 43 passed (39 unit/API, 4 extraction-service)
 - Ruff check/format and app-wide mypy for review API, lifecycle services, importer,
-  and ADK extraction bridge: passed
+  and direct Gemini extraction service: passed
 - exact-run approval-continuation E2E and the 100-project scheduler capacity
-  baseline: passed; local SQLite ADK session services are disposed per delivery
-  and guarded against concurrent single-writer contention
+  baseline: passed; this operational ADK evidence is independent of project import
 - production-readiness controls: 12 passed, 1 Firestore-emulator restart test
   skipped because `FIRESTORE_EMULATOR_HOST` is not configured locally
 
