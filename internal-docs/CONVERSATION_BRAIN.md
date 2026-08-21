@@ -200,7 +200,7 @@ Update:
 
 ```text
 docs/CONVERSATIONAL_OPERATIONS.md
-docs/IMPLEMENTATION_STATUS.md
+internal-docs/IMPLEMENTATION_STATUS.md
 ```
 
 Document:
@@ -1373,9 +1373,9 @@ Everything persists.
 Codex must follow this workflow for every phase:
 
 ```text
-1. Read docs/GOLDEN_SCENARIO.md
+1. Read internal-docs/GOLDEN_SCENARIO.md
 2. Read docs/CONVERSATIONAL_OPERATIONS.md
-3. Read docs/IMPLEMENTATION_STATUS.md
+3. Read internal-docs/IMPLEMENTATION_STATUS.md
 4. Identify active phase
 5. Inspect only relevant implementation files
 6. Implement active phase only

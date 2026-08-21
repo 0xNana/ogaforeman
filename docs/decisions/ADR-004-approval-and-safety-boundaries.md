@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Oga can prepare useful operational actions, but purchases, external commitments, major schedule changes, and safety-critical decisions carry consequences that must remain under qualified human control.
+OG can prepare useful operational actions, but purchases, external commitments, major schedule changes, and safety-critical decisions carry consequences that must remain under qualified human control.
 
 ## Decision
 

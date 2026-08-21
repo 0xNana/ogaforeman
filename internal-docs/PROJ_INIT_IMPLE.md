@@ -354,7 +354,7 @@ gap. Ruff check/format and documentation validation pass.
 **Work**
 
 - [x] Change Project Initialization completion claims in `tasks/plan.md`,
-  `tasks/todo-v1.md`, and `docs/STATUS.md` to partial until this plan's gates pass.
+  `tasks/todo-v1.md`, and `STATUS.md` to partial until this plan's gates pass.
 - [x] Repair invalid IDs, wrong project lookups, stale activity assertions, lint
   failures, and the hanging review API regression without weakening assertions.
 - [x] Add failing regression tests for conflict confirmation, extractor outage,
@@ -905,5 +905,5 @@ browser/API/Firestore-backed scenario is recorded:
 - [ ] Live model evaluation asserts structured extraction and date ambiguity safety.
 - [ ] Backend, backing-service, frontend, browser, eval, and production-readiness
   gates all pass from a clean checkout.
-- [ ] `docs/STATUS.md`, `tasks/plan.md`, and `tasks/todo-v1.md` report only evidence
+- [ ] `STATUS.md`, `tasks/plan.md`, and `tasks/todo-v1.md` report only evidence
   that was actually rerun and recorded.

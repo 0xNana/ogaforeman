@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`ProjectEvent` is the stable boundary between input sources and Oga's workflows. Web input, schedules, delivery adapters, and future integrations normalize into this contract instead of adding source-specific coordinator branches.
+`ProjectEvent` is the stable boundary between input sources and OG Foreman's workflows. Web input, schedules, delivery adapters, and future integrations normalize into this contract instead of adding source-specific coordinator branches.
 
 ## Envelope
 

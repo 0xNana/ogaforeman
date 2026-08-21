@@ -70,7 +70,7 @@ For Firestore integration:
 
 ```bash
 npx --yes firebase-tools@15.26.0 emulators:start --only firestore --project oga-foreman-test
-export FIRESTORE_EMULATOR_HOST=127.0.0.1:8085
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:8086
 .venv/bin/python -m pytest -q tests/integration/test_firestore_repositories.py
 ```
 

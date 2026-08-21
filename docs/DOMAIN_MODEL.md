@@ -359,4 +359,4 @@ The deterministic demo project must include:
 - one manager member and one foreman member;
 - at least two photo placeholders and a reset-safe event ledger.
 
-Seed and reset behavior is specified in `DEMO.md`.
+Seed and reset behavior is specified by the deterministic demo rehearsal procedure.

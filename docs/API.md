@@ -25,7 +25,7 @@
     "request_id": "req_01JEXAMPLE",
     "details": {}
   }
-}
+The response also includes nullable `adk_session_id`, `adk_invocation_id`, and `adk_workflow_id` correlation fields for authorized diagnostics.
 ```
 
 Stable HTTP mapping:
@@ -180,7 +180,7 @@ The additive agent-run response exposes `id` and its explicit alias `run_id`,
 `project_id`, `trigger_event_id`, `workflow`, `status`, `step`, `attempt`,
 `trace_id`, `started_at`, `updated_at`, `completed_at`, `result_summary`,
 `pending_actions`, `error_code`, and `error_summary`. For site updates the summary
-and actions are the concise, user-safe Oga response persisted on the exact run
+and actions are the concise, user-safe OG response persisted on the exact run
 before it completes or pauses; clients do not reconstruct them from browser state.
 The response also includes nullable `adk_session_id`, `adk_invocation_id`, and
 `adk_workflow_id` correlation fields for authorized diagnostics.

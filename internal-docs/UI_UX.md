@@ -27,13 +27,13 @@ Project switcher
 - text fallback;
 - photo/file attachment control with upload progress and validation errors;
 - submitted update status;
-- Oga result summary with completed actions, risks, and items needing the manager;
+- OG result summary with completed actions, risks, and items needing the manager;
 - link to detailed activity.
 
 ### Desktop Command Center
 
 - left project navigation;
-- center Oga composer and current-day activity;
+- center OG composer and current-day activity;
 - right `Needs you` panel for approvals, high-severity blockers, and clarification questions;
 - compact progress/task/material context below the composer;
 - no hard-coded metrics or demo-only values.

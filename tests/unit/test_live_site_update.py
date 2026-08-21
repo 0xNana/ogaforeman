@@ -20,7 +20,7 @@ def test_demo_seed_represents_pre_update_material_state() -> None:
 def test_live_rehearsal_rejects_fake_model_mode() -> None:
     settings = Settings(
         _env_file=None,
-        firestore_emulator_host="127.0.0.1:8085",
+        firestore_emulator_host="127.0.0.1:8086",
         use_fake_model=True,
         gemini_api_key="developer-key",
         gemini_model_id="configured-model",

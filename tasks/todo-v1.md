@@ -1,4 +1,4 @@
-# Oga Foreman V1 Evidence Audit
+# OG Foreman V1 Evidence Audit
 
 Audited 2026-08-09 against production paths, tests, artifacts, frontend journeys,
 and deployment scripts. This file is the canonical checklist; the legacy
@@ -14,7 +14,7 @@ real cloud environment, live model credential/billing, or human release gate.
 
 Overall status: **partial**. The checked implementation claims from the prior
 phase sequence are reopened as partial evidence until
-[`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md) passes its production
+[`internal-docs/PROJ_INIT_IMPLE.md`](../internal-docs/PROJ_INIT_IMPLE.md) passes its production
 gates. Strict expected-failure tests track audited defects without misreporting
 them as passing behavior. PI-00 through PI-12 and the canonical-import backend
 checkpoint are complete locally. PI-13/PI-14 implementation is wired, but live
@@ -370,7 +370,7 @@ ADK migration Phase 16–19 release gates:
   navigation, project selector/search, persistent Ask OG, responsive mobile
   navigation, honest projection-gap routes, and WCAG/browser evidence.
 - [x] UI Phase 2 replaces the existing command center with the operational
-  Overview defined in `docs/UI_UX_OVERHAUL.md`.
+  Overview defined in `internal-docs/UI_UX_OVERHAUL.md`.
 - [x] UI Phase 3 replaces Task and Material card/modal patterns and the Issues
   placeholder with searchable operational registers and accessible detail drawers.
 - [x] UI Phase 4 replaces the Schedule placeholder with task-backed List and

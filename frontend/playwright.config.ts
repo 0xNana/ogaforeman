@@ -33,7 +33,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'XDG_CONFIG_HOME=/tmp/oga-foreman-firebase firebase emulators:start --only firestore --project oga-foreman-playwright --config ../firebase.json',
-      url: 'http://127.0.0.1:8085/',
+      url: 'http://127.0.0.1:8086/',
       reuseExistingServer: true,
       timeout: 90_000,
     },
@@ -49,7 +49,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 30_000,
       env: {
-        FIRESTORE_EMULATOR_HOST: '127.0.0.1:8085',
+        FIRESTORE_EMULATOR_HOST: '127.0.0.1:8086',
         GOOGLE_CLOUD_PROJECT: 'oga-foreman-playwright',
         OGA_ENV: 'test',
       },

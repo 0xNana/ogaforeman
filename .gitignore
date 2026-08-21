@@ -42,6 +42,10 @@ pubsub-debug.log
 tmp/
 *.local.json
 
+# Local working documentation and task notes
+/internal-docs/
+/tasks/
+
 # Editors and operating systems
 .DS_Store
 .idea/

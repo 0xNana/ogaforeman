@@ -16,7 +16,7 @@
 - Phase 10 — Mobile Field Experience: complete (2026-08-13)
 - Phase 11 — Loading, Empty, Error, and Success States: complete (2026-08-13)
 - Phase 12 — Visual Polish and Production Hardening: complete (2026-08-13)
-- Phase 0 evidence: `docs/UI_UX_ARCHITECTURE.md`
+- Phase 0 evidence: `internal-docs/UI_UX_ARCHITECTURE.md`
 - Phase 1 evidence: 17 frontend unit tests and 18 Playwright journeys pass;
   desktop axe checks report no WCAG A/AA violations, and mobile overflow passes.
 - Phase 2 evidence: 18 frontend unit tests and 18 Playwright journeys pass;
@@ -101,7 +101,7 @@ Optional brand meaning:
 
 **Original Guide**
 
-Do not use `Oga Foreman`, `Oga`, or `OGA` in customer-facing UI.
+Use `OG Foreman` for the product and `OG` for the assistant in customer-facing UI.
 
 ---
 
@@ -276,7 +276,7 @@ Classify each existing component:
 
 ### Create
 
-`docs/UI_UX_ARCHITECTURE.md`
+`internal-docs/UI_UX_ARCHITECTURE.md`
 
 Document:
 
@@ -343,7 +343,7 @@ Every module route opens inside one consistent project shell.
 
 Desktop and mobile navigation work.
 
-No old `Oga` branding remains in the visible product.
+No legacy branding remains in the visible product.
 
 ---
 
@@ -1191,7 +1191,7 @@ Do not declare the overhaul complete unless all are true:
 * [ ] Approval UX supports stale conflicts.
 * [ ] Golden Scenario is understandable entirely through the product UI.
 * [ ] No customer-facing agent-engineering terminology exists.
-* [ ] No old Oga/OGA branding remains.
+* [ ] No legacy branding remains.
 * [ ] Existing Golden Scenario backend behavior has not regressed.
 
 ---

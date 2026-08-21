@@ -489,7 +489,7 @@ Inspect:
 Document:
 
 ```text
-docs/PROJECT_INITIALIZATION_ARCHITECTURE.md
+internal-docs/PROJECT_INITIALIZATION_ARCHITECTURE.md
 ```
 
 For each required concept mark:

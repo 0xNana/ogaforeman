@@ -27,13 +27,13 @@ reasoning or orchestration is required. Firestore remains canonical
 construction-domain state; ADK owns agent execution state; domain services own
 authoritative mutations.
 
-Google ADK is Oga Foreman's sole agent orchestration runtime. ADK owns workflow
+Google ADK is OG Foreman's sole agent orchestration runtime. ADK owns workflow
 execution, durable session/runtime state, node routing, HITL interruption and
 resume, runtime retries, and workflow observability.
 
 Firestore remains authoritative for construction truth: projects, tasks,
 issues, materials, requests, approvals, reports, attachments, and activities.
-Oga domain services own authorization, canonical identity, business state
+OG Foreman domain services own authorization, canonical identity, business state
 transitions, business idempotency, and typed mutations. `AgentRun` and
 `ActivityEvent` are product/audit projections of execution, not a competing
 workflow engine.

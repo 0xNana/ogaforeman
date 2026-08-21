@@ -3,7 +3,7 @@
 ## Product story
 
 The marketing site links to `/demo` for the public deterministic showcase. That
-route renders local product fixtures and the Oga processing preview only; it
+route renders local product fixtures and the OG processing preview only; it
 does not attach Firebase tokens or call the project API. Authenticated project
 routes never fall back to those fixtures.
 

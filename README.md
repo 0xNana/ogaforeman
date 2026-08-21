@@ -10,7 +10,7 @@ OG is an event-driven operations system, not a general-purpose chatbot.
 
 This repository is a locally verified release candidate for the OG Foreman V1 public beta. The core application, authenticated API, Next.js client, durable workflow paths, emulator-backed restart tests, deployment scripts, and production-readiness controls are implemented. It is not a claim that every cloud release gate has passed.
 
-Before a public deployment, review [docs/STATUS.md](docs/STATUS.md), [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md), and [tasks/todo-v1.md](tasks/todo-v1.md). A real environment must provide valid Gemini credentials/model access, Firebase browser authentication evidence, operational alert/trace evidence, backup verification, and human security and safety review.
+Before a public deployment, review [internal-docs/STATUS.md](internal-docs/STATUS.md), [internal-docs/PRODUCTION_READINESS.md](internal-docs/PRODUCTION_READINESS.md), and [tasks/todo-v1.md](tasks/todo-v1.md). A real environment must provide valid Gemini credentials/model access, Firebase browser authentication evidence, operational alert/trace evidence, backup verification, and human security and safety review.
 
 ## V1 scope
 
@@ -118,7 +118,7 @@ npx --yes firebase-tools@15.26.0 emulators:start \
 Then configure the emulator host and run relevant tests:
 
 ```bash
-export FIRESTORE_EMULATOR_HOST=127.0.0.1:8085
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:8086
 .venv/bin/python -m pytest -q tests/integration/test_firestore_repositories.py
 ```
 
@@ -132,7 +132,7 @@ Use a disposable emulator project and keep credentials in `.env`, never in sourc
 USE_FAKE_MODEL=false
 GEMINI_API_KEY=your-google-ai-studio-key
 GEMINI_MODEL_ID=gemini-3.6-flash
-FIRESTORE_EMULATOR_HOST=127.0.0.1:8085
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8086
 
 .venv/bin/python scripts/run_live_site_update.py
 ```
@@ -239,11 +239,11 @@ Read the required contracts before changing code:
 
 1. [Product](docs/PRODUCT.md)
 2. [Engineering specification](docs/ENGINEERING_SPEC.md)
-3. [Production readiness](docs/PRODUCTION_READINESS.md)
+3. [Production readiness](internal-docs/PRODUCTION_READINESS.md)
 4. The active section of [tasks/plan.md](tasks/plan.md)
 5. [V1 checklist](tasks/todo-v1.md)
 
-Keep the four-workflow scope locked. Add tests and evaluation cases for behavior changes, update [docs/STATUS.md](docs/STATUS.md) and the checklist at phase boundaries, and record expensive-to-reverse decisions as ADRs. Do not add billing, subscriptions, credits, payments, or unrelated construction-management scope.
+Keep the four-workflow scope locked. Add tests and evaluation cases for behavior changes, update [internal-docs/STATUS.md](internal-docs/STATUS.md) and the checklist at phase boundaries, and record expensive-to-reverse decisions as ADRs. Do not add billing, subscriptions, credits, payments, or unrelated construction-management scope.
 
 ## Data and redistribution
 

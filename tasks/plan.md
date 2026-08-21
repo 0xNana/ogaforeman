@@ -1,11 +1,11 @@
-# Oga Foreman V1 Execution Plan
+# OG Foreman V1 Execution Plan
 
 ## ADK Execution Authority Migration — P0 through P4
 
 Project Initialization status: **partial** as of 2026-08-21. The phase notes
 below record prior slice-level implementation, but production completion is
 superseded by the open gates in
-[`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md). Strict expected-failure
+[`internal-docs/PROJ_INIT_IMPLE.md`](../internal-docs/PROJ_INIT_IMPLE.md). Strict expected-failure
 regressions now preserve the remaining audited gaps until PI-09 through PI-14
 resolve them. PI-00 through PI-08 and the canonical-import backend checkpoint are
 complete locally: invalid complete drafts
@@ -46,7 +46,7 @@ refresh and route to the correct project destination.
 
 Prior slice evidence recorded on 2026-08-17. The existing canonical domain,
 repositories, services, ADK boundary, and missing import concepts are mapped in
-[`docs/PROJECT_INITIALIZATION_ARCHITECTURE.md`](../docs/PROJECT_INITIALIZATION_ARCHITECTURE.md).
+[`internal-docs/PROJECT_INITIALIZATION_ARCHITECTURE.md`](../internal-docs/PROJECT_INITIALIZATION_ARCHITECTURE.md).
 No import models or writes are introduced until the Phase 1 contracts are defined.
 
 ## Project Initialization — Phase 1 Canonical Import Contracts
@@ -244,7 +244,7 @@ Implementation slices:
 Verification: focused red/green continuation and event tests for every slice;
 restart reconstruction against the durable ADK session store; then Ruff,
 formatting, mypy, targeted worker/conversation tests, the non-backing suite,
-and the backed-service restart gate. Update `docs/STATUS.md`, this plan, and
+and the backed-service restart gate. Update `internal-docs/STATUS.md`, this plan, and
 `tasks/todo-v1.md` only after the migration acceptance is proven.
 
 Status: active.
@@ -423,7 +423,7 @@ Status: complete locally on 2026-08-13.
 
 ## How to Use This Plan
 
-Work top to bottom. A task is one focused session and should normally touch no more than five files. Keep the repository runnable after every task. Mark the matching item in `tasks/todo-v1.md`, update `docs/STATUS.md`, and record contract changes before starting dependent work.
+Work top to bottom. A task is one focused session and should normally touch no more than five files. Keep the repository runnable after every task. Mark the matching item in `tasks/todo-v1.md`, update `internal-docs/STATUS.md`, and record contract changes before starting dependent work.
 
 ## P0 Winning Vertical Slice Recovery
 
@@ -541,7 +541,7 @@ Files: `app/services/site_updates.py`, `app/domain/models.py`,
 
 Status: complete locally on 2026-08-09. All 20 backing-service cases pass with
 fresh Storage clients and the existing Firestore emulator; the six-case mobile intake
-journey passes with the dependency-derived risk visible in Oga's receipt.
+journey passes with the dependency-derived risk visible in OG's receipt.
 
 ### P0.5: Real follow-through actions
 
@@ -668,11 +668,11 @@ Scope: M.
 
 Acceptance: the user confirms or changes the target stack, public-beta reliability targets, approval policy, authentication direction, and four-workflow scope; decisions are reflected in specs/ADRs.
 
-Verify: no unresolved assumption changes a foundation interface; review outcome is recorded in `docs/STATUS.md`.
+Verify: no unresolved assumption changes a foundation interface; review outcome is recorded in `internal-docs/STATUS.md`.
 
 Dependencies: P0-01.
 
-Files: `docs/PRODUCT.md`, `docs/ENGINEERING_SPEC.md`, `docs/SLOS.md`, `docs/STATUS.md`.
+Files: `docs/PRODUCT.md`, `docs/ENGINEERING_SPEC.md`, `docs/SLOS.md`, `internal-docs/STATUS.md`.
 
 Scope: S.
 
@@ -889,7 +889,7 @@ Scope: M.
 
 Acceptance: explicit positive facts can proceed; negated/ambiguous facts cannot complete/update progress; safety facts trigger stop policy; high-impact actions require approval.
 
-Verify: policy matrix tests mapped to `PRODUCTION_READINESS.md`.
+Verify: policy matrix tests mapped to `internal-docs/PRODUCTION_READINESS.md`.
 
 Dependencies: A-02, A-03, K-03, K-04.
 
@@ -967,7 +967,7 @@ Verify: static search for hard-coded task IDs/keyword mutation branches plus new
 
 Dependencies: A-03, A-04, W-02.
 
-Files: `app/workflows/site_update.py`, `app/services/fact_router.py`, `tests/workflows/test_site_update.py`, `docs/STATUS.md`.
+Files: `app/workflows/site_update.py`, `app/services/fact_router.py`, `tests/workflows/test_site_update.py`, `internal-docs/STATUS.md`.
 
 Scope: M.
 
@@ -1169,23 +1169,23 @@ Scope: S.
 
 Acceptance: every PR control has an automated verification case; all core eval thresholds pass.
 
-Verify: commands in `PRODUCTION_READINESS.md`.
+Verify: commands in `internal-docs/PRODUCTION_READINESS.md`.
 
 Dependencies: all prior feature tasks.
 
-Files: `tests/production_readiness/*`, `evals/*`, `scripts/run_evals.py`, `docs/STATUS.md`.
+Files: `tests/production_readiness/*`, `evals/*`, `scripts/run_evals.py`, `internal-docs/STATUS.md`.
 
 Scope: M.
 
 ### R-02: Add eval runner and regression artifacts
 
-Acceptance: the locked dataset runs with fake and configured model adapters, reports mutation diffs, and enforces thresholds in `EVALS.md`.
+Acceptance: the locked dataset runs with fake and configured model adapters, reports mutation diffs, and enforces thresholds in `internal-docs/EVALS.md`.
 
 Verify: normal/mixed/ambiguous/negation/approval/duplicate/safety/delivery cases and a deliberate regression.
 
 Dependencies: A-02, W-02, M-03, B-02.
 
-Files: `evals/*.json`, `scripts/run_evals.py`, `tests/evals/test_regressions.py`, `docs/STATUS.md`.
+Files: `evals/*.json`, `scripts/run_evals.py`, `tests/evals/test_regressions.py`, `internal-docs/STATUS.md`.
 
 Scope: M.
 
@@ -1209,7 +1209,7 @@ Verify: load report, backup job evidence, restore rehearsal, and projection rebu
 
 Dependencies: F-05, E-01, S-01, R-03.
 
-Files: `tests/load/*`, `scripts/verify_backups.py`, `scripts/rebuild_projections.py`, `docs/SLOS.md`, `docs/STATUS.md`.
+Files: `tests/load/*`, `scripts/verify_backups.py`, `scripts/rebuild_projections.py`, `docs/SLOS.md`, `internal-docs/STATUS.md`.
 
 Scope: M.
 
@@ -1233,7 +1233,7 @@ Verify: three consecutive demo runs, including rejection and worker restart rehe
 
 Dependencies: R-01, R-02, R-03, L-01.
 
-Files: `scripts/seed_demo.py`, `scripts/reset_demo.py`, `scripts/run_demo.py`, `docs/DEMO.md`, `README.md`.
+Files: `scripts/seed_demo.py`, `scripts/reset_demo.py`, `scripts/run_demo.py`, `internal-docs/DEMO.md`, `README.md`.
 
 Scope: M.
 
@@ -1245,7 +1245,7 @@ Verify: clean-checkout quick start and docs link scan.
 
 Dependencies: L-02.
 
-Files: `README.md`, `docs/STATUS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`.
+Files: `README.md`, `internal-docs/STATUS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`.
 
 Scope: S.
 

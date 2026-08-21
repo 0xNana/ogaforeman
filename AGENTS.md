@@ -1,10 +1,10 @@
-# Oga Foreman Agent Instructions
+# OG Foreman Agent Instructions
 
 Before changing code, read:
 
 1. `docs/PRODUCT.md`
 2. `docs/ENGINEERING_SPEC.md`
-3. `docs/PRODUCTION_READINESS.md`
+3. `internal-docs/PRODUCTION_READINESS.md`
 4. the active section of `tasks/plan.md`
 5. `tasks/todo-v1.md`
 
@@ -29,4 +29,4 @@ Before changing code, read:
 
 Run the task's verification commands before marking its checkbox complete. Use `uv sync --all-extras --locked` for Python and `npm ci` for the frontend. If a required tool is missing, install the documented development dependencies or report the exact environment blocker; do not claim tests passed.
 
-At phase boundaries update `docs/STATUS.md`, `tasks/todo-v1.md`, and any affected contracts/ADRs.
+At phase boundaries update `internal-docs/STATUS.md`, `tasks/todo-v1.md`, and any affected contracts/ADRs.

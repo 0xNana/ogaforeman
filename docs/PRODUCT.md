@@ -1,4 +1,4 @@
-# Product Specification: Oga Foreman Production-Ready V1
+# Product Specification: OG Foreman Production-Ready V1
 
 ## Status
 
@@ -6,7 +6,7 @@ Accepted for a production-ready public beta. The hackathon scenario is the first
 
 ## Assumptions
 
-These assumptions make the high-level brief implementable. Change them explicitly if they are wrong.
+These assumptions make the product brief implementable. Change them explicitly if they are wrong.
 
 1. V1 is a responsive web application, not a native mobile application.
 2. The hackathon demo uses one seeded organization and project, while the data model remains multi-project and multi-user.
@@ -14,16 +14,16 @@ These assumptions make the high-level brief implementable. Change them explicitl
 4. The Python/FastAPI backend remains the service boundary and Google ADK remains the agent/workflow runtime.
 5. A Next.js TypeScript application replaces the static `web/index.html` dashboard.
 6. Voice transcription and photo understanding use managed Google model capabilities; raw media is stored in Cloud Storage.
-7. Purchases are simulated in V1. Oga prepares and tracks a request but does not send money or create a binding supplier order.
+7. Purchases are simulated in V1. OG prepares and tracks a request but does not send money or create a binding supplier order.
 8. Authentication may run in seeded demo mode locally; a deployable environment uses Firebase Authentication or Google Identity Platform.
 9. All dates are stored in UTC and rendered in the project's configured timezone.
 10. English is the initial interface and extraction language. The contracts must not prevent later multilingual input.
 
 ## Product Promise
 
-> Tell Oga what happened on site. Oga handles the follow-through.
+> Tell OG what happened on site. OG handles the follow-through.
 
-Oga Foreman converts unstructured construction-site events into verified project state changes and operational follow-through. It is not a general project-management dashboard and not a chat assistant that waits for every next instruction.
+OG Foreman converts unstructured construction-site events into verified project state changes and operational follow-through. It is not a general project-management dashboard and not a chat assistant that waits for every next instruction.
 
 ## Primary Users
 
@@ -37,12 +37,12 @@ Oga Foreman converts unstructured construction-site events into verified project
 
 - reviews blockers, material risks, and schedule impact;
 - approves or rejects high-impact actions;
-- needs an audit trail of what Oga did and why.
+- needs an audit trail of what OG did and why.
 
 ### Project Administrator
 
 - creates projects, members, tasks, dependencies, materials, and thresholds;
-- maintains the project state that Oga reasons over.
+- maintains the project state that OG reasons over.
 
 ### Demo Judge or Stakeholder
 
@@ -77,23 +77,23 @@ Only these workflows are core V1 scope:
 
 ### FR-03 Interpretation
 
-- Oga extracts completed work, progress, blockers, material observations, risks, and other observations into a typed schema.
+- OG extracts completed work, progress, blockers, material observations, risks, and other observations into a typed schema.
 - Every extracted fact includes evidence, confidence, and whether clarification is required.
 - Ambiguous completion language does not complete a task.
 - Unsupported facts remain observations and do not mutate project state.
 
 ### FR-04 Project Context and Matching
 
-- Oga retrieves only the relevant project, active tasks, dependencies, recent updates, materials, open issues, and pending approvals.
+- OG retrieves only the relevant project, active tasks, dependencies, recent updates, materials, open issues, and pending approvals.
 - Extracted facts are matched to known entities with a confidence score.
 - Low-confidence entity matches create a clarification item rather than a guessed mutation.
 
 ### FR-05 Safe Autonomous Actions
 
-- Oga may create reports, activities, issues, routine notifications, and proposed tasks.
-- Oga may update task progress when evidence and confidence meet the configured policy.
+- OG may create reports, activities, issues, routine notifications, and proposed tasks.
+- OG may update task progress when evidence and confidence meet the configured policy.
 - Every mutation is made by a typed deterministic tool and produces an `ActivityEvent`.
-- Oga cannot mutate the database directly from model output.
+- OG cannot mutate the database directly from model output.
 
 ### FR-06 Approval Actions
 
@@ -157,7 +157,7 @@ Only these workflows are core V1 scope:
 
 ## Autonomy Policy
 
-### Oga May Act Automatically
+### OG May Act Automatically
 
 - update records with validated evidence;
 - record reported progress;
@@ -165,7 +165,7 @@ Only these workflows are core V1 scope:
 - prepare material requests;
 - flag schedule and material risks.
 
-### Oga Must Request Approval
+### OG Must Request Approval
 
 - purchases or simulated supplier submission;
 - major schedule changes;
@@ -174,7 +174,7 @@ Only these workflows are core V1 scope:
 - task cancellation;
 - high-impact project changes.
 
-### Oga Must Stop and Escalate
+### OG Must Stop and Escalate
 
 - possible structural failure;
 - serious safety hazard or injury;
@@ -213,7 +213,7 @@ Without further prompting, the system must:
 
 The end-to-end demo is complete only when approving the request resumes the same workflow and a later `DELIVERY_DELAYED` event updates risk without a chat prompt.
 
-The demo is not a release-quality exception. The same scenario must pass the production controls in [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md): durable state, duplicate suppression, approval restart/resume, canonical material identity, evidence-based extraction, authorization, auditability, and API-backed UI state.
+The demo is not a release-quality exception. The same scenario must pass the production release controls for durable state, duplicate suppression, approval restart/resume, canonical material identity, evidence-based extraction, authorization, auditability, and API-backed UI state.
 
 ## Open Product Questions
 

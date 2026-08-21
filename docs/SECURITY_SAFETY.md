@@ -66,7 +66,7 @@ limits run before source persistence and Gemini invocation.
 
 ## Construction Safety Boundary
 
-Oga does not certify engineering, structural, quality, or safety decisions. If input suggests injury, imminent hazard, structural failure, unsafe equipment, or a request to conceal a risk:
+OG does not certify engineering, structural, quality, or safety decisions. If input suggests injury, imminent hazard, structural failure, unsafe equipment, or a request to conceal a risk:
 
 1. create a high/critical safety issue;
 2. stop the normal autonomous mutation branch;
@@ -89,15 +89,8 @@ Oga does not certify engineering, structural, quality, or safety decisions. If i
 - Use Pub/Sub dead-letter handling and alert on poison events.
 - Use circuit breakers or graceful degradation when model or notification dependencies fail.
 
-## Security Verification
+## Verification Ownership
 
-Required before release:
-
-- cross-project authorization tests;
-- role matrix tests for every mutation;
-- signed upload expiry/path/content tests;
-- prompt-injection and malicious-file cases;
-- duplicate approval and external-action tests;
-- secret/logging scan;
-- dependency and container vulnerability scan;
-- browser accessibility and secure-cookie/token checks.
+This document defines the security and safety policy. Release-gate test coverage,
+commands, and required operational evidence belong to the release process; service
+availability and recovery targets are defined in [SLOS.md](SLOS.md).

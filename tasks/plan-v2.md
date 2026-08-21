@@ -1,8 +1,8 @@
-# Oga Foreman V2 Execution Plan (Commercial & Go-To-Market)
+# OG Foreman V2 Execution Plan (Commercial & Go-To-Market)
 
 ## How to Use This Plan
 
-Work top to bottom. This plan builds upon the production-ready foundation established in V1 and focuses on transitioning Oga Foreman into a revenue-generating, enterprise-ready product. Mark the matching items in a new `tasks/todo-v2.md` as they are completed.
+Work top to bottom. This plan builds upon the production-ready foundation established in V1 and focuses on transitioning OG Foreman into a revenue-generating, enterprise-ready product. Mark the matching items in a new `tasks/todo-v2.md` as they are completed.
 
 ## Phase 1: Commercial Engine & Billing
 
@@ -22,7 +22,7 @@ Work top to bottom. This plan builds upon the production-ready foundation establ
 ## Phase 2: Real Integrations & Ecosystem
 
 ### I-01: Procore / Autodesk Construction Cloud Sync
-- **Acceptance**: Oga can securely authenticate with a third-party system of record and sync Daily Reports, Issues, and Tasks.
+- **Acceptance**: OG can securely authenticate with a third-party system of record and sync Daily Reports, Issues, and Tasks.
 - **Tasks**:
   - Implement OAuth2 flows for external construction software.
   - Create integration adapters to push daily briefs to external systems.
@@ -64,13 +64,13 @@ Work top to bottom. This plan builds upon the production-ready foundation establ
 ## Phase 5: Expanded Agentic Capabilities
 
 ### A-01: Multilingual Voice Intake
-- **Acceptance**: Foremen can speak in languages other than English, and Oga correctly translates and interprets the facts into the English project baseline.
+- **Acceptance**: Foremen can speak in languages other than English, and OG correctly translates and interprets the facts into the English project baseline.
 - **Tasks**:
   - Update `app/infrastructure/gemini.py` to handle explicit multilingual transcription instructions.
   - Add user-preference or project-preference language settings.
 
 ### A-02: Blueprint / Document Ingestion (Research Phase)
-- **Acceptance**: Oga can ingest PDF blueprints or basic CAD exports to provide spatial context to site updates.
+- **Acceptance**: OG can ingest PDF blueprints or basic CAD exports to provide spatial context to site updates.
 - **Tasks**:
   - Design data model for "Site Documents".
   - Build RAG (Retrieval-Augmented Generation) pipeline for agents to query document context during fact routing.

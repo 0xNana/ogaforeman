@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build a production-ready, event-driven Oga Foreman public beta that turns unstructured site updates into durable project state and completed follow-through. The codebase must preserve a strict boundary: Gemini reasons, ADK workflows coordinate, typed tools perform actions, and Firestore holds project truth. Hackathon demo fixtures do not relax production controls.
+Build a production-ready, event-driven OG Foreman public beta that turns unstructured site updates into durable project state and completed follow-through. The codebase must preserve a strict boundary: Gemini reasons, ADK workflows coordinate, typed tools perform actions, and Firestore holds project truth. Hackathon demo fixtures do not relax production controls.
 
 ## Technology Stack
 
@@ -156,7 +156,7 @@ Requirements:
   Storage emulators; reusing an in-memory store or object dictionary is not restart
   evidence. CI runs non-backing tests separately, then starts both emulators and
   executes every `backing_services` test with no conditional skip.
-- Release candidates pass the thresholds in `EVALS.md` and the global definition of done below.
+- Release candidates pass the locked evaluation thresholds and the global definition of done below.
 
 ## Engineering Boundaries
 
@@ -287,7 +287,7 @@ A task is done only when:
 - authorization, validation, idempotency, and audit behavior were considered;
 - docs, API contracts, evals, and seed data are updated when affected;
 - no secrets or high-risk debug output were introduced;
-- `tasks/todo-v1.md` and `docs/STATUS.md` reflect the result.
+- The implementation status record and `tasks/todo-v1.md` reflect the result.
 
 A release is done only when:
 
@@ -298,7 +298,7 @@ A release is done only when:
 - core mobile and desktop flows pass accessibility and browser checks;
 - deploy, smoke test, rollback, and operational runbooks are verified.
 
-The release also clears every control in [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md). A passing happy-path demo is insufficient if restart, concurrency, duplicate delivery, authorization, approval recovery, or API-backed UI tests fail.
+The release also clears every production-readiness control. A passing happy-path demo is insufficient if restart, concurrency, duplicate delivery, authorization, approval recovery, or API-backed UI tests fail.
 
 ## Open Engineering Decisions
 

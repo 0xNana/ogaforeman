@@ -3,7 +3,7 @@
 ## Status
 
 Phase 0 audit and freeze and Phase 1 application shell completed on 2026-08-13. This document records the
-frontend baseline and the migration boundary for `docs/UI_UX_OVERHAUL.md`.
+frontend baseline and the migration boundary for [`internal-docs/UI_UX_OVERHAUL.md`](../internal-docs/UI_UX_OVERHAUL.md).
 No product behavior or API contract changed during this phase.
 
 ## Existing structure
@@ -253,7 +253,7 @@ remove obsolete UI only after its replacement passes the phase gate.
   with no fabricated records while their backend projections remain unavailable.
 - A skip link, labelled landmarks and controls, focus management, Escape-close,
   reduced-motion behavior, and minimum mobile target sizes are present.
-- No old `Oga`/`OGA` customer-facing branding or agent-engineering navigation is
+- No legacy customer-facing branding or agent-engineering navigation is
   present in the frontend source.
 - Frontend API and backend domain contracts are unchanged, and the Golden
   Scenario intake/approval path remains green in Playwright.

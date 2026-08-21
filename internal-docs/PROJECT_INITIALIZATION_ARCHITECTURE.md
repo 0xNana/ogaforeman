@@ -62,7 +62,7 @@ remain local to the draft and must never be accepted as canonical Firestore IDs.
 
 ## Phase 1 handoff
 
-Phase 1 may create the typed contracts listed in `docs/PROJECT_INIT.md`:
+Phase 1 may create the typed contracts listed in `internal-docs/PROJECT_INIT.md`:
 `ProjectImportDraft`, `ProjectDraft`, `PhaseDraft`, `TaskDraft`,
 `DependencyDraft`, `MaterialDraft`, `MaterialRequirementDraft`,
 `SourceReference`, `ImportWarning`, and `ImportConflict`. Those contracts should

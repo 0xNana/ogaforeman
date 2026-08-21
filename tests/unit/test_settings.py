@@ -67,7 +67,7 @@ def test_local_remote_firestore_requires_explicit_project_and_no_emulator() -> N
             demo_mode=False,
             google_cloud_project="ogaforeman",
             allow_remote_firestore_in_local=True,
-            firestore_emulator_host="127.0.0.1:8085",
+            firestore_emulator_host="127.0.0.1:8086",
         )
 
 

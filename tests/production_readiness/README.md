@@ -1,7 +1,7 @@
 # Production-readiness suite
 
 `test_controls.py` maps directly to PR-01 through PR-13 in
-`docs/PRODUCTION_READINESS.md`.
+`internal-docs/PRODUCTION_READINESS.md`.
 
 - Passing tests are locally verified controls.
 - Strict `xfail` tests are known release blockers caused by missing prerequisite

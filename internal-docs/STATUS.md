@@ -189,7 +189,7 @@ both attachment metadata and real media objects, reconstructs service clients be
 approval and continuation, and completes the original run exactly once.
 
 Natural-language blocker facts now enter that same durable path. After entity
-resolution, Oga blocks the matched task, traverses actual task `dependency_ids`,
+resolution, OG blocks the matched task, traverses actual task `dependency_ids`,
 creates a distinct downstream delay-risk issue, and projects both facts into the
 daily report. The concise impact and pending schedule review persist on the same
 `AgentRun`, are returned by the run API, and appear in the site-update receipt.

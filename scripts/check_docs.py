@@ -27,6 +27,7 @@ def find_broken_links(root: Path = ROOT) -> tuple[str, ...]:
     markdown_files = (
         [root / "README.md"]
         + sorted((root / "docs").rglob("*.md"))
+        + sorted((root / "internal-docs").rglob("*.md"))
         + sorted((root / "tasks").glob("*.md"))
     )
     broken: list[str] = []

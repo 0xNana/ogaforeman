@@ -10,11 +10,11 @@ browser/cloud evidence are still release gates.
 
 ## Identity Boundary
 
-Oga Foreman uses Firebase Authentication or Google Cloud Identity Platform for
+OG Foreman uses Firebase Authentication or Google Cloud Identity Platform for
 human identity. Firebase proves control of an external account; it does not
-grant access to Oga projects by itself.
+grant access to OG Foreman projects by itself.
 
-The verified Firebase `sub` claim is the external identity key. Oga resolves
+The verified Firebase `sub` claim is the external identity key. OG resolves
 that subject to exactly one active canonical `User.id` stored in Firestore, then
 uses the canonical ID for membership, activities, approvals, mutations, and
 audit records.
