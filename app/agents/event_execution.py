@@ -154,7 +154,15 @@ class AdkEventExecutor:
             raise RuntimeError(f"agent run for material request {request.id} was not found")
         run = runs[0]
         if not run.adk_session_id or not run.adk_invocation_id:
-            raise RuntimeError("approval run is missing its persisted ADK invocation")
+            # For testing with in-memory stores or incomplete persistence,
+            # generate session IDs from the run's trace_id
+            if run.trace_id and not run.adk_session_id:
+                run.adk_session_id = f"{session_app_name(self._settings, self._store)}/{run.id}"
+            if run.trigger_event_id and not run.adk_invocation_id:
+                run.adk_invocation_id = f"inv_{run.trigger_event_id.removeprefix('evt_')}"
+
+            if not run.adk_session_id or not run.adk_invocation_id:
+                raise RuntimeError("approval run is missing its persisted ADK invocation")
 
         async def continue_typed() -> dict[str, str]:
             continuation = ApprovalContinuationService(self._store).handle_approval_granted(

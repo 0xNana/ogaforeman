@@ -132,6 +132,8 @@ def _approval_state(store: RepositoryStore) -> None:
             workflow="material_shortage",
             status=AgentRunStatus.WAITING_FOR_APPROVAL,
             trace_id="trc_material123",
+            adk_session_id="ses_123",
+            adk_invocation_id="inv_123",
         )
     )
 
