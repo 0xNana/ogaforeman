@@ -318,10 +318,12 @@ class ApprovalContinuationService:
             raise RuntimeError("approval is linked to more than one material request")
         request = requests[0]
 
+        from app.repositories.runs import run_id_for_event
+        expected_run_id = run_id_for_event(request.source_event_id)
         runs = [
             item
             for item in session.repository(AgentRun).list(project_id)
-            if item.trigger_event_id == request.source_event_id
+            if item.id == expected_run_id or item.trigger_event_id == request.source_event_id
         ]
         if not runs:
             raise EntityNotFoundError(f"agent run for material request {request.id} was not found")
