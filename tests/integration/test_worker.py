@@ -97,8 +97,10 @@ def test_worker_persists_failed_claim_without_exposing_payload(
         raise RuntimeError("deliberate worker failure")
 
     monkeypatch.setattr("app.agents.site_update_execution.SiteUpdateEventExecutor.execute", fail)
+    settings = Settings(_env_file=None)
+    interpreter = FakeSiteInterpreter()
     with pytest.raises(RuntimeError, match="deliberate worker failure"):
-        process_event(event_bytes(), store=store)
+        process_event(event_bytes(), store=store, settings=settings, site_interpreter=interpreter)
 
     processed = store.repository(ProcessedEvent).list("prj_worker123")
     assert len(processed) == 1
