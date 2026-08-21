@@ -4,7 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from google.genai.errors import ClientError
 
+from app.agents.errors import AgentDependencyUnavailableError
 from app.agents.project_import_extraction import (
     GeminiProjectImportExtractor,
     ProjectImportCandidate,
@@ -82,6 +84,45 @@ async def test_live_extractor_uses_developer_api_compatible_json_schema(
     config = generate_content.await_args.kwargs["config"]
     assert config.response_json_schema is not None
     assert config.response_schema is None
+
+
+@pytest.mark.asyncio
+async def test_live_extractor_sanitizes_provider_quota_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(
+        side_effect=ClientError(
+            429,
+            {
+                "error": {
+                    "code": 429,
+                    "message": "Private billing and credit detail",
+                    "status": "RESOURCE_EXHAUSTED",
+                }
+            },
+        )
+    )
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr(
+        "app.infrastructure.gemini.create_gemini_client",
+        Mock(return_value=client),
+    )
+    extractor = GeminiProjectImportExtractor(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+
+    with pytest.raises(AgentDependencyUnavailableError) as exc_info:
+        await extractor.extract("Ridge House plastering plan")
+
+    assert str(exc_info.value) == "Gemini project import extraction is unavailable"
+    assert "billing" not in str(exc_info.value).casefold()
 
 
 def test_live_extractor_can_force_vertex_backend(monkeypatch: pytest.MonkeyPatch) -> None:

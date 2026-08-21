@@ -10,6 +10,7 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
+from app.agents.errors import AgentDependencyUnavailableError, AgentOutputInvalidError
 from app.agents.project_import_registry import PROJECT_IMPORT_RUNTIME
 from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.authorization import ProjectAccessContext, ProjectPermission, ensure_permission
@@ -185,13 +186,16 @@ class ProjectImportReviewService:
                     except ValueError as exc:
                         raise ProjectImportExtractionError(str(exc)) from exc
                 except Exception as exc:
+                    failure = _translate_agent_failure(exc)
                     self._mark_extraction_failed(
                         access,
                         import_id,
-                        exc,
+                        failure,
                         expected_extraction_attempt=extraction_attempt,
                     )
-                    raise
+                    if failure is exc:
+                        raise
+                    raise failure from None
                 drafted = self._store_draft(
                     access,
                     draft,
@@ -895,6 +899,16 @@ class ProjectImportReviewService:
             reference is not None and reference.source_id != source_id for reference in references
         ):
             raise ValueError("extracted provenance must use the authorized source")
+
+
+def _translate_agent_failure(error: Exception) -> Exception:
+    if isinstance(error, AgentDependencyUnavailableError):
+        return ProjectImportDependencyUnavailableError(
+            "project import extraction dependency is unavailable"
+        )
+    if isinstance(error, AgentOutputInvalidError):
+        return ProjectImportExtractionError("project import extraction output is invalid")
+    return error
 
 
 def _activity(

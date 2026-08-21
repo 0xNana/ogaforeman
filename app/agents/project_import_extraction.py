@@ -9,8 +9,10 @@ from typing import Any, Protocol
 from google.adk.agents.context import Context
 from google.adk.apps import App, ResumabilityConfig
 from google.adk.workflow import FunctionNode, START, Workflow
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from google.genai.errors import APIError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from app.agents.errors import AgentDependencyUnavailableError, AgentOutputInvalidError
 from app.config.settings import Settings
 from app.agents.project_import_registry import PROJECT_IMPORT_RUNTIME
 from app.domain.project_import import (
@@ -88,18 +90,28 @@ class GeminiProjectImportExtractor:
     async def extract(self, source_text: str) -> ProjectImportCandidate:
         from google.genai import types
 
-        response = await self._client.aio.models.generate_content(
-            model=self._model_name,
-            contents=PROJECT_IMPORT_RUNTIME.render_prompt(source_text),
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_json_schema=_gemini_candidate_schema(),
-                temperature=0.0,
-            ),
-        )
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._model_name,
+                contents=PROJECT_IMPORT_RUNTIME.render_prompt(source_text),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_json_schema=_gemini_candidate_schema(),
+                    temperature=0.0,
+                ),
+            )
+        except APIError:
+            raise AgentDependencyUnavailableError(
+                "Gemini project import extraction is unavailable"
+            ) from None
         if not response.text:
-            raise ValueError("Gemini returned an empty project import extraction")
-        return ProjectImportCandidate.model_validate_json(response.text)
+            raise AgentOutputInvalidError("Gemini returned an empty project import extraction")
+        try:
+            return ProjectImportCandidate.model_validate_json(response.text)
+        except ValidationError:
+            raise AgentOutputInvalidError(
+                "Gemini returned an invalid project import extraction"
+            ) from None
 
 
 def _gemini_candidate_schema() -> dict[str, Any]:

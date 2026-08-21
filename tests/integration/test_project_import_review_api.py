@@ -11,6 +11,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
+from app.agents.errors import AgentDependencyUnavailableError
 from app.api.errors import install_error_handlers, install_request_id_middleware
 from app.api.limits import InMemoryRateLimiter
 from app.api.v1.router import api_router
@@ -105,6 +106,12 @@ class CountingDraftExtractor(FixedDraftExtractor):
     async def extract(self, **kwargs) -> ProjectImportDraft:
         self.calls += 1
         return await super().extract(**kwargs)
+
+
+class ProviderUnavailableDraftExtractor:
+    async def extract(self, **kwargs) -> ProjectImportDraft:
+        del kwargs
+        raise AgentDependencyUnavailableError("private provider quota detail")
 
 
 class PromptInjectionDraftExtractor:
@@ -712,6 +719,29 @@ async def test_extractor_outage_persists_a_retryable_terminal_failure() -> None:
         )
 
     assert first.status_code == 503
+    record = store.repository(ProjectImportRecord).list(PROJECT_ID)[0]
+    assert record.status is ProjectImportStatus.EXTRACTION_FAILED
+    assert record.failure_code == "dependency_unavailable"
+    assert record.failure_message == "Project import extraction dependency is unavailable."
+    assert _canonical_counts(store) == (0, 0, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_provider_quota_failure_returns_safe_retryable_dependency_response() -> None:
+    store = InMemoryRepositoryStore()
+    app = make_app_with_extractor(store, ProviderUnavailableDraftExtractor())
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={"source_name": "ridge-house.md", "source_text": "Task: Foundation"},
+            headers={"Idempotency-Key": "project-import-provider-quota:create"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "DEPENDENCY_UNAVAILABLE"
+    assert "billing" not in response.text.casefold()
     record = store.repository(ProjectImportRecord).list(PROJECT_ID)[0]
     assert record.status is ProjectImportStatus.EXTRACTION_FAILED
     assert record.failure_code == "dependency_unavailable"
