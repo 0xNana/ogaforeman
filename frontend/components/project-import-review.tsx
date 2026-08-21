@@ -25,7 +25,7 @@ type ProjectImportReviewProps = {
   onFinished: (status: 'imported' | 'cancelled') => void | Promise<void>;
 };
 
-type Decision = 'confirm' | 'cancel';
+type Decision = 'confirm' | 'cancel' | 'retry';
 
 const ACTIVE_STATES = new Set<ProjectImportStatus>([
   'uploaded',
@@ -59,6 +59,19 @@ function restoreDecisionKey(projectId: string, importId: string, action: Decisio
     return created;
   } catch {
     return `project-import-${action}:${crypto.randomUUID()}`;
+  }
+}
+
+function restoreRetryKey(projectId: string, importId: string, version: number): string {
+  const key = `oga:project-import:retry-claim:${projectId}:${importId}:${version}`;
+  try {
+    const stored = window.sessionStorage.getItem(key);
+    if (stored) return stored;
+    const created = `project-import-retry:${crypto.randomUUID()}`;
+    window.sessionStorage.setItem(key, created);
+    return created;
+  } catch {
+    return `project-import-retry:${crypto.randomUUID()}`;
   }
 }
 
@@ -128,6 +141,7 @@ export function ProjectImportReview({ projectId, importId, onFinished }: Readonl
   const hasConflicts = review.conflicts.length > 0;
   const canCancel = ['needs_review', 'validation_failed', 'extraction_failed', 'import_failed'].includes(review.status);
   const canConfirm = ['needs_review', 'import_failed'].includes(review.status) && !hasConflicts;
+  const canRetryExtraction = review.retryable && ['validation_failed', 'extraction_failed'].includes(review.status);
   const expectedVersion = review.version;
 
   async function recoverCurrentVersion() {
@@ -141,6 +155,7 @@ export function ProjectImportReview({ projectId, importId, onFinished }: Readonl
 
   async function decide(action: Decision) {
     if (decisionInFlight.current) return;
+    if (action === 'retry') return;
     if (action === 'confirm' ? !canConfirm : !canCancel) return;
     decisionInFlight.current = true;
     setDecision(action);
@@ -163,6 +178,30 @@ export function ProjectImportReview({ projectId, importId, onFinished }: Readonl
     }
   }
 
+  async function retryExtraction() {
+    if (decisionInFlight.current || !canRetryExtraction) return;
+    decisionInFlight.current = true;
+    setDecision('retry');
+    setError(null);
+    try {
+      setReview(await api.retryProjectImport(
+        projectId,
+        importId,
+        expectedVersion,
+        restoreRetryKey(projectId, importId, expectedVersion),
+      ));
+    } catch (cause) {
+      if (cause instanceof ApiRequestError && cause.code === 'PROJECT_IMPORT_VERSION_CONFLICT') {
+        await recoverCurrentVersion();
+      } else {
+        setError(errorMessage(cause, 'OG could not retry extraction from the saved source.'));
+      }
+    } finally {
+      decisionInFlight.current = false;
+      setDecision(null);
+    }
+  }
+
   if (review.status === 'extraction_failed') {
     return (
       <ImportStatePage>
@@ -170,11 +209,13 @@ export function ProjectImportReview({ projectId, importId, onFinished }: Readonl
           icon={<AlertTriangle />}
           title="Extraction did not finish."
           text={review.failure_message ?? 'OG could not create a review draft from the saved source.'}
-          code={review.failure_code}
           actions={(
             <>
               <button className="btn btn-quiet" type="button" disabled={decision !== null} onClick={() => void decide('cancel')}>Cancel Import</button>
-              <Link className="btn btn-primary" href={`/projects/${projectId}/setup?method=import`}>Return to setup</Link>
+              <Link className="btn btn-quiet" href={`/projects/${projectId}/setup?method=import`}>Choose a different file</Link>
+              <button className="btn btn-primary" type="button" disabled={decision !== null || !canRetryExtraction} onClick={() => void retryExtraction()}>
+                {decision === 'retry' ? <><Loader2 className="spinner" size={16} /> Retrying…</> : <><RotateCw size={16} /> Retry extraction</>}
+              </button>
             </>
           )}
         />
@@ -212,12 +253,17 @@ export function ProjectImportReview({ projectId, importId, onFinished }: Readonl
         <button className="btn btn-quiet" type="button" disabled={decision !== null || !canCancel} onClick={() => void decide('cancel')}>
           {decision === 'cancel' ? <><Loader2 className="spinner" size={16} /> Cancelling…</> : 'Cancel Import'}
         </button>
+        {canRetryExtraction ? (
+          <button className="btn btn-primary" type="button" disabled={decision !== null} onClick={() => void retryExtraction()}>
+            {decision === 'retry' ? <><Loader2 className="spinner" size={16} /> Retrying…</> : <><RotateCw size={16} /> Retry extraction</>}
+          </button>
+        ) : null}
         <button className="btn btn-accent" type="button" disabled={decision !== null || !canConfirm} onClick={() => void decide('confirm')}>
           {decision === 'confirm'
             ? <><Loader2 className="spinner" size={16} /> Initializing…</>
             : review.status === 'import_failed' ? 'Retry initialization' : 'Confirm & Initialize'}
         </button>
-        {!canConfirm ? <p>Confirmation is disabled because this draft has blocking conflicts.</p> : null}
+        {!canConfirm ? <p>Resolve the items above before initializing the project.</p> : null}
       </div>
     </div>
   );
@@ -231,8 +277,8 @@ function ImportStatePage({ children }: Readonly<{ children: React.ReactNode }>) 
   return <div className="import-review-page"><PageHeader eyebrow="Project setup" title="Project initialization" description="This page reflects the latest durable import state." />{children}</div>;
 }
 
-function ReviewState({ icon, title, text, code, actions, busy = false, alert = false }: Readonly<{ icon: React.ReactNode; title: string; text: string; code?: string | null; actions?: React.ReactNode; busy?: boolean; alert?: boolean }>) {
-  return <section className="import-state" role={alert ? 'alert' : busy ? 'status' : undefined} aria-busy={busy || undefined}><span className="import-state-icon" aria-hidden="true">{icon}</span><div><h2>{title}</h2><p>{text}</p>{code ? <code>{code}</code> : null}{actions ? <div className="import-state-actions">{actions}</div> : null}</div></section>;
+function ReviewState({ icon, title, text, actions, busy = false, alert = false }: Readonly<{ icon: React.ReactNode; title: string; text: string; actions?: React.ReactNode; busy?: boolean; alert?: boolean }>) {
+  return <section className="import-state" role={alert ? 'alert' : busy ? 'status' : undefined} aria-busy={busy || undefined}><span className="import-state-icon" aria-hidden="true">{icon}</span><div><h2>{title}</h2><p>{text}</p>{actions ? <div className="import-state-actions">{actions}</div> : null}</div></section>;
 }
 
 function StateError({ message }: Readonly<{ message: string | null }>) {

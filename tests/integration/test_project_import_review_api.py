@@ -221,6 +221,26 @@ class FailOnceExtractor:
         return await self._delegate.extract(**kwargs)
 
 
+class DanglingDependencyThenValidExtractor:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def extract(self, **kwargs) -> ProjectImportDraft:
+        self.calls += 1
+        draft = await FixedDraftExtractor().extract(**kwargs)
+        if self.calls == 1:
+            return draft.model_copy(
+                update={
+                    "dependencies": [
+                        draft.dependencies[0].model_copy(
+                            update={"predecessor_temp_id": "tmp_task_site_setting_out"}
+                        )
+                    ]
+                }
+            )
+        return draft
+
+
 class SecretFailingExtractor:
     async def extract(self, **kwargs) -> ProjectImportDraft:
         raise RuntimeError("provider secret=do-not-persist source=private-plan")
@@ -306,6 +326,11 @@ async def test_cross_project_import_routes_fail_before_read_write_or_extraction(
                 f"/api/v1/projects/{other_project}/imports/imp_otherimport123/confirm",
                 json={"expected_version": 0},
                 headers={"Idempotency-Key": "cross-project:confirm"},
+            ),
+            await client.post(
+                f"/api/v1/projects/{other_project}/imports/imp_otherimport123/retry",
+                json={"expected_version": 0},
+                headers={"Idempotency-Key": "cross-project:retry"},
             ),
         ]
 
@@ -544,6 +569,54 @@ async def test_confirming_a_conflicted_review_is_rejected_without_canonical_muta
     assert created.status_code == 201
     assert confirmed.status_code == 422
     assert confirmed.json()["error"]["code"] == "PROJECT_IMPORT_VALIDATION_FAILED"
+    assert _canonical_counts(store) == (0, 0, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_retry_reextracts_a_reference_conflict_from_the_persisted_source_once() -> None:
+    store = InMemoryRepositoryStore()
+    extractor = DanglingDependencyThenValidExtractor()
+    transport = httpx.ASGITransport(
+        app=make_app_with_extractor(store, extractor),
+        raise_app_exceptions=False,
+    )
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={"source_name": "ridge-house.md", "source_text": "Task: Foundation"},
+            headers={"Idempotency-Key": "project-import-reference-retry:create"},
+        )
+        review = created.json()
+        retry_headers = {"Idempotency-Key": "project-import-reference-retry:retry-1"}
+        retried = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports/{review['id']}/retry",
+            json={"expected_version": review["version"]},
+            headers=retry_headers,
+        )
+        mismatched = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports/{review['id']}/retry",
+            json={"expected_version": review["version"] + 1},
+            headers=retry_headers,
+        )
+        replayed = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports/{review['id']}/retry",
+            json={"expected_version": review["version"]},
+            headers=retry_headers,
+        )
+
+    assert created.status_code == 201
+    assert review["status"] == "validation_failed"
+    assert review["retryable"] is True
+    assert [conflict["code"] for conflict in review["conflicts"]] == ["UNKNOWN_PREDECESSOR"]
+    assert retried.status_code == 200
+    assert retried.json()["status"] == "needs_review"
+    assert retried.json()["source_id"] == review["source_id"]
+    assert replayed.status_code == 200
+    assert replayed.json()["replayed"] is True
+    assert mismatched.status_code == 409
+    assert mismatched.json()["error"]["code"] == "PROJECT_IMPORT_INVALID_STATE"
+    assert extractor.calls == 2
     assert _canonical_counts(store) == (0, 0, 0, 0)
 
 

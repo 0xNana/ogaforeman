@@ -1,6 +1,6 @@
 {
   "version": "project-import-v1",
-  "prompt_registry_key": "project_import_extraction.v2",
+  "prompt_registry_key": "project_import_extraction.v3",
   "cases": [
     {
       "id": "structured_plastering_requirement",
@@ -77,6 +77,15 @@
       "expected": {
         "project_name_contains": "Ridge House",
         "task_name_contains": "Foundation"
+      }
+    },
+    {
+      "id": "dependency_only_prerequisite",
+      "category": "dependency_reference",
+      "source": "Substructure | Excavate pad foundations | 19-30 Oct 2026 | Site setting out\nSubstructure | Cast foundations | 2-13 Nov 2026 | Excavate pad foundations",
+      "expected": {
+        "task_name_contains": "Site setting out",
+        "require_closed_dependencies": true
       }
     }
   ]

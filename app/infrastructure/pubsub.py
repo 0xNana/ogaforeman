@@ -89,8 +89,11 @@ class PubSubClient:
             ]
         }
         try:
+            import os
+            emulator_host = os.environ.get("PUBSUB_EMULATOR_HOST")
+            base_url = f"http://{emulator_host}" if emulator_host else "https://pubsub.googleapis.com"
             response = self._get_session().post(
-                f"https://pubsub.googleapis.com/v1/{topic_path}:publish",
+                f"{base_url}/v1/{topic_path}:publish",
                 json=payload,
                 timeout=self._timeout_seconds,
             )
@@ -129,10 +132,15 @@ class PubSubClient:
             return self._session
         with self._session_lock:
             if self._session is None:
-                credentials, _project = google.auth.default(
-                    scopes=("https://www.googleapis.com/auth/pubsub",)
-                )
-                self._session = cast(HttpSession, AuthorizedSession(credentials))
+                import os
+                import requests
+                if os.environ.get("PUBSUB_EMULATOR_HOST"):
+                    self._session = cast(HttpSession, requests.Session())
+                else:
+                    credentials, _project = google.auth.default(
+                        scopes=("https://www.googleapis.com/auth/pubsub",)
+                    )
+                    self._session = cast(HttpSession, AuthorizedSession(credentials))
         if self._session is None:  # pragma: no cover - guarded by the lock above
             raise PubSubConfigurationError("Pub/Sub HTTP session could not be initialized")
         return self._session

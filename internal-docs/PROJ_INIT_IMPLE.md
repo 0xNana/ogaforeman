@@ -113,7 +113,7 @@ current modal:
     source entry, extraction recovery, latest-import recovery, or manual setup
 
 /projects/{project_id}/imports/{import_id}
-    read-only review and confirm/cancel decision
+    read-only review, persisted-source retry, and confirm/cancel decision
 ```
 
 The existing New Project entry points must navigate to `/projects/new`. The wizard
@@ -194,7 +194,8 @@ Rules:
 `ProjectImport` is the durable import job. It persists `id`, `project_id`,
 `source_id`, `status`, `extraction_attempt`, `schema_version`, `model`, `draft`,
 `warnings`, `conflicts`, `created_at`, `updated_at`, `confirmed_at`, `imported_at`,
-and `error_code` directly or through the versioned draft/diagnostic fields. A
+`error_code`, and version-bound extraction retry claims directly or through the
+versioned draft/diagnostic fields. A
 worker restart resumes the exact persisted import claim; no ADK session or
 invocation state participates in recovery.
 

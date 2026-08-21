@@ -7,10 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectImportReview } from './project-import-review';
 import type { ProjectImportReviewRecord } from '@/lib/api';
 
-const { cancelProjectImport, confirmProjectImport, getProjectImport, onFinished } = vi.hoisted(() => ({
+const { cancelProjectImport, confirmProjectImport, getProjectImport, retryProjectImport, onFinished } = vi.hoisted(() => ({
   cancelProjectImport: vi.fn(),
   confirmProjectImport: vi.fn(),
   getProjectImport: vi.fn(),
+  retryProjectImport: vi.fn(),
   onFinished: vi.fn(),
 }));
 
@@ -25,7 +26,7 @@ vi.mock('@/lib/api', () => ({
       this.code = options.code;
     }
   },
-  api: { cancelProjectImport, confirmProjectImport, getProjectImport },
+  api: { cancelProjectImport, confirmProjectImport, getProjectImport, retryProjectImport },
 }));
 
 const review: ProjectImportReviewRecord = {
@@ -64,6 +65,7 @@ describe('ProjectImportReview', () => {
     getProjectImport.mockResolvedValue(review);
     cancelProjectImport.mockResolvedValue({ ...review, status: 'cancelled', version: 4 });
     confirmProjectImport.mockResolvedValue({ ...review, status: 'imported', version: 4 });
+    retryProjectImport.mockResolvedValue({ ...review, status: 'needs_review', version: 8 });
   });
 
   it('shows a compact, read-only accounting of the proposed canonical records', async () => {
@@ -81,7 +83,7 @@ describe('ProjectImportReview', () => {
     expect(screen.getByText('September 1, 2026')).toBeVisible();
     expect(screen.getByRole('row', { name: /First-floor blockwork/ })).toHaveTextContent('Masonry');
     expect(screen.getAllByText('First-floor blockwork').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('tmp_task_plastering')).toBeVisible();
+    expect(screen.getByText('Plastering')).toBeVisible();
     expect(screen.getByRole('row', { name: /Cement/ })).toHaveTextContent('10');
     expect(screen.getByRole('heading', { name: 'First-floor blockwork' })).toBeVisible();
     expect(screen.getByText('Masonry team could not be matched.')).toBeVisible();
@@ -119,12 +121,41 @@ describe('ProjectImportReview', () => {
     getProjectImport.mockResolvedValue({ ...review, status: 'validation_failed', conflicts: [{ code: 'DEPENDENCY_CYCLE', message: 'Tasks create a dependency cycle.', entity_temp_id: null, existing_reference: null, source_reference: null }] });
     render(<ProjectImportReview projectId="prj_ridge" importId="imp_ridge" onFinished={onFinished} />);
 
-    expect(await screen.findByRole('heading', { name: 'This draft has blocking conflicts.' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'OG found an issue in the extracted plan.' })).toBeVisible();
     expect(await screen.findByText('Tasks create a dependency cycle.')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Confirm & Initialize' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel Import' }));
     await waitFor(() => expect(cancelProjectImport).toHaveBeenCalledWith('prj_ridge', 'imp_ridge', 3, expect.stringMatching(/^project-import-cancel:/)));
     expect(onFinished).toHaveBeenCalledWith('cancelled');
+  });
+
+  it('explains dangling dependencies and retries from the saved source', async () => {
+    getProjectImport.mockResolvedValue({
+      ...review,
+      status: 'validation_failed',
+      version: 7,
+      retryable: true,
+      conflicts: [{
+        code: 'UNKNOWN_PREDECESSOR',
+        message: 'dependency predecessor does not exist: tmp_task_site_setting_out',
+        entity_temp_id: 'tmp_task_excavation',
+        existing_reference: null,
+        source_reference: null,
+      }],
+    });
+    render(<ProjectImportReview projectId="prj_ridge" importId="imp_ridge" onFinished={onFinished} />);
+
+    expect(await screen.findByText(/Site setting out/)).toBeVisible();
+    expect(screen.queryByText('UNKNOWN_PREDECESSOR')).not.toBeInTheDocument();
+    expect(screen.getByText(/original file is saved/i)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry extraction' }));
+
+    await waitFor(() => expect(retryProjectImport).toHaveBeenCalledWith(
+      'prj_ridge',
+      'imp_ridge',
+      7,
+      expect.stringMatching(/^project-import-retry:/),
+    ));
   });
 
   it.each([
@@ -173,7 +204,8 @@ describe('ProjectImportReview', () => {
 
     expect(await screen.findByRole('heading', { name: 'Extraction did not finish.' })).toBeVisible();
     expect(screen.getByText('Project import extraction is temporarily unavailable.')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Return to setup' })).toHaveAttribute('href', '/projects/prj_ridge/setup?method=import');
+    expect(screen.getByRole('link', { name: 'Choose a different file' })).toHaveAttribute('href', '/projects/prj_ridge/setup?method=import');
+    expect(screen.getByRole('button', { name: 'Retry extraction' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Cancel Import' })).toBeEnabled();
   });
 

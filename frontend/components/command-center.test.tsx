@@ -57,30 +57,6 @@ const snapshot = {
 describe('CommandCenter', () => {
   afterEach(cleanup);
 
-  it('guides a new project through setup before the first site update', () => {
-    render(<CommandCenter snapshot={{
-      ...snapshot,
-      activities: [],
-      report: { ...snapshot.report, date: 'No report yet' },
-    }} />);
-
-    expect(screen.queryByText('Start here')).not.toBeInTheDocument();
-    expect(screen.queryByText('Set up your first site.')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Give OG enough project context/)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Add your first task' })).toHaveAttribute(
-      'href',
-      '/projects/prj_ridge/tasks',
-    );
-    expect(screen.getByRole('link', { name: 'Add project materials' })).toHaveAttribute(
-      'href',
-      '/projects/prj_ridge/materials',
-    );
-    expect(screen.getByRole('link', { name: 'Send the first site update' })).toHaveAttribute(
-      'href',
-      '/projects/prj_ridge/site',
-    );
-  });
-
   it('summarizes project status, attention, today, and lookahead from snapshot records', () => {
     render(<CommandCenter snapshot={{
       ...snapshot,

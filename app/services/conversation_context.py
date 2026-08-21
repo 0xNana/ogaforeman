@@ -118,10 +118,16 @@ def plan_context_query(message: str) -> ContextQuery:
             domains=(ContextDomain.SCHEDULE, ContextDomain.TASKS),
             focus=ContextFocus.OVERDUE,
         )
-    if "material" in normalized and "low" in normalized:
+    if "material" in normalized:
+        if "low" in normalized:
+            return ContextQuery(
+                domains=(ContextDomain.MATERIALS, ContextDomain.MATERIAL_REQUESTS),
+                focus=ContextFocus.LOW_STOCK,
+            )
+        terms = tuple(t for t in _search_terms(normalized) if t not in {"material", "materials", "status"})
         return ContextQuery(
             domains=(ContextDomain.MATERIALS, ContextDomain.MATERIAL_REQUESTS),
-            focus=ContextFocus.LOW_STOCK,
+            search_terms=terms,
         )
     if "approval" in normalized or "needs approval" in normalized:
         return ContextQuery(

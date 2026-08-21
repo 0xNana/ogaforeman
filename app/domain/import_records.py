@@ -57,6 +57,11 @@ class ProjectImportRecord(DomainModel):
     completed_at: AwareDatetime | None = None
     extraction_idempotency_key: IdempotencyKey | None = None
     extraction_request_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    extraction_retry_idempotency_key: IdempotencyKey | None = None
+    extraction_retry_request_fingerprint: str | None = Field(
+        default=None, pattern=r"^[a-f0-9]{64}$"
+    )
+    extraction_retry_expected_version: int | None = Field(default=None, ge=0)
     extraction_lease_until: AwareDatetime | None = None
     extraction_attempt: int = Field(default=0, ge=0)
     import_attempt: int = Field(default=0, ge=0)

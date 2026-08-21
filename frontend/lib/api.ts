@@ -545,6 +545,19 @@ export const api = {
       headers: { 'Idempotency-Key': idempotencyKey },
     },
   ),
+  retryProjectImport: async (
+    projectId: string,
+    importId: string,
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<ProjectImportReviewRecord> => remote<ProjectImportReviewRecord>(
+    `/api/v1/projects/${projectId}/imports/${importId}/retry`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ expected_version: expectedVersion }),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    },
+  ),
   getPendingConversationProposal: async (projectId: string): Promise<PendingConversationProposalResult> => remote<PendingConversationProposalResult>(
     `/api/v1/projects/${projectId}/conversations/proposals/pending`,
   ),

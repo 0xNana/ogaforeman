@@ -81,7 +81,9 @@ PROJECT_IMPORT_STATUS_TRANSITIONS: Final[
         ProjectImportStatus.EXTRACTION_FAILED: frozenset(
             {ProjectImportStatus.EXTRACTING, ProjectImportStatus.CANCELLED}
         ),
-        ProjectImportStatus.VALIDATION_FAILED: frozenset({ProjectImportStatus.CANCELLED}),
+        ProjectImportStatus.VALIDATION_FAILED: frozenset(
+            {ProjectImportStatus.EXTRACTING, ProjectImportStatus.CANCELLED}
+        ),
         ProjectImportStatus.IMPORT_FAILED: frozenset(
             {ProjectImportStatus.IMPORTING, ProjectImportStatus.CANCELLED}
         ),

@@ -105,6 +105,7 @@ project, administrator membership, and `project.created` activity.
 POST /projects/{project_id}/imports
 GET  /projects/{project_id}/imports?limit=10&status=...&nonterminal=false
 GET  /projects/{project_id}/imports/{import_id}
+POST /projects/{project_id}/imports/{import_id}/retry
 POST /projects/{project_id}/imports/{import_id}/confirm
 POST /projects/{project_id}/imports/{import_id}/cancel
 ```
@@ -128,7 +129,15 @@ recovers the latest active import even when newer terminal imports exist. The
 summary returns IDs, status, optimistic version, safe failure code/message,
 retryability, timestamps, and draft entity counts; it never returns source text,
 prompts, or raw model output. Reads require active project membership; creation,
-confirmation, and cancellation require project management permission.
+retry, confirmation, and cancellation require project management permission.
+
+`POST /imports/{import_id}/retry` accepts `expected_version` and a stable
+`Idempotency-Key`. It reuses the persisted `ProjectSource` for extraction failures
+and retryable model-reference conflicts; it never requires the client to upload
+the source again. Exact replay returns the current result without another model
+call. A stale version or changed retry claim returns `409`, and canonical writes
+remain blocked until the replacement draft passes deterministic validation and
+is explicitly confirmed.
 
 The authorized detail response additionally exposes bounded diagnostics:
 `telemetry_trace_id`, prompt/model registry keys, diagnostic stage/attempt, and

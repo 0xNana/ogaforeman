@@ -120,12 +120,14 @@ describe('production API boundary', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(review), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ...review, status: 'imported', version: 4 }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ...review, status: 'cancelled', version: 4 }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...review, status: 'cancelled', version: 4 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...review, version: 5 }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await api.getProjectImport('prj_ridge', 'imp_ridge');
     await api.confirmProjectImport('prj_ridge', 'imp_ridge', 3, 'project-import-confirm:stable');
     await api.cancelProjectImport('prj_ridge', 'imp_ridge', 3, 'project-import-cancel:stable');
+    await api.retryProjectImport('prj_ridge', 'imp_ridge', 3, 'project-import-retry:stable');
 
     expect(fetchMock).toHaveBeenNthCalledWith(1,
       'https://api.example.test/api/v1/projects/prj_ridge/imports/imp_ridge',
@@ -138,6 +140,10 @@ describe('production API boundary', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(3,
       'https://api.example.test/api/v1/projects/prj_ridge/imports/imp_ridge/cancel',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ expected_version: 3 }), headers: expect.objectContaining({ 'Idempotency-Key': 'project-import-cancel:stable' }) }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(4,
+      'https://api.example.test/api/v1/projects/prj_ridge/imports/imp_ridge/retry',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ expected_version: 3 }), headers: expect.objectContaining({ 'Idempotency-Key': 'project-import-retry:stable' }) }),
     );
   });
 

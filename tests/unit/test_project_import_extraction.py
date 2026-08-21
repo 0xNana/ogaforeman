@@ -103,7 +103,9 @@ def test_project_import_status_transition_table_is_complete_and_terminal_safe() 
         ProjectImportStatus.EXTRACTION_FAILED: frozenset(
             {ProjectImportStatus.EXTRACTING, ProjectImportStatus.CANCELLED}
         ),
-        ProjectImportStatus.VALIDATION_FAILED: frozenset({ProjectImportStatus.CANCELLED}),
+        ProjectImportStatus.VALIDATION_FAILED: frozenset(
+            {ProjectImportStatus.EXTRACTING, ProjectImportStatus.CANCELLED}
+        ),
         ProjectImportStatus.IMPORT_FAILED: frozenset(
             {ProjectImportStatus.IMPORTING, ProjectImportStatus.CANCELLED}
         ),

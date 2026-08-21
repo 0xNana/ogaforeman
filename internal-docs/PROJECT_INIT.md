@@ -822,6 +822,7 @@ Implement:
 ```text
 POST /projects/{id}/imports
 GET  /projects/{id}/imports/{import_id}
+POST /projects/{id}/imports/{import_id}/retry
 POST /projects/{id}/imports/{import_id}/confirm
 POST /projects/{id}/imports/{import_id}/cancel
 ```
@@ -844,7 +845,9 @@ No mutations occur before confirmation.
 
 ## Gate
 
-A draft can be extracted, reviewed, cancelled, and discarded without changing project truth.
+A draft can be extracted, reviewed, retried from its persisted source, cancelled,
+and discarded without changing project truth. Retry is version-bound and
+idempotent; confirmation remains unavailable while deterministic conflicts exist.
 
 ---
 

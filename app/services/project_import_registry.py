@@ -9,9 +9,9 @@ from pathlib import Path
 
 @dataclass(frozen=True, slots=True)
 class ProjectImportExtractionRegistry:
-    prompt_key: str = "project_import_extraction.v2"
+    prompt_key: str = "project_import_extraction.v3"
     model_key: str = "project_import_gemini.configured"
-    prompt_file: str = "project_import_extraction_v2.txt"
+    prompt_file: str = "project_import_extraction_v3.txt"
 
     def render_prompt(self, source_text: str) -> str:
         instructions = _prompt_text(self.prompt_file)

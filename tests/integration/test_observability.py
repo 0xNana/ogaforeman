@@ -165,7 +165,7 @@ async def test_project_import_trace_and_diagnostics_span_extraction_through_comm
 
     assert confirmed.record.status is ProjectImportStatus.IMPORTED
     assert confirmed.record.telemetry_trace_id == trace_id
-    assert confirmed.record.prompt_registry_key == "project_import_extraction.v2"
+    assert confirmed.record.prompt_registry_key == "project_import_extraction.v3"
     assert confirmed.record.model_registry_key == "project_import_gemini.configured"
     assert confirmed.record.diagnostic_stage == "commit"
     assert confirmed.record.validation_outcome == "succeeded"

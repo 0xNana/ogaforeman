@@ -26,6 +26,7 @@ class ProjectImportEvalExpectation(BaseModel):
     require_unresolved_warning: bool = False
     require_task_dates_absent: bool = False
     forbid_material_requirements: bool = False
+    require_closed_dependencies: bool = False
 
 
 class ProjectImportEvalCase(BaseModel):
@@ -231,6 +232,18 @@ def evaluate_project_import_candidate(
             "ambiguous_requirement_absent",
             not candidate.material_requirements,
             "ambiguous quantities must not become material requirements",
+        )
+
+    if expected.require_closed_dependencies:
+        task_ids = {task.temp_id for task in candidate.tasks}
+        check(
+            "dependency_references",
+            all(
+                dependency.predecessor_temp_id in task_ids
+                and dependency.successor_temp_id in task_ids
+                for dependency in candidate.dependencies
+            ),
+            "every dependency endpoint must reference a task in the draft",
         )
 
     return ProjectImportEvalCaseResult(

@@ -15,16 +15,16 @@ export function ProjectImportDraftDetails({ review }: Readonly<{ review: Project
     <>
       {review.status === 'validation_failed' ? (
         <StatusBanner
-          title="This draft has blocking conflicts."
-          text="Review the conflicts below. Confirmation stays disabled until you cancel and submit corrected source content."
-          code={review.failure_code}
+          title="OG found an issue in the extracted plan."
+          text={review.retryable
+            ? 'Your original file is saved. Retry extraction so OG can rebuild the draft without uploading it again.'
+            : 'Review the items below. Nothing will be added to the project unless the draft passes validation.'}
         />
       ) : null}
       {review.status === 'import_failed' ? (
         <StatusBanner
           title="Initialization did not finish."
           text={review.failure_message ?? 'The reviewed draft is still available and can be retried safely.'}
-          code={review.failure_code}
         />
       ) : null}
 
@@ -54,8 +54,8 @@ export function ProjectImportDraftDetails({ review }: Readonly<{ review: Project
         <section className="import-review-alert" role="alert" aria-labelledby="import-conflicts-title">
           <AlertTriangle size={20} aria-hidden="true" />
           <div>
-            <h2 id="import-conflicts-title">Confirmation is blocked</h2>
-            <ul>{review.conflicts.map((conflict) => <li key={`${conflict.code}-${conflict.message}`}><strong>{conflict.code}</strong><span>{conflict.message}</span></li>)}</ul>
+            <h2 id="import-conflicts-title">What needs attention</h2>
+            <ul>{review.conflicts.map((conflict) => <li key={`${conflict.code}-${conflict.message}`}><span>{conflictMessage(conflict, taskNames)}</span></li>)}</ul>
           </div>
         </section>
       ) : null}
@@ -65,7 +65,7 @@ export function ProjectImportDraftDetails({ review }: Readonly<{ review: Project
       </ReviewSection>
 
       <ReviewSection title="Dependencies" description="Work that must finish before the next task starts">
-        {review.dependencies.length ? <ul className="import-dependency-list">{review.dependencies.map((dependency) => <li key={`${dependency.predecessor_temp_id}-${dependency.successor_temp_id}`}><strong>{taskNames.get(dependency.predecessor_temp_id) ?? dependency.predecessor_temp_id}</strong><span aria-hidden="true">→</span><strong>{taskNames.get(dependency.successor_temp_id) ?? dependency.successor_temp_id}</strong></li>)}</ul> : <p className="import-empty-copy">No dependencies will be created.</p>}
+        {review.dependencies.length ? <ul className="import-dependency-list">{review.dependencies.map((dependency) => <li key={`${dependency.predecessor_temp_id}-${dependency.successor_temp_id}`}><strong>{taskNames.get(dependency.predecessor_temp_id) ?? humanizeReference(dependency.predecessor_temp_id)}</strong><span aria-hidden="true">→</span><strong>{taskNames.get(dependency.successor_temp_id) ?? humanizeReference(dependency.successor_temp_id)}</strong></li>)}</ul> : <p className="import-empty-copy">No dependencies will be created.</p>}
       </ReviewSection>
 
       <ReviewSection title="Materials" description="Initial inventory that OG will track">
@@ -83,8 +83,8 @@ export function ProjectImportDraftDetails({ review }: Readonly<{ review: Project
   );
 }
 
-function StatusBanner({ title, text, code }: Readonly<{ title: string; text: string; code: string | null }>) {
-  return <section className="import-lifecycle-banner error" role="alert"><AlertTriangle aria-hidden="true" /><div><h2>{title}</h2><p>{text}</p>{code ? <code>{code}</code> : null}</div></section>;
+function StatusBanner({ title, text }: Readonly<{ title: string; text: string }>) {
+  return <section className="import-lifecycle-banner error" role="alert"><AlertTriangle aria-hidden="true" /><div><h2>{title}</h2><p>{text}</p></div></section>;
 }
 
 function SummaryCount({ count, label: itemLabel }: Readonly<{ count: number; label: string }>) { const text = `${count} ${itemLabel}${count === 1 ? '' : 's'}`; return <div aria-label={text}><strong>{count}</strong><span>{itemLabel}{count === 1 ? '' : 's'}</span></div>; }
@@ -94,3 +94,23 @@ function ProjectDetail({ label: detailLabel, value }: Readonly<{ label: string; 
 function dateRange(start: string | null, finish: string | null) { return start && finish ? `${start} – ${finish}` : start ?? finish ?? 'Not specified'; }
 function formatDate(value: string | null) { return value ? new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) : 'Not specified'; }
 function label(value: string) { return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()); }
+
+function humanizeReference(value: string): string {
+  const words = value.replace(/^tmp_(task|material|phase)_/, '').replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function conflictMessage(
+  conflict: ProjectImportReviewRecord['conflicts'][number],
+  taskNames: Map<string, string>,
+): string {
+  if (conflict.code === 'UNKNOWN_PREDECESSOR') {
+    const reference = conflict.message.split(':').at(-1)?.trim() ?? '';
+    return `OG found “${taskNames.get(reference) ?? humanizeReference(reference)}” as a prerequisite, but it was not included as a task in this draft.`;
+  }
+  if (conflict.code === 'UNKNOWN_SUCCESSOR') {
+    const reference = conflict.message.split(':').at(-1)?.trim() ?? '';
+    return `OG found a dependency leading to “${taskNames.get(reference) ?? humanizeReference(reference)}”, but that task was not included in this draft.`;
+  }
+  return conflict.message;
+}

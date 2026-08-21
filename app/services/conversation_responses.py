@@ -119,6 +119,10 @@ class ConversationResponseService:
             return _risk(context)
         if domains == {ContextDomain.ISSUES, ContextDomain.TASKS}:
             return _blockers(context)
+        if domains == {ContextDomain.MATERIALS, ContextDomain.MATERIAL_REQUESTS}:
+            if context.query.search_terms:
+                return _entity_status(context)
+            return _material_status(context)
         if context.query.search_terms:
             return _entity_status(context)
         return _overview(context)
@@ -284,6 +288,19 @@ def _schedule(
         titles = ", ".join(task.title for task in shown)
         text = f"{'Overdue' if overdue else 'Planned for tomorrow'}: {titles}."
     return _project_reply(text, (task.id for task in shown))
+
+
+def _material_status(context: ConversationalProjectContext) -> ConversationReply:
+    if not context.materials:
+        return _project_reply("I don't see any materials being tracked for this project.")
+    shown = context.materials[:3]
+    return _project_reply(
+        " ".join(
+            f"We have {_quantity(item.available_quantity)} {item.unit} of {item.name}."
+            for item in shown
+        ),
+        (item.id for item in shown),
+    )
 
 
 def _materials(context: ConversationalProjectContext) -> ConversationReply:

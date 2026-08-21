@@ -35,6 +35,10 @@
       "host": "127.0.0.1",
       "port": 9199
     },
+    "pubsub": {
+      "host": "127.0.0.1",
+      "port": 8085
+    },
     "ui": {
       "enabled": false
     }

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.authorization import ProjectAccessContext, ProjectPermission, ensure_permission
 from app.domain.enums import ActorType
-from app.domain.import_records import ProjectImportRecord
+from app.domain.import_records import ProjectImportRecord, ProjectSource, ProjectSourceStatus
 from app.domain.project_import import (
     ProjectImportDraft,
     ProjectImportStatus,
@@ -89,6 +89,33 @@ class ProjectImportReviewResult:
     should_validate: bool = False
 
 
+_RETRYABLE_VALIDATION_CONFLICTS = frozenset(
+    {
+        "DEPENDENCY_CYCLE",
+        "DUPLICATE_DEPENDENCY",
+        "DUPLICATE_TEMP_ID",
+        "SELF_DEPENDENCY",
+        "UNKNOWN_PREDECESSOR",
+        "UNKNOWN_REQUIREMENT_MATERIAL",
+        "UNKNOWN_REQUIREMENT_TASK",
+        "UNKNOWN_SUCCESSOR",
+        "UNKNOWN_TASK_PHASE",
+    }
+)
+
+
+def is_project_import_retryable(record: ProjectImportRecord) -> bool:
+    if record.status in {
+        ProjectImportStatus.EXTRACTION_FAILED,
+        ProjectImportStatus.IMPORT_FAILED,
+    }:
+        return True
+    if record.status is not ProjectImportStatus.VALIDATION_FAILED or record.draft is None:
+        return False
+    codes = {conflict.code for conflict in record.draft.conflicts}
+    return bool(codes) and codes <= _RETRYABLE_VALIDATION_CONFLICTS
+
+
 class ProjectImportReviewService:
     """Persist review-only import drafts until an explicit confirmation commits them."""
 
@@ -156,10 +183,71 @@ class ProjectImportReviewService:
             )
 
         claimed = self._claim_extraction_or_replay(access, import_id=import_id)
+        return await self._extract_claimed_source(
+            access,
+            claimed=claimed,
+            source_text=source.text,
+            trace_id=import_trace_id,
+        )
+
+    async def retry_extraction(
+        self,
+        access: ProjectAccessContext,
+        *,
+        import_id: str,
+        expected_version: int,
+        idempotency_key: str,
+    ) -> ProjectImportReviewResult:
+        ensure_permission(access, ProjectPermission.MANAGE)
+        record = self.get(access, import_id)
+        if record.extraction_retry_idempotency_key == idempotency_key:
+            return self._claim_extraction_retry(
+                access,
+                import_id=import_id,
+                expected_version=expected_version,
+                idempotency_key=idempotency_key,
+            )
+        source = _authorized_repository(self._store, ProjectSource, access).get(
+            access.project_id, record.source_id
+        )
+        if (
+            source is None
+            or source.status is not ProjectSourceStatus.ACTIVE
+            or not source.content_text
+        ):
+            raise ProjectImportReviewStateError(
+                "project import source is unavailable for extraction retry"
+            )
+        claimed = self._claim_extraction_retry(
+            access,
+            import_id=import_id,
+            expected_version=expected_version,
+            idempotency_key=idempotency_key,
+        )
+        if not claimed.should_extract:
+            return claimed
+        trace_id = record.telemetry_trace_id or current_context().trace_id or new_trace_id()
+        return await self._extract_claimed_source(
+            access,
+            claimed=claimed,
+            source_text=source.content_text,
+            trace_id=trace_id,
+        )
+
+    async def _extract_claimed_source(
+        self,
+        access: ProjectAccessContext,
+        *,
+        claimed: ProjectImportReviewResult,
+        source_text: str,
+        trace_id: str,
+    ) -> ProjectImportReviewResult:
+        import_id = claimed.record.id
+        source_id = claimed.record.source_id
         extraction_attempt = claimed.record.extraction_attempt
         with self._telemetry.observe(
             stage=ProjectImportStage.EXTRACTION,
-            trace_id=import_trace_id,
+            trace_id=trace_id,
             project_id=access.project_id,
             import_id=import_id,
             attempt=extraction_attempt,
@@ -182,7 +270,7 @@ class ProjectImportReviewService:
                         project_id=access.project_id,
                         import_id=import_id,
                         source_id=source_id,
-                        source_text=source.text,
+                        source_text=source_text,
                     )
                     try:
                         self._ensure_draft_scope(draft, access, import_id, source_id)
@@ -510,6 +598,9 @@ class ProjectImportReviewService:
                         "extraction_attempt": attempt,
                         "diagnostic_stage": ProjectImportStage.EXTRACTION.value,
                         "diagnostic_attempt": attempt,
+                        "prompt_registry_key": PROJECT_IMPORT_EXTRACTION.prompt_key,
+                        "model_registry_key": PROJECT_IMPORT_EXTRACTION.model_key,
+                        "model": _extractor_model_id(self._extractor),
                         "failure_code": None,
                         "failure_message": None,
                         "updated_at": now,
@@ -538,6 +629,89 @@ class ProjectImportReviewService:
             return ProjectImportReviewResult(
                 record=extracting,
                 replayed=record.status is ProjectImportStatus.EXTRACTION_FAILED,
+                should_extract=True,
+            )
+
+        return self._store.run_transaction(operation)
+
+    def _claim_extraction_retry(
+        self,
+        access: ProjectAccessContext,
+        *,
+        import_id: str,
+        expected_version: int,
+        idempotency_key: str,
+    ) -> ProjectImportReviewResult:
+        now = datetime.now(UTC)
+        lease_until = now + timedelta(minutes=5)
+        request_fingerprint = sha256(
+            f"{import_id}\x00{idempotency_key}\x00{expected_version}".encode()
+        ).hexdigest()
+
+        def operation(session: RepositorySession) -> ProjectImportReviewResult:
+            imports = _authorized_repository(session, ProjectImportRecord, access)
+            record = imports.require(access.project_id, import_id)
+            if record.extraction_retry_idempotency_key == idempotency_key:
+                if (
+                    record.extraction_retry_request_fingerprint != request_fingerprint
+                    or record.extraction_retry_expected_version != expected_version
+                ):
+                    raise ProjectImportReviewStateError(
+                        "project import retry claim does not match its original request"
+                    )
+                return ProjectImportReviewResult(record=record, replayed=True)
+            if record.version != expected_version:
+                raise VersionConflictError(
+                    f"expected version {expected_version}, found {record.version}"
+                )
+            if (
+                not is_project_import_retryable(record)
+                or record.status is ProjectImportStatus.IMPORT_FAILED
+            ):
+                raise ProjectImportReviewStateError(
+                    f"project import cannot retry extraction from {record.status.value}"
+                )
+            ensure_project_import_transition(record.status, ProjectImportStatus.EXTRACTING)
+            attempt = record.extraction_attempt + 1
+            extracting = imports.save(
+                record.model_copy(
+                    update={
+                        "status": ProjectImportStatus.EXTRACTING,
+                        "draft": None,
+                        "reviewed_at": None,
+                        "extraction_retry_idempotency_key": idempotency_key,
+                        "extraction_retry_request_fingerprint": request_fingerprint,
+                        "extraction_retry_expected_version": expected_version,
+                        "extraction_lease_until": lease_until,
+                        "extraction_attempt": attempt,
+                        "failure_code": None,
+                        "failure_message": None,
+                        "diagnostic_stage": ProjectImportStage.EXTRACTION.value,
+                        "diagnostic_attempt": attempt,
+                        "validation_outcome": None,
+                        "phase_count": 0,
+                        "task_count": 0,
+                        "material_count": 0,
+                        "requirement_count": 0,
+                        "updated_at": now,
+                    }
+                ),
+                expected_version=record.version,
+            )
+            _activity(
+                session,
+                access,
+                idempotency_key=(
+                    f"project-import:{import_id}:extraction-retry:{request_fingerprint[:32]}"
+                ),
+                action="project.import.extraction_retried",
+                entity_id=import_id,
+                summary="Retried project import extraction from the persisted source.",
+                metadata={"source_id": record.source_id, "attempt": attempt},
+                occurred_at=now,
+            )
+            return ProjectImportReviewResult(
+                record=extracting,
                 should_extract=True,
             )
 
@@ -580,7 +754,9 @@ class ProjectImportReviewService:
             _activity(
                 session,
                 access,
-                idempotency_key=f"project-import:{draft.id}:draft-created",
+                idempotency_key=(
+                    f"project-import:{draft.id}:draft-created:{expected_extraction_attempt}"
+                ),
                 action="project.import.draft_created",
                 entity_id=draft.id,
                 summary="Persisted the extracted project import draft.",
@@ -669,7 +845,9 @@ class ProjectImportReviewService:
             _activity(
                 session,
                 access,
-                idempotency_key=f"project-import:{import_id}:validation-started",
+                idempotency_key=(
+                    f"project-import:{import_id}:validation-started:{record.extraction_attempt}"
+                ),
                 action="project.import.validation_started",
                 entity_id=import_id,
                 summary="Started deterministic project import validation.",
@@ -748,7 +926,9 @@ class ProjectImportReviewService:
             _activity(
                 session,
                 access,
-                idempotency_key=f"project-import:{import_id}:validated",
+                idempotency_key=(
+                    f"project-import:{import_id}:validated:{record.extraction_attempt}"
+                ),
                 action=(
                     "project.import.validation_failed"
                     if review_status is ProjectImportStatus.VALIDATION_FAILED
@@ -866,7 +1046,9 @@ class ProjectImportReviewService:
             _activity(
                 session,
                 access,
-                idempotency_key=f"project-import:{import_id}:validation-error",
+                idempotency_key=(
+                    f"project-import:{import_id}:validation-error:{record.extraction_attempt}"
+                ),
                 action="project.import.validation_failed",
                 entity_id=import_id,
                 summary="Project import validation failed before review was available.",
@@ -993,4 +1175,5 @@ __all__ = [
     "ProjectImportReviewResult",
     "ProjectImportReviewService",
     "ProjectImportReviewStateError",
+    "is_project_import_retryable",
 ]

@@ -38,6 +38,18 @@ class UnexpectedExtractor:
         raise AssertionError("restart must resume the persisted draft without model extraction")
 
 
+class RetryExtractor:
+    async def extract(self, **kwargs: object) -> ProjectImportDraft:
+        return ProjectImportDraft(
+            id=str(kwargs["import_id"]),
+            project_id=str(kwargs["project_id"]),
+            source_id=str(kwargs["source_id"]),
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            project={"name": "Restart residence"},
+            tasks=[{"temp_id": "tmp_task_foundation", "name": "Foundation"}],
+        )
+
+
 def _access() -> ProjectAccessContext:
     return ProjectAccessContext(
         actor=AuthenticatedUser(user_id="usr_admin123", subject="restart-test"),
@@ -109,6 +121,71 @@ async def test_validation_resumes_from_firestore_draft_after_fresh_client_restar
     assert final.status is ProjectImportStatus.NEEDS_REVIEW
     assert final.draft is not None
     assert final.draft.tasks[0].name == "Foundation"
+
+
+@pytest.mark.asyncio
+async def test_reference_retry_reuses_firestore_source_and_claim_after_restart() -> None:
+    cloud_project = f"oga-project-import-retry-{uuid4().hex}"
+    retry_key = "project-import-firestore-reference-retry"
+    initial = FirestoreRepositoryStore(firestore.Client(project=cloud_project))
+    ProjectSourceService(initial).persist_text(
+        _access(),
+        source_id=SOURCE_ID,
+        name="restart-plan.md",
+        text="Task: Foundation depends on Site setting out",
+        source_type=SourceType.MARKDOWN,
+    )
+    invalid_data = _draft(ProjectImportStatus.VALIDATION_FAILED).model_dump()
+    invalid_data["conflicts"] = [
+        {
+            "code": "UNKNOWN_PREDECESSOR",
+            "message": (
+                "dependency predecessor does not exist: "
+                "tmp_task_site_setting_out"
+            ),
+        }
+    ]
+    invalid = ProjectImportDraft.model_validate(invalid_data)
+    initial.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=IMPORT_ID,
+            project_id=PROJECT_ID,
+            source_id=SOURCE_ID,
+            status=ProjectImportStatus.VALIDATION_FAILED,
+            draft=invalid,
+            extraction_attempt=1,
+        )
+    )
+
+    restarted = ProjectImportReviewService(
+        FirestoreRepositoryStore(firestore.Client(project=cloud_project)),
+        RetryExtractor(),
+    )
+    retried = await restarted.retry_extraction(
+        _access(),
+        import_id=IMPORT_ID,
+        expected_version=0,
+        idempotency_key=retry_key,
+    )
+    replayed = await ProjectImportReviewService(
+        FirestoreRepositoryStore(firestore.Client(project=cloud_project)),
+        UnexpectedExtractor(),
+    ).retry_extraction(
+        _access(),
+        import_id=IMPORT_ID,
+        expected_version=0,
+        idempotency_key=retry_key,
+    )
+
+    final = FirestoreRepositoryStore(
+        firestore.Client(project=cloud_project)
+    ).repository(ProjectImportRecord).require(PROJECT_ID, IMPORT_ID)
+    assert retried.record.status is ProjectImportStatus.NEEDS_REVIEW
+    assert replayed.replayed is True
+    assert final.extraction_attempt == 2
+    assert final.extraction_retry_idempotency_key == retry_key
+    assert final.draft is not None
+    assert final.draft.conflicts == []
 
 
 def test_canonical_commit_resumes_from_firestore_importing_after_fresh_client_restart() -> None:

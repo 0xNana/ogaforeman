@@ -222,6 +222,34 @@ def test_eval_fails_closed_when_ambiguous_quantity_becomes_a_requirement() -> No
     assert failed == {"ambiguous_requirement_absent", "unresolved_warning"}
 
 
+def test_eval_fails_when_a_dependency_references_an_absent_task() -> None:
+    case = ProjectImportEvalCase.model_validate(
+        {
+            "id": "dangling-dependency",
+            "category": "dependency_reference",
+            "source": "Excavation depends on site setting out",
+            "expected": {"require_closed_dependencies": True},
+        }
+    )
+    payload = _candidate().model_dump()
+    payload["dependencies"] = [
+        {
+            "predecessor_temp_id": "tmp_task_site_setting_out",
+            "successor_temp_id": "tmp_task_plastering",
+        }
+    ]
+
+    result = evaluate_project_import_candidate(
+        case,
+        ProjectImportCandidate.model_validate(payload),
+    )
+
+    assert result.passed is False
+    assert [item.name for item in result.assertions if not item.passed] == [
+        "dependency_references"
+    ]
+
+
 @pytest.mark.asyncio
 async def test_report_records_registry_model_time_sha_and_assertions() -> None:
     dataset = load_project_import_dataset(Path("evals/project_import_v1.json"))
@@ -234,7 +262,7 @@ async def test_report_records_registry_model_time_sha_and_assertions() -> None:
     )
 
     assert report.passed is True
-    assert report.prompt_registry_key == "project_import_extraction.v2"
+    assert report.prompt_registry_key == "project_import_extraction.v3"
     assert report.model_registry_key == "project_import_gemini.configured"
     assert report.model_id == "fixture-model"
     assert report.generated_at.tzinfo is not None

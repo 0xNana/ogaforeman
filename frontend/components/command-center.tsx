@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, ArrowRight, Camera, CheckCircle2, CircleDot, ClipboardList, FileText, MessageSquareText, Mic, Package } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Camera, CheckCircle2, CircleDot, FileText, Mic, Package } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -43,8 +43,6 @@ export function CommandCenter({ snapshot }: Readonly<{ snapshot: ProjectSnapshot
           description={`${snapshot.project.location} · ${formatStatus(snapshot.project.status)}`}
           actions={<Link href={`/projects/${snapshot.project.id}/reports`} className="btn btn-quiet btn-small"><FileText size={15} aria-hidden="true" /> Daily report</Link>}
         />
-
-      {snapshot.report.date === 'No report yet' ? <FirstSiteSetup snapshot={snapshot} /> : null}
 
       <dl className="overview-status" aria-label="Project status metrics">
         <Metric label="Overall progress" value={`${progress}%`} />
@@ -158,13 +156,4 @@ function getInsight(snapshot: ProjectSnapshot) {
 
 function formatStatus(status: string) {
   return status.toLowerCase().replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
-}
-
-function FirstSiteSetup({ snapshot }: Readonly<{ snapshot: ProjectSnapshot }>) {
-  const steps = [
-    { complete: snapshot.tasks.length > 0, description: 'Add the jobs and milestones OG should recognize in site updates.', href: `/projects/${snapshot.project.id}/tasks`, icon: ClipboardList, label: 'Add your first task' },
-    { complete: snapshot.materials.length > 0, description: 'Record stock names, units and minimum quantities before reporting usage.', href: `/projects/${snapshot.project.id}/materials`, icon: Package, label: 'Add project materials' },
-    { complete: false, description: 'Tell OG what happened today by text, voice, photo or file.', href: `/projects/${snapshot.project.id}/site`, icon: MessageSquareText, label: 'Send the first site update' },
-  ];
-  return <section className="first-site-setup" aria-label="Project setup"><ol className="first-site-steps">{steps.map(({ complete, description, href, icon: Icon, label }, index) => <li className={complete ? 'complete' : undefined} key={label}><span className="first-site-step-number" aria-hidden="true">{complete ? <CheckCircle2 size={18} /> : index + 1}</span><span className="first-site-step-copy"><strong>{label}</strong><span>{description}</span></span><Link className="btn btn-quiet btn-small" href={href}>{complete ? 'Review' : label} <ArrowRight size={14} aria-hidden="true" /></Link></li>)}</ol></section>;
 }

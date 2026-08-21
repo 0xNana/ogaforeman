@@ -38,6 +38,7 @@ from app.services.project_import_review import (
     ProjectImportReviewResult,
     ProjectImportReviewService,
     ProjectImportReviewStateError,
+    is_project_import_retryable,
 )
 from app.services.project_import_validation import ProjectImportValidationError
 from app.services.project_import import (
@@ -210,7 +211,7 @@ def _response(result: ProjectImportReviewResult) -> ProjectImportReviewResponse:
         diagnostic_attempt=record.diagnostic_attempt,
         validation_outcome=record.validation_outcome,
         commit_outcome=record.commit_outcome,
-        retryable=_is_retryable(record.status),
+        retryable=is_project_import_retryable(record),
         created_at=record.created_at,
         updated_at=record.updated_at,
         phase_count=len(draft.phases) if draft is not None else record.phase_count,
@@ -232,7 +233,7 @@ def _summary(record: ProjectImportRecord) -> ProjectImportSummaryResponse:
         version=record.version,
         failure_code=record.failure_code,
         failure_message=record.failure_message,
-        retryable=_is_retryable(record.status),
+        retryable=is_project_import_retryable(record),
         created_at=record.created_at,
         updated_at=record.updated_at,
         phase_count=len(draft.phases) if draft is not None else record.phase_count,
@@ -242,13 +243,6 @@ def _summary(record: ProjectImportRecord) -> ProjectImportSummaryResponse:
             len(draft.material_requirements) if draft is not None else record.requirement_count
         ),
     )
-
-
-def _is_retryable(import_status: ProjectImportStatus) -> bool:
-    return import_status in {
-        ProjectImportStatus.EXTRACTION_FAILED,
-        ProjectImportStatus.IMPORT_FAILED,
-    }
 
 
 def _import_id(project_id: str, idempotency_key: str) -> str:
@@ -417,6 +411,55 @@ async def confirm_import(
         raise ApiError(
             "PROJECT_IMPORT_VALIDATION_FAILED",
             "Project import has validation conflicts that must be resolved first.",
+            status_code=422,
+        ) from exc
+    return _response(result)
+
+
+@router.post("/{import_id}/retry", response_model=ProjectImportReviewResponse)
+async def retry_import_extraction(
+    project_id: str,
+    import_id: str,
+    payload: ProjectImportDecisionRequest,
+    request: Request,
+) -> ProjectImportReviewResponse:
+    access = configured_project_access(request, project_id, ProjectPermission.MANAGE)
+    idempotency_key = require_idempotency_key(request)
+    service = _review_service(request)
+    try:
+        record = service.get(access, import_id)
+        replaying_claim = (
+            record.extraction_retry_idempotency_key == idempotency_key
+            and record.extraction_retry_expected_version == payload.expected_version
+        )
+        if not replaying_claim:
+            _enforce_extraction_rate_limit(request, access)
+        result = await service.retry_extraction(
+            access,
+            import_id=import_id,
+            expected_version=payload.expected_version,
+            idempotency_key=idempotency_key,
+        )
+    except ProjectImportReviewNotFoundError as exc:
+        raise _not_found(exc) from exc
+    except ProjectImportReviewStateError as exc:
+        raise _state_conflict(exc) from exc
+    except VersionConflictError as exc:
+        raise ApiError(
+            "PROJECT_IMPORT_VERSION_CONFLICT",
+            "Project import changed; reload the review and try again.",
+            status_code=409,
+        ) from exc
+    except ProjectImportDependencyUnavailableError as exc:
+        raise ApiError(
+            exc.code,
+            "Project import extraction is temporarily unavailable.",
+            status_code=503,
+        ) from exc
+    except ProjectImportExtractionError as exc:
+        raise ApiError(
+            exc.code,
+            "The extraction result could not be safely scoped to this import.",
             status_code=422,
         ) from exc
     return _response(result)
