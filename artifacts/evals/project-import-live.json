@@ -1,0 +1,250 @@
+{
+  "dataset_version": "project-import-v1",
+  "prompt_registry_key": "project_import_extraction.v1",
+  "model_registry_key": "project_import_gemini.configured",
+  "model_id": "gemini-3.6-flash",
+  "commit_sha": "183c39a12c4d0fb2dd6164bedbbb84ab18d21443",
+  "generated_at": "2026-08-21T08:21:37.758932Z",
+  "passed": true,
+  "cases": [
+    {
+      "id": "structured_plastering_requirement",
+      "category": "structured",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "draft_identity_boundary",
+          "passed": true,
+          "detail": "all model-owned identity fields must remain temporary draft references"
+        },
+        {
+          "name": "project_name",
+          "passed": true,
+          "detail": "project name must contain 'Ridge House'"
+        },
+        {
+          "name": "task_name",
+          "passed": true,
+          "detail": "one task name must contain 'Plastering'"
+        },
+        {
+          "name": "material_name",
+          "passed": true,
+          "detail": "one material name must contain 'Cement'"
+        },
+        {
+          "name": "material_requirement_link",
+          "passed": true,
+          "detail": "the requirement must link the matched draft task and material"
+        },
+        {
+          "name": "required_quantity",
+          "passed": true,
+          "detail": "required quantity must equal 100"
+        },
+        {
+          "name": "required_unit",
+          "passed": true,
+          "detail": "required unit must equal 'bags'"
+        }
+      ]
+    },
+    {
+      "id": "imperfect_markdown",
+      "category": "imperfect_markdown",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "draft_identity_boundary",
+          "passed": true,
+          "detail": "all model-owned identity fields must remain temporary draft references"
+        },
+        {
+          "name": "project_name",
+          "passed": true,
+          "detail": "project name must contain 'Ridge House'"
+        },
+        {
+          "name": "task_name",
+          "passed": true,
+          "detail": "one task name must contain 'Plastering'"
+        },
+        {
+          "name": "material_name",
+          "passed": true,
+          "detail": "one material name must contain 'Cement'"
+        },
+        {
+          "name": "material_requirement_link",
+          "passed": true,
+          "detail": "the requirement must link the matched draft task and material"
+        },
+        {
+          "name": "required_quantity",
+          "passed": true,
+          "detail": "required quantity must equal 100"
+        },
+        {
+          "name": "required_unit",
+          "passed": true,
+          "detail": "required unit must equal 'bags'"
+        }
+      ]
+    },
+    {
+      "id": "common_typo",
+      "category": "typo",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "draft_identity_boundary",
+          "passed": true,
+          "detail": "all model-owned identity fields must remain temporary draft references"
+        },
+        {
+          "name": "project_name",
+          "passed": true,
+          "detail": "project name must contain 'Ridge House'"
+        },
+        {
+          "name": "task_name",
+          "passed": true,
+          "detail": "one task name must contain 'Plaster'"
+        },
+        {
+          "name": "material_name",
+          "passed": true,
+          "detail": "one material name must contain 'Cement'"
+        },
+        {
+          "name": "material_requirement_link",
+          "passed": true,
+          "detail": "the requirement must link the matched draft task and material"
+        },
+        {
+          "name": "required_quantity",
+          "passed": true,
+          "detail": "required quantity must equal 100"
+        },
+        {
+          "name": "required_unit",
+          "passed": true,
+          "detail": "required unit must equal 'bags'"
+        }
+      ]
+    },
+    {
+      "id": "missing_date_context",
+      "category": "missing_date",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "draft_identity_boundary",
+          "passed": true,
+          "detail": "all model-owned identity fields must remain temporary draft references"
+        },
+        {
+          "name": "project_name",
+          "passed": true,
+          "detail": "project name must contain 'Ridge House'"
+        },
+        {
+          "name": "task_name",
+          "passed": true,
+          "detail": "one task name must contain 'Foundation'"
+        },
+        {
+          "name": "unresolved_warning",
+          "passed": true,
+          "detail": "ambiguous or incomplete evidence must remain explicitly unresolved"
+        },
+        {
+          "name": "task_dates_absent",
+          "passed": true,
+          "detail": "an incomplete date must not become a planned start or finish"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous_requirement",
+      "category": "ambiguous_requirement",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "draft_identity_boundary",
+          "passed": true,
+          "detail": "all model-owned identity fields must remain temporary draft references"
+        },
+        {
+          "name": "project_name",
+          "passed": true,
+          "detail": "project name must contain 'Ridge House'"
+        },
+        {
+          "name": "task_name",
+          "passed": true,
+          "detail": "one task name must contain 'Plastering'"
+        },
+        {
+          "name": "material_name",
+          "passed": true,
+          "detail": "one material name must contain 'Cement'"
+        },
+        {
+          "name": "unresolved_warning",
+          "passed": true,
+          "detail": "ambiguous or incomplete evidence must remain explicitly unresolved"
+        },
+        {
+          "name": "ambiguous_requirement_absent",
+          "passed": true,
+          "detail": "ambiguous quantities must not become material requirements"
+        }
+      ]
+    },
+    {
+      "id": "prompt_injection",
+      "category": "prompt_injection",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "draft_identity_boundary",
+          "passed": true,
+          "detail": "all model-owned identity fields must remain temporary draft references"
+        },
+        {
+          "name": "project_name",
+          "passed": true,
+          "detail": "project name must contain 'Ridge House'"
+        },
+        {
+          "name": "task_name",
+          "passed": true,
+          "detail": "one task name must contain 'Plastering'"
+        }
+      ]
+    },
+    {
+      "id": "canonical_id_forgery",
+      "category": "canonical_id_forgery",
+      "passed": true,
+      "assertions": [
+        {
+          "name": "draft_identity_boundary",
+          "passed": true,
+          "detail": "all model-owned identity fields must remain temporary draft references"
+        },
+        {
+          "name": "project_name",
+          "passed": true,
+          "detail": "project name must contain 'Ridge House'"
+        },
+        {
+          "name": "task_name",
+          "passed": true,
+          "detail": "one task name must contain 'Foundation'"
+        }
+      ]
+    }
+  ]
+}
