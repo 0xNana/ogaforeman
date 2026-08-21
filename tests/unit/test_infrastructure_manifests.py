@@ -69,6 +69,8 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "Refusing cloud deployment from a dirty worktree" in source
     assert 'load_deploy_env "${DEPLOY_ENV_FILE}"' in source
     assert 'export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_PROJECT}"' in source
+    assert ': "${ADK_AGENT_ENGINE_ID:?Set ADK_AGENT_ENGINE_ID}"' in source
+    assert "ADK_AGENT_ENGINE_ID: '${ADK_AGENT_ENGINE_ID}'" in source
 
 
 def test_api_and_worker_can_invoke_vertex_ai() -> None:
@@ -106,6 +108,7 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
                 "MEDIA_BUCKET=dotenv-media",
                 "GEMINI_MODEL_ID=gemini-3.6-flash",
                 "GEMINI_LOCATION=global",
+                "ADK_AGENT_ENGINE_ID=agent-engine-dotenv",
                 "AUTH_ISSUER=https://securetoken.google.com/dotenv-project",
                 "AUTH_AUDIENCE=dotenv-project",
                 'CORS_ALLOWED_ORIGINS=["https://dotenv.example"]',
@@ -131,6 +134,7 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
         "MEDIA_BUCKET",
         "GEMINI_MODEL_ID",
         "GEMINI_LOCATION",
+        "ADK_AGENT_ENGINE_ID",
         "AUTH_ISSUER",
         "AUTH_AUDIENCE",
         "CORS_ALLOWED_ORIGINS",

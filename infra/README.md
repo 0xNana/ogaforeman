@@ -44,6 +44,7 @@ export FIRESTORE_LOCATION=your-approved-firestore-location
 export MEDIA_BUCKET=oga-staging-media
 export GEMINI_MODEL_ID=gemini-3.6-flash
 export GEMINI_LOCATION=global
+export ADK_AGENT_ENGINE_ID=your-agent-engine-id
 export CONVERSATION_PROPOSAL_SIGNING_SECRET=oga-conversation-proposal-signing-key-staging
 export AUTH_ISSUER=https://securetoken.google.com/oga-staging
 export AUTH_AUDIENCE=oga-staging

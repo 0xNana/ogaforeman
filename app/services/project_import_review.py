@@ -272,6 +272,7 @@ class ProjectImportReviewService:
                         source_id=source_id,
                         source_text=source_text,
                     )
+                    draft = self._scope_extracted_draft(draft, access, import_id, source_id)
                     try:
                         self._ensure_draft_scope(draft, access, import_id, source_id)
                     except ValueError as exc:
@@ -1084,6 +1085,37 @@ class ProjectImportReviewService:
             reference is not None and reference.source_id != source_id for reference in references
         ):
             raise ValueError("extracted provenance must use the authorized source")
+
+    @staticmethod
+    def _scope_extracted_draft(
+        draft: ProjectImportDraft,
+        access: ProjectAccessContext,
+        import_id: str,
+        source_id: str,
+    ) -> ProjectImportDraft:
+        """Keep import/source identity owned by persisted application state."""
+
+        scoped = draft.model_copy(
+            update={
+                "id": import_id,
+                "project_id": access.project_id,
+                "source_id": source_id,
+            },
+            deep=True,
+        )
+        for item in (
+            list(scoped.tasks)
+            + list(scoped.dependencies)
+            + list(scoped.materials)
+            + list(scoped.material_requirements)
+            + list(scoped.milestones)
+            + list(scoped.warnings)
+            + list(scoped.conflicts)
+        ):
+            reference = item.source_reference
+            if reference is not None and reference.source_id != source_id:
+                item.source_reference = reference.model_copy(update={"source_id": source_id})
+        return scoped
 
 
 def _translate_extraction_failure(error: Exception) -> Exception:

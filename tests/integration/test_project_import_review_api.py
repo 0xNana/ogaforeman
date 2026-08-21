@@ -27,6 +27,7 @@ from app.domain.project_import import (
     ImportConflict,
     ProjectImportDraft,
     ProjectImportStatus,
+    SourceReference,
     SourceType,
 )
 from app.repositories.memory import InMemoryRepositoryStore
@@ -123,6 +124,30 @@ class MalformedOutputDraftExtractor:
     async def extract(self, **kwargs) -> ProjectImportDraft:
         del kwargs
         raise ProjectImportModelOutputInvalidError("private malformed model output")
+
+
+class ModelIdentityDraftExtractor(FixedDraftExtractor):
+    async def extract(self, **kwargs) -> ProjectImportDraft:
+        draft = await super().extract(**kwargs)
+        return draft.model_copy(
+            update={
+                "id": "imp_model_supplied123",
+                "project_id": "prj_model_supplied123",
+                "source_id": "src_model_supplied123",
+                "tasks": [
+                    draft.tasks[0].model_copy(
+                        update={
+                            "source_reference": SourceReference(
+                                source_id="src_model_supplied123",
+                                source_type=SourceType.MARKDOWN,
+                                source_name="model.md",
+                            )
+                        }
+                    ),
+                    *draft.tasks[1:],
+                ],
+            }
+        )
 
 
 class PromptInjectionDraftExtractor:
@@ -856,6 +881,32 @@ async def test_malformed_model_output_creates_no_canonical_records() -> None:
     assert record.failure_code == "extraction_invalid"
     assert record.draft is None
     assert _canonical_counts(store) == (0, 0, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_model_supplied_import_identity_is_rescoped_to_persisted_source() -> None:
+    store = InMemoryRepositoryStore()
+    app = make_app_with_extractor(store, ModelIdentityDraftExtractor())
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/imports",
+            json={"source_name": "ridge-house.md", "source_text": "Task: Foundation"},
+            headers={"Idempotency-Key": "project-import-model-identity:create"},
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    record = store.repository(ProjectImportRecord).require(PROJECT_ID, body["id"])
+    assert body["id"] != "imp_model_supplied123"
+    assert body["source_id"] != "src_model_supplied123"
+    assert record.draft is not None
+    assert record.draft.id == record.id
+    assert record.draft.project_id == PROJECT_ID
+    assert record.draft.source_id == record.source_id
+    assert record.draft.tasks[0].source_reference is not None
+    assert record.draft.tasks[0].source_reference.source_id == record.source_id
 
 
 @pytest.mark.asyncio

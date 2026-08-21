@@ -182,6 +182,7 @@ class Settings(BaseSettings):
                 "gemini_model_id",
                 "gemini_location",
                 "conversation_proposal_signing_key",
+                "adk_agent_engine_id",
                 "auth_issuer",
                 "auth_audience",
                 "cors_allowed_origins",
