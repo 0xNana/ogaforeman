@@ -536,6 +536,8 @@ def test_approved_material_continuation_completes_after_firestore_restart() -> N
             status=AgentRunStatus.WAITING_FOR_APPROVAL,
             trace_id="trc_material123",
             started_at=NOW,
+            adk_session_id="ses_123",
+            adk_invocation_id="inv_123",
         )
     )
     access = ProjectAccessContext(

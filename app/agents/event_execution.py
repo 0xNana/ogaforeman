@@ -144,9 +144,15 @@ class AdkEventExecutor:
         if len(requests) != 1:
             raise RuntimeError("approval must be linked to exactly one material request")
         request = requests[0]
-        run = self._store.repository(AgentRun).require(
-            event.project_id, run_id_for_event(request.source_event_id)
-        )
+        expected_run_id = run_id_for_event(request.source_event_id)
+        runs = [
+            item
+            for item in self._store.repository(AgentRun).list(event.project_id)
+            if item.id == expected_run_id or item.trigger_event_id == request.source_event_id
+        ]
+        if not runs:
+            raise RuntimeError(f"agent run for material request {request.id} was not found")
+        run = runs[0]
         if not run.adk_session_id or not run.adk_invocation_id:
             raise RuntimeError("approval run is missing its persisted ADK invocation")
 
