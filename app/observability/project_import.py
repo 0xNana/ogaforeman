@@ -66,7 +66,6 @@ class ProjectImportTelemetry:
             trace_id=trace_id,
             project_id=project_id,
             event_id=import_id,
-            workflow="project_import",
             step=stage.value,
             retry_attempt=attempt,
         ):

@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -85,6 +86,41 @@ async def test_live_extractor_uses_developer_api_compatible_json_schema(
     config = generate_content.await_args.kwargs["config"]
     assert config.response_json_schema is not None
     assert config.response_schema is None
+    assert config.thinking_config is not None
+    assert config.thinking_config.thinking_budget == 0
+
+
+@pytest.mark.asyncio
+async def test_live_extractor_discards_model_authored_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _candidate().model_dump(mode="json")
+    payload["tasks"][0]["source_reference"] = {
+        "source_id": "src_forged123",
+        "source_type": "file",
+        "source_name": "model-authored.docx",
+        "imported_at": "2026-08-21T00:00:00Z",
+    }
+    generate_content = AsyncMock(return_value=SimpleNamespace(text=json.dumps(payload)))
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr(
+        "app.infrastructure.gemini.create_gemini_client",
+        Mock(return_value=client),
+    )
+    extractor = GeminiProjectExtractor(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+
+    result = await extractor.extract("Ridge House plastering plan")
+
+    assert result.tasks[0].source_reference is None
 
 
 @pytest.mark.asyncio
@@ -198,7 +234,7 @@ async def test_report_records_registry_model_time_sha_and_assertions() -> None:
     )
 
     assert report.passed is True
-    assert report.prompt_registry_key == "project_import_extraction.v1"
+    assert report.prompt_registry_key == "project_import_extraction.v2"
     assert report.model_registry_key == "project_import_gemini.configured"
     assert report.model_id == "fixture-model"
     assert report.generated_at.tzinfo is not None

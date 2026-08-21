@@ -184,7 +184,7 @@ def test_project_import_telemetry_uses_one_trace_and_bounded_safe_fields() -> No
             project_id="prj_importtelemetry",
             import_id="imp_importtelemetry",
             attempt=1,
-            prompt_key="project_import_extraction.v1",
+            prompt_key="project_import_extraction.v2",
             model_key="project_import_gemini.configured",
         ) as observation:
             if stage is ProjectImportStage.REVIEW:
@@ -212,5 +212,6 @@ def test_project_import_telemetry_uses_one_trace_and_bounded_safe_fields() -> No
     ]
     assert len(stage_logs) == len(ProjectImportStage)
     assert {payload["trace_id"] for payload in stage_logs} == {trace_id}
-    assert {payload["prompt_key"] for payload in stage_logs} == {"project_import_extraction.v1"}
+    assert {payload["prompt_key"] for payload in stage_logs} == {"project_import_extraction.v2"}
+    assert all("workflow" not in payload for payload in stage_logs)
     assert "project_source" not in stream.getvalue()

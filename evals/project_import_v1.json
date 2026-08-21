@@ -1,6 +1,6 @@
 {
   "version": "project-import-v1",
-  "prompt_registry_key": "project_import_extraction.v1",
+  "prompt_registry_key": "project_import_extraction.v2",
   "cases": [
     {
       "id": "structured_plastering_requirement",

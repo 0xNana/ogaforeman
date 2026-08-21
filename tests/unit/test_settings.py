@@ -44,6 +44,7 @@ def test_local_defaults_are_explicit_and_safe() -> None:
     assert settings.firestore_emulator_host is None
     assert settings.cors_allowed_origins == ()
     assert settings.agent_workflow_timeout_seconds < settings.event_claim_lease_seconds
+    assert settings.project_import_extraction_timeout_seconds == 90
 
 
 def test_local_remote_firestore_requires_explicit_project_and_no_emulator() -> None:

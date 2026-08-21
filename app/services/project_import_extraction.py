@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+import json
 from typing import Any, Literal, Protocol
 
 from google.genai.errors import APIError
@@ -84,7 +85,7 @@ class ProjectImportExtractionService:
         extractor: ProjectImportCandidateExtractor,
         *,
         normalizer: ProjectImportNormalizer | None = None,
-        timeout_seconds: float = 45,
+        timeout_seconds: float = 90,
     ) -> None:
         self._extractor = extractor
         self._normalizer = normalizer or ProjectImportNormalizer()
@@ -156,6 +157,7 @@ class GeminiProjectExtractor:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_json_schema=_gemini_candidate_schema(),
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                     temperature=0.0,
                 ),
             )
@@ -168,11 +170,38 @@ class GeminiProjectExtractor:
                 "Gemini returned an empty project import extraction"
             )
         try:
-            return ProjectImportCandidate.model_validate_json(response.text)
-        except ValidationError:
+            payload = json.loads(response.text)
+            return ProjectImportCandidate.model_validate_json(
+                json.dumps(_discard_model_source_references(payload))
+            )
+        except (json.JSONDecodeError, ValidationError):
             raise ProjectImportModelOutputInvalidError(
                 "Gemini returned an invalid project import extraction"
             ) from None
+
+
+def _discard_model_source_references(payload: object) -> object:
+    """Keep persisted source identity outside the untrusted model boundary."""
+
+    if not isinstance(payload, dict):
+        return payload
+    sanitized = deepcopy(payload)
+    for collection_name in (
+        "tasks",
+        "dependencies",
+        "materials",
+        "material_requirements",
+        "milestones",
+        "warnings",
+        "conflicts",
+    ):
+        records = sanitized.get(collection_name)
+        if not isinstance(records, list):
+            continue
+        for record in records:
+            if isinstance(record, dict):
+                record.pop("source_reference", None)
+    return sanitized
 
 
 def _gemini_candidate_schema() -> dict[str, Any]:
