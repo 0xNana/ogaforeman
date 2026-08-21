@@ -319,6 +319,7 @@ class ApprovalContinuationService:
         request = requests[0]
 
         from app.repositories.runs import run_id_for_event
+
         expected_run_id = run_id_for_event(request.source_event_id)
         runs = [
             item
