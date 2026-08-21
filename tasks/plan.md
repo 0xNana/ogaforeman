@@ -22,10 +22,11 @@ ID. Oversized plans remain visible as blocked reviews, and commit rollback leave
 only a safe retryable `IMPORT_FAILED` lifecycle record.
 
 PI-06 replaces every modal-only New Project action with one `/projects/new`
-wizard, persists all supported project details and a reload-stable caller-owned
-creation claim, and establishes a project-scoped setup URL immediately after an
-exactly-once create. The setup choice is explicit from the start: import an
-existing plan or begin empty.
+wizard and a reload-stable caller-owned creation claim. The first screen now
+starts with a project-file import; the full validated details form is a fallback
+for users starting empty. An import creates the project-scoped recovery shell,
+then the first confirmed import atomically applies the reviewed extracted project
+metadata. An exactly-once create establishes the setup URL immediately.
 
 PI-07 connects that handoff to a typed, project-scoped source editor for paste,
 `.txt`, `.md`, `.docx`, `.xlsx`, `.xls`, `.csv`, and text-based `.pdf` input.

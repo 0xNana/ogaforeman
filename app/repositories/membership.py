@@ -19,7 +19,7 @@ from app.domain.authorization import (
     ensure_permission,
     ensure_project_scope,
 )
-from app.domain.models import ProjectMember, User
+from app.domain.models import Project, ProjectMember, User
 
 from .interfaces import ProjectRepository, RepositoryError, RepositoryTransaction
 
@@ -272,6 +272,8 @@ class _AuthorizedTransaction(Generic[EntityT], RepositoryTransaction[EntityT]):
 
 
 def _project_id(entity: BaseModel) -> str:
+    if isinstance(entity, Project):
+        return entity.id
     project_id = getattr(entity, "project_id", None)
     if not isinstance(project_id, str):
         raise TypeError("authorized repository entities must expose project_id")

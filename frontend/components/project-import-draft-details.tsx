@@ -36,6 +36,20 @@ export function ProjectImportDraftDetails({ review }: Readonly<{ review: Project
         <SummaryCount count={review.warnings.length + review.unresolved_references.length} label="Warning" />
       </section>
 
+      {review.project ? (
+        <ReviewSection title="Project details" description="These reviewed details will identify the project">
+          <dl className="import-project-details">
+            <ProjectDetail label="Name" value={review.project.name} />
+            <ProjectDetail label="Location" value={review.project.location ?? 'Not specified'} />
+            <ProjectDetail label="Type" value={review.project.type ?? 'Not specified'} />
+            <ProjectDetail label="Status" value={label(review.project.status)} />
+            <ProjectDetail label="Start" value={formatDate(review.project.start_date)} />
+            <ProjectDetail label="Target finish" value={formatDate(review.project.target_end_date)} />
+          </dl>
+          {review.project.description ? <p className="import-project-description">{review.project.description}</p> : null}
+        </ReviewSection>
+      ) : null}
+
       {review.conflicts.length ? (
         <section className="import-review-alert" role="alert" aria-labelledby="import-conflicts-title">
           <AlertTriangle size={20} aria-hidden="true" />
@@ -76,5 +90,7 @@ function StatusBanner({ title, text, code }: Readonly<{ title: string; text: str
 function SummaryCount({ count, label: itemLabel }: Readonly<{ count: number; label: string }>) { const text = `${count} ${itemLabel}${count === 1 ? '' : 's'}`; return <div aria-label={text}><strong>{count}</strong><span>{itemLabel}{count === 1 ? '' : 's'}</span></div>; }
 function ReviewSection({ title, description, children }: Readonly<{ title: string; description: string; children: React.ReactNode }>) { const id = `review-${title.toLowerCase()}`; return <section className="import-review-section" aria-labelledby={id}><header><h2 id={id}>{title}</h2><p>{description}</p></header>{children}</section>; }
 function EmptyRow({ columns, text }: Readonly<{ columns: number; text: string }>) { return <tr><td colSpan={columns} className="secondary-cell">{text}</td></tr>; }
+function ProjectDetail({ label: detailLabel, value }: Readonly<{ label: string; value: string }>) { return <div><dt>{detailLabel}</dt><dd>{value}</dd></div>; }
 function dateRange(start: string | null, finish: string | null) { return start && finish ? `${start} – ${finish}` : start ?? finish ?? 'Not specified'; }
+function formatDate(value: string | null) { return value ? new Intl.DateTimeFormat('en', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) : 'Not specified'; }
 function label(value: string) { return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase()); }

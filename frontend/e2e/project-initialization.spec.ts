@@ -3,26 +3,30 @@ import { expect, type Page, test } from '@playwright/test';
 
 async function startImportReview(page: Page, label: string): Promise<{ projectId: string; projectName: string }> {
   const nonce = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const projectName = `${label} ${nonce}`;
+  const sourceProjectName = `${label} ${nonce}`;
+  const reviewedProjectName = 'Imported project plan';
   await page.goto('/sign-up?next=/projects/new');
   await page.getByLabel('Full name').fill('Ama Manager');
   await page.getByLabel('Email').fill(`pi08-${nonce}@example.test`);
   await page.getByLabel('Password').fill('local-e2e-password');
   await page.getByRole('button', { name: /Create account/ }).click();
 
-  await page.getByLabel('Project name').fill(projectName);
-  await page.getByLabel('Location').fill('East Legon, Accra');
-  await page.getByRole('button', { name: 'Continue to setup' }).click();
-  await page.getByRole('button', { name: 'Create project' }).click();
+  await page.getByLabel('Choose a project file').setInputFiles({
+    name: 'ridge-project.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from(`# ${sourceProjectName}\nLocation: East Legon, Accra\nTask: Excavation\nTask: Foundation`),
+  });
+  await page.getByRole('button', { name: 'Continue with this file' }).click();
   await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
   const projectId = page.url().match(/\/projects\/(prj_[a-z0-9]+)\/setup/)?.[1];
   expect(projectId).toBeTruthy();
 
-  await page.getByLabel('Plan source').fill('# Foundation\nTask: Excavation\nTask: Foundation');
   await page.getByRole('button', { name: 'Extract project plan' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/imports/imp_[a-z0-9]+$`));
   await expect(page.getByRole('heading', { name: 'Review project initialization' })).toBeVisible();
-  return { projectId: projectId!, projectName };
+  await expect(page.getByRole('heading', { name: 'Project details' })).toBeVisible();
+  await expect(page.getByText(reviewedProjectName)).toBeVisible();
+  return { projectId: projectId!, projectName: reviewedProjectName };
 }
 
 test('review confirmation survives response loss and opens refreshed canonical state', async ({ page }, testInfo) => {

@@ -75,22 +75,21 @@ test('new-project retry keeps one project and lands on its reload-safe setup URL
 
   await page.getByRole('link', { name: /^(Create your first project|New project)$/ }).click();
   await expect(page).toHaveURL(/\/projects\/new$/);
+  await page.getByRole('button', { name: 'Enter project details manually' }).click();
   await page.getByLabel('Project name').fill(projectName);
   await page.getByLabel('Location').fill('East Legon, Accra');
   await page.getByLabel('Description').fill('Three-bedroom residential build');
   await page.getByLabel('Start date').fill('2026-09-01');
   await page.getByLabel('Target end date').fill('2027-04-30');
-  await page.getByRole('button', { name: 'Continue to setup' }).click();
-  await page.getByRole('radio', { name: /Start empty/ }).check();
   const accessibility = await new AxeBuilder({ page })
     .include('.new-project-card')
     .withTags(['wcag2a', 'wcag2aa'])
     .analyze();
   expect(accessibility.violations).toEqual([]);
-  await page.getByRole('button', { name: 'Create project' }).click();
+  await page.getByRole('button', { name: 'Create empty project' }).click();
 
   await expect(page.locator('.form-alert')).toContainText('could not create');
-  await page.getByRole('button', { name: 'Try creating again' }).click();
+  await page.getByRole('button', { name: 'Try creating empty project again' }).click();
   await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=empty$/);
   await expect(page.getByRole('heading', { name: 'Your empty project is ready.' })).toBeVisible();
 
@@ -105,16 +104,12 @@ test('new-project import rejects unsupported files and recovers a committed extr
   });
 
   const email = `project-import-${Date.now()}@example.test`;
-  const projectName = `PI07 Import House ${Date.now()}`;
   await page.goto('/sign-up?next=/projects/new');
   await page.getByLabel('Full name').fill('Ama Manager');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('local-e2e-password');
   await page.getByRole('button', { name: /Create account/ }).click();
 
-  await page.getByLabel('Project name').fill(projectName);
-  await page.getByLabel('Location').fill('East Legon, Accra');
-  await page.getByRole('button', { name: 'Continue to setup' }).click();
   await page.getByLabel('Choose a project file').setInputFiles({
     name: 'plan.xer',
     mimeType: 'application/octet-stream',
@@ -127,7 +122,7 @@ test('new-project import rejects unsupported files and recovers a committed extr
     buffer: Buffer.from('Task: Excavation\nTask: Foundation'),
   });
   await expect(page.getByText('ridge-plan.csv')).toBeVisible();
-  await page.getByRole('button', { name: 'Create project' }).click();
+  await page.getByRole('button', { name: 'Continue with this file' }).click();
   await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
   await expect(page.getByRole('heading', { name: 'Add your project plan.' })).toBeVisible();
   await expect(page.getByText('ridge-plan.csv')).toBeVisible();

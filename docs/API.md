@@ -136,8 +136,11 @@ validation/commit outcomes. These fields correlate safe logs and traces without
 exposing the source, generated body, prompt body, credentials, or chain-of-thought.
 
 Confirmation and cancellation require `expected_version` plus a stable
-`Idempotency-Key`. Canonical project records are created only by successful
-confirmation; cancellation does not mutate canonical project truth.
+`Idempotency-Key`. On the first import into an empty project, confirmation also
+atomically applies the reviewed project name, location, description, dates, and
+status while preserving the project's timezone and identity. Later additive
+imports do not replace project metadata. Canonical records are created only by
+successful confirmation; cancellation does not mutate canonical project truth.
 
 ### Project State
 

@@ -29,7 +29,7 @@ from app.domain.import_records import (
     import_provenance_id,
 )
 from app.domain.materials import MaterialLedgerEntry, normalize_material_name
-from app.domain.models import ActivityEvent, Material, Task
+from app.domain.models import ActivityEvent, Material, Project, Task
 from app.domain.project_import import (
     ProjectImportDraft,
     ProjectImportStatus,
@@ -409,6 +409,25 @@ class ProjectImportService:
             ):
                 raise ProjectImportConfirmationError("reviewed import no longer matches its source")
             self._diff.ensure_additive(self._diff.compare_session(draft, session, access))
+            projects = _authorized_repository(session, Project, access)
+            project = projects.get(draft.project_id, draft.project_id)
+            if project is not None and _is_initial_project_import(session, access):
+                projects.save(
+                    project.model_copy(
+                        update={
+                            "name": draft.project.name,
+                            "location": draft.project.location or project.location,
+                            "description": draft.project.description or project.description,
+                            "start_date": draft.project.start_date or project.start_date,
+                            "target_end_date": (
+                                draft.project.target_end_date or project.target_end_date
+                            ),
+                            "status": draft.project.status,
+                            "updated_at": now,
+                        }
+                    ),
+                    expected_version=projects.version_of(draft.project_id, draft.project_id),
+                )
             for provenance in entities.provenance:
                 _authorized_repository(session, ImportProvenance, access).create(provenance)
             for phase in entities.phases:
@@ -942,6 +961,7 @@ def _ensure_entities_match_plan(entities: _PreparedImportEntities) -> None:
         + len(entities.materials)
         + len(entities.ledger)
         + len(entities.requirements)
+        + 1  # reviewed project metadata
         + len(entities.tasks)
         + len(plan.dependencies)
         + len(entities.materials)
@@ -955,6 +975,17 @@ def _ensure_entities_match_plan(entities: _PreparedImportEntities) -> None:
         or actual_commit_writes != plan.commit_write_count
     ):
         raise RuntimeError("prepared project import entities diverged from the validated plan")
+
+
+def _is_initial_project_import(
+    session: RepositorySession,
+    access: ProjectAccessContext,
+) -> bool:
+    return not (
+        _authorized_repository(session, ProjectPhase, access).list(access.project_id)
+        or _authorized_repository(session, Task, access).list(access.project_id)
+        or _authorized_repository(session, Material, access).list(access.project_id)
+    )
 
 
 def _at_utc(value: date | None) -> datetime | None:

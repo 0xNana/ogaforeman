@@ -20,11 +20,11 @@ them as passing behavior. PI-00 through PI-12 and the canonical-import backend
 checkpoint are complete locally. PI-13/PI-14 implementation is wired, but live
 model-quality and authenticated staging/rollback evidence remain release gates.
 
-PI-06 routes every New Project action through one accessible, reload-safe wizard;
-persists name, location, timezone, description, dates, and project status; and
-records the import-or-empty setup choice in the project-scoped setup URL. The
-caller-owned project creation claim survives reload and exact Firestore replay,
-so a lost response cannot create a second project. PI-07 adds paste plus local
+PI-06 routes every New Project action through one accessible, reload-safe wizard.
+Import is the first screen and does not duplicate project-detail entry; the full
+validated form remains the start-empty fallback. The caller-owned project
+creation claim survives reload and exact Firestore replay, and the first confirmed
+import atomically replaces shell metadata with reviewed extracted values. PI-07 adds paste plus local
 text, Markdown, Word, Excel, CSV, and text-based PDF source entry, a reload-stable
 import claim, bounded latest-active recovery, bounded server parsing, and
 browser/server rejection of unsupported adapter types before model invocation.

@@ -105,7 +105,7 @@ current modal:
 
 ```text
 /projects/new
-    project details and setup-method choice
+    file-first import entry or manual-details fallback
 
 /projects/{project_id}/setup
     source entry, extraction recovery, latest-import recovery, or manual setup
@@ -125,7 +125,9 @@ project and latest import instead of creating duplicates.
 
 ### Setup methods
 
-The user chooses one of two explicit paths:
+The first screen starts with the recommended import path. It does not ask users
+to retype project details that can be extracted from their file. Manual project
+details remain an explicit fallback for users without an importable source:
 
 1. **Import an existing plan** — recommended; accepts pasted text, `.txt`,
    `.md`, `.docx`, `.xlsx`, `.xls`, `.csv`, or text-based `.pdf` content and
@@ -133,6 +135,12 @@ The user chooses one of two explicit paths:
    or `.pdf`.
 2. **Start with an empty project** — continues to existing manual task/material
    setup and leaves readiness derived as `PARTIALLY_CONFIGURED` until tasks exist.
+
+File-first onboarding derives only a temporary shell name from the source file so
+the existing project-scoped authorization and recovery boundaries remain intact.
+The reviewed extracted project name, location, description, dates, and status
+replace that shell metadata only inside the first confirmed import transaction.
+Later additive imports cannot rename an already-populated project.
 
 Selecting local text/Markdown reads text in the browser. Office documents, CSV,
 and PDF retain their encoded bytes through the caller-owned retry claim and are
@@ -556,9 +564,8 @@ exceeded.
 **Work**
 
 - [x] Replace the New Project modal-only path with `/projects/new`.
-- [x] Collect the complete supported project fields with validation and accessible
-  mobile/desktop states.
-- [x] Add the setup-method choice: import existing plan or start empty.
+- [x] Begin with direct project-file import and expose the complete validated
+  project-details form only as the manual fallback.
 - [x] Keep the project-creation idempotency key stable across retries.
 
 **Acceptance**
@@ -567,9 +574,9 @@ exceeded.
 - [x] A timeout/retry creates exactly one project.
 - [x] Successful creation immediately establishes a reload-safe project setup URL.
 
-Completed locally on 2026-08-19. The dedicated two-step wizard persists its
-bounded draft and caller-owned creation claim in session storage, restores them
-after reload, and replaces the browser location with
+Completed locally on 2026-08-19 and made file-first on 2026-08-21. The wizard
+persists its bounded source/manual draft and caller-owned creation claim in
+session storage, restores them after reload, and replaces the browser location with
 `/projects/{project_id}/setup?method=import|empty` as soon as creation succeeds.
 The additive create-project API persists description, dates, and status; exact
 Firestore replay returns one project and one activity, while a mismatched replay
@@ -610,6 +617,9 @@ npm run typecheck
 Completed locally on 2026-08-19 and extended on 2026-08-21. `/projects/new`
 accepts local text, Markdown, Word, Excel, CSV, and text-based PDF files without
 manual transcription and stages the source into the project-scoped setup route.
+The import path does not request project metadata first: confirmation atomically
+applies the reviewed extracted metadata to the initial project shell. The review
+screen displays those values before the user decides.
 That route also accepts pasted text, retains the source plus caller-owned import
 claim through response loss and reload, and recovers the latest nonterminal
 server record without a copied import ID. Recovery uses a bounded, authorized

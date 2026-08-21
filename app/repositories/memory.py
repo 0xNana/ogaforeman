@@ -8,6 +8,8 @@ from typing import Any, Callable, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
+from app.domain.models import Project
+
 from .interfaces import (
     EntityAlreadyExistsError,
     EntityNotFoundError,
@@ -118,6 +120,8 @@ class InMemoryRepository(Generic[EntityT], ProjectRepository[EntityT]):
     def _identity(self, entity: EntityT) -> tuple[str, str]:
         project_id = getattr(entity, "project_id", None)
         entity_id = getattr(entity, "id", None)
+        if isinstance(entity, Project):
+            project_id = entity.id
         if not isinstance(project_id, str) or not isinstance(entity_id, str):
             raise TypeError("repository entities must expose string id and project_id fields")
         return project_id, entity_id

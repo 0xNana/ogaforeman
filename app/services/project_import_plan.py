@@ -92,7 +92,8 @@ class PreparedProjectImportPlan:
     @property
     def canonical_write_count(self) -> int:
         return (
-            len(self.phase_ids)
+            1  # reviewed project metadata
+            + len(self.phase_ids)
             + len(self.task_ids)
             + len(self.material_ids)
             + len(self.ledger_ids)

@@ -25,6 +25,7 @@ from app.domain.models import (
     MaterialRequest,
     OutboxMessage,
     ProcessedEvent,
+    Project,
     ProjectMember,
     SiteUpdate,
     Task,
@@ -56,6 +57,7 @@ ResultT = TypeVar("ResultT")
 ReadVersionKey = tuple[type[BaseModel], str, str]
 
 _COLLECTIONS: dict[type[BaseModel], str] = {
+    Project: "projects",
     ProjectMember: "members",
     Task: "tasks",
     SiteUpdate: "site_updates",
@@ -92,7 +94,7 @@ def _json_default(value: object) -> str:
 
 
 def firestore_collection_name(entity_type: type[BaseModel]) -> str:
-    """Return the documented project subcollection for a domain entity type."""
+    """Return the documented Firestore collection for a domain entity type."""
 
     try:
         return _COLLECTIONS[entity_type]
@@ -117,7 +119,8 @@ def firestore_document_data(entity: EntityT, *, version: int = 0) -> dict[str, A
     if version < 0:
         raise ValueError("repository version cannot be negative")
     payload = encode_firestore_value(entity.model_dump(mode="python"))
-    payload[_REPOSITORY_VERSION_FIELD] = version
+    if not isinstance(entity, Project):
+        payload[_REPOSITORY_VERSION_FIELD] = version
     return payload
 
 
@@ -163,6 +166,9 @@ class FirestoreRepository(Generic[EntityT], ProjectRepository[EntityT]):
         return entity
 
     def list(self, project_id: str) -> Sequence[EntityT]:
+        if self._entity_type is Project:
+            project = self.get(project_id, project_id)
+            return () if project is None else (project,)
         snapshots = self._collection(project_id).stream(transaction=self._transaction)
         entities = []
         for snapshot in snapshots:
@@ -174,6 +180,8 @@ class FirestoreRepository(Generic[EntityT], ProjectRepository[EntityT]):
         return tuple(sorted(entities, key=firestore_entity_id))
 
     def create(self, entity: EntityT) -> EntityT:
+        if self._entity_type is Project:
+            raise RepositoryError("projects must be created through the project service")
         project_id, entity_id = self._identity(entity)
         validated = self._validate_for_create(entity)
         reference = self._document(project_id, entity_id)
@@ -329,6 +337,8 @@ class FirestoreRepository(Generic[EntityT], ProjectRepository[EntityT]):
             self._read_versions.pop(cache_key, None)
 
     def _collection(self, project_id: str):
+        if self._entity_type is Project:
+            return self._client.collection("projects")
         return (
             self._client.collection("projects")
             .document(project_id)
@@ -336,6 +346,12 @@ class FirestoreRepository(Generic[EntityT], ProjectRepository[EntityT]):
         )
 
     def _document(self, project_id: str, entity_id: str):
+        if self._entity_type is Project:
+            if entity_id != project_id:
+                raise EntityNotFoundError(
+                    f"entity {entity_id} was not found in project {project_id}"
+                )
+            return self._client.collection("projects").document(project_id)
         return self._collection(project_id).document(entity_id)
 
     def _version_key(self, project_id: str, entity_id: str) -> ReadVersionKey:
@@ -364,6 +380,8 @@ class FirestoreRepository(Generic[EntityT], ProjectRepository[EntityT]):
 
     @staticmethod
     def _identity(entity: EntityT) -> tuple[str, str]:
+        if isinstance(entity, Project):
+            return entity.id, entity.id
         project_id = getattr(entity, "project_id", None)
         if not isinstance(project_id, str):
             raise TypeError("repository entities must expose a string project_id field")

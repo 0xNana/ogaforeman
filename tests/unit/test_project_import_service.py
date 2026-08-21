@@ -18,7 +18,7 @@ from app.domain.import_records import (
     ProjectSource,
 )
 from app.domain.materials import MaterialLedgerEntry
-from app.domain.models import ActivityEvent, Material, Task
+from app.domain.models import ActivityEvent, Material, Project, Task
 from app.domain.project_import import (
     DraftTaskStatus,
     ImportConflict,
@@ -295,6 +295,65 @@ def test_confirmed_import_commits_canonical_records_and_replays_idempotently() -
         assert activities[action].metadata["source_id"] == draft.source_id
 
 
+def test_first_import_applies_reviewed_project_metadata_atomically() -> None:
+    store = InMemoryRepositoryStore()
+    access = ProjectAccessContext(
+        actor=AuthenticatedUser(user_id="usr_admin123", subject="test"),
+        project_id="prj_commit123",
+        role=MemberRole.ADMIN,
+    )
+    store.repository(Project).create(
+        Project(
+            id="prj_commit123",
+            name="Ridge plan",
+            location="Not specified",
+            timezone="Africa/Accra",
+            created_by="usr_admin123",
+        )
+    )
+    ProjectSourceService(store).persist_text(
+        access,
+        source_id="src_commit123",
+        name="ridge-plan.md",
+        text="# Ridge House\nLocation: East Legon",
+    )
+    draft_data = _confirmed_draft().model_dump()
+    draft_data["project"] = {
+        "name": "Ridge House",
+        "description": "Three-bedroom residential build",
+        "location": "East Legon, Accra",
+        "start_date": date(2026, 9, 1),
+        "target_end_date": date(2027, 4, 30),
+        "status": ProjectStatus.ACTIVE,
+    }
+    draft = ProjectImportDraft.model_validate(draft_data)
+    store.repository(ProjectImportRecord).create(
+        ProjectImportRecord(
+            id=draft.id,
+            project_id=draft.project_id,
+            source_id=draft.source_id,
+            status=ProjectImportStatus.NEEDS_REVIEW,
+            draft=draft.model_copy(update={"status": ProjectImportStatus.NEEDS_REVIEW}),
+        )
+    )
+
+    ProjectImportService(store).import_confirmed(
+        draft,
+        access,
+        expected_review_version=0,
+        decision_idempotency_key="confirm-project-metadata",
+    )
+
+    project = store.repository(Project).require(draft.project_id, draft.project_id)
+    assert project.name == "Ridge House"
+    assert project.location == "East Legon, Accra"
+    assert project.description == "Three-bedroom residential build"
+    assert project.start_date == date(2026, 9, 1)
+    assert project.target_end_date == date(2027, 4, 30)
+    assert project.status is ProjectStatus.ACTIVE
+    assert project.timezone == "Africa/Accra"
+
+
 def test_prepared_plan_count_matches_writes_attempted_by_commit_transaction() -> None:
     draft_data = _confirmed_draft().model_dump()
     draft_data["tasks"].append(
@@ -318,6 +377,15 @@ def test_prepared_plan_count_matches_writes_attempted_by_commit_transaction() ->
         actor=AuthenticatedUser(user_id="usr_admin123", subject="test"),
         project_id=draft.project_id,
         role=MemberRole.ADMIN,
+    )
+    store.repository(Project).create(
+        Project(
+            id=draft.project_id,
+            name="Imported residence",
+            location="Not specified",
+            timezone="Africa/Accra",
+            created_by=access.actor.user_id,
+        )
     )
     ProjectSourceService(store).persist_text(
         access,
@@ -1275,11 +1343,29 @@ def test_commit_failure_is_persisted_as_retryable_import_failed_state(
 
 
 def test_import_records_have_firestore_collection_bindings() -> None:
+    assert firestore_collection_name(Project) == "projects"
     assert firestore_collection_name(ProjectImportRecord) == "project_imports"
     assert firestore_collection_name(ImportProvenance) == "import_provenance"
     assert firestore_collection_name(MaterialRequirement) == "material_requirements"
     assert firestore_collection_name(ProjectPhase) == "project_phases"
     assert firestore_collection_name(ProjectSource) == "project_sources"
+
+
+def test_top_level_project_writes_do_not_leak_repository_metadata() -> None:
+    project = Project(
+        id="prj_firestore123",
+        name="Ridge House",
+        location="East Legon",
+        timezone="Africa/Accra",
+        created_by="usr_admin123",
+    )
+
+    payload = firestore_document_data(project, version=1)
+
+    assert payload["name"] == "Ridge House"
+    assert "_repository_version" not in payload
+    with pytest.raises(RuntimeError, match="project service"):
+        FirestoreRepository(None, Project).create(project)
 
 
 def test_project_import_record_round_trips_firestore_json_values() -> None:

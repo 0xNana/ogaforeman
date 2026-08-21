@@ -75,6 +75,10 @@ describe('ProjectImportReview', () => {
     expect(screen.getByLabelText('1 Material')).toBeVisible();
     expect(screen.getByLabelText('1 Requirement')).toBeVisible();
     expect(screen.getByLabelText('1 Warning')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Project details' })).toBeVisible();
+    expect(screen.getByText('Ridge House')).toBeVisible();
+    expect(screen.getByText('East Legon')).toBeVisible();
+    expect(screen.getByText('September 1, 2026')).toBeVisible();
     expect(screen.getByRole('row', { name: /First-floor blockwork/ })).toHaveTextContent('Masonry');
     expect(screen.getAllByText('First-floor blockwork').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('tmp_task_plastering')).toBeVisible();

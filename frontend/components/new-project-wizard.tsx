@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, FileUp, ListPlus, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -19,8 +19,7 @@ import {
 
 export const NEW_PROJECT_CLAIM_STORAGE_KEY = 'oga:new-project:create-claim';
 
-type SetupMethod = 'import' | 'empty';
-type WizardStep = 'details' | 'method';
+type WizardStep = 'method' | 'details';
 
 type ProjectDraft = {
   ownerKey: string;
@@ -32,7 +31,6 @@ type ProjectDraft = {
   startDate: string;
   targetEndDate: string;
   status: CreateProjectStatus;
-  setupMethod: SetupMethod;
   importIdempotencyKey: string;
   importSource: CreateProjectImportInput | null;
   step: WizardStep;
@@ -62,10 +60,9 @@ function freshDraft(ownerKey: string): ProjectDraft {
     startDate: '',
     targetEndDate: '',
     status: 'planning',
-    setupMethod: 'import',
     importIdempotencyKey: `project-import:${crypto.randomUUID()}`,
     importSource: null,
-    step: 'details',
+    step: 'method',
   };
 }
 
@@ -89,6 +86,13 @@ function persistDraft(draft: ProjectDraft): void {
   } catch {
     // A stable in-memory claim still protects retries when storage is unavailable.
   }
+}
+
+function projectNameFromSource(sourceName: string): string {
+  const withoutExtension = sourceName.replace(/\.[^.]+$/, '');
+  const normalized = withoutExtension.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const name = normalized || 'Imported project';
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)}`.slice(0, 200);
 }
 
 export function clearNewProjectClaim(): void {
@@ -135,55 +139,79 @@ export function NewProjectWizard({ ownerKey = 'test-user' }: Readonly<{ ownerKey
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    const importSource = draft.importSource;
+    let input: CreateProjectInput;
     if (draft.step === 'details') {
       if (draft.startDate && draft.targetEndDate && draft.targetEndDate < draft.startDate) {
         setError('Target end date cannot be before the start date.');
         return;
       }
-      update('step', 'method');
-      return;
+      input = {
+        name: draft.name.trim(),
+        location: draft.location.trim(),
+        description: draft.description.trim() || null,
+        timezone: draft.timezone,
+        start_date: draft.startDate || null,
+        target_end_date: draft.targetEndDate || null,
+        status: draft.status,
+      };
+    } else {
+      if (!importSource) {
+        setError('Choose a supported project file to continue.');
+        return;
+      }
+      input = {
+        name: projectNameFromSource(importSource.source_name),
+        location: 'Not specified',
+        description: null,
+        timezone: draft.timezone,
+        start_date: null,
+        target_end_date: null,
+        status: 'planning',
+      };
     }
 
     setSubmitting(true);
     setHasSubmitted(true);
-    const input: CreateProjectInput = {
-      name: draft.name.trim(),
-      location: draft.location.trim(),
-      description: draft.description.trim() || null,
-      timezone: draft.timezone,
-      start_date: draft.startDate || null,
-      target_end_date: draft.targetEndDate || null,
-      status: draft.status,
-    };
     try {
       const project = await api.createProject(input, draft.idempotencyKey);
-      if (draft.setupMethod === 'import' && draft.importSource) {
+      if (draft.step === 'method' && importSource) {
         stageProjectImportClaim(
           project.id,
           ownerKey,
-          draft.importSource,
+          importSource,
           draft.importIdempotencyKey,
         );
       }
-      const setupPath = `/projects/${project.id}/setup?method=${draft.setupMethod}`;
+      const setupPath = `/projects/${project.id}/setup?method=${draft.step === 'method' ? 'import' : 'empty'}`;
       router.replace(setupPath);
     } catch {
-      setError('We could not create that project. Your details are saved here; check your connection and try again.');
+      setError('We could not create that project. Your setup is saved here; check your connection and try again.');
     } finally {
       setSubmitting(false);
     }
   }
 
   return <section className="new-project-card" aria-labelledby="new-project-title">
-    <div className="new-project-progress" aria-label="Project setup progress">
-      <span className={draft.step === 'details' ? 'active' : 'complete'}><b>1</b> Project details</span>
-      <span className={draft.step === 'method' ? 'active' : ''}><b>2</b> Setup method</span>
-    </div>
-    {draft.step === 'details' ? <>
+    {draft.step === 'method' ? <>
       <span className="eyebrow">New project</span>
-      <h1 id="new-project-title">Tell OG about the site.</h1>
-      <p className="new-project-lede">Create the project first, then bring in an existing plan or build the work manually.</p>
-      <form className="new-project-form" onSubmit={submit}>
+      <h1 id="new-project-title">Tell OG about the project.</h1>
+      <p className="new-project-lede">Upload the project file you already use. OG will pull out the project details, schedule, tasks, and materials for you to review.</p>
+      <form className="new-project-form" onSubmit={submit} key="import-project-file">
+        {error ? <p className="form-alert" role="alert">{error}</p> : null}
+        <div className="setup-import-source setup-import-primary">
+          <label className="import-file-field">Choose a project file<input aria-label="Choose a project file" type="file" accept={PROJECT_IMPORT_FILE_ACCEPT} onChange={(event) => void chooseImportFile(event)} /><span><Upload size={18} /> {draft.importSource?.source_name ?? 'Choose a Word, Excel, PDF, CSV, text, or Markdown file'}</span></label>
+          <p>Word, Excel, PDF, and CSV up to 3 MB; text and Markdown up to 800 KB. Export Google Docs as Word or PDF first.</p>
+        </div>
+        <div className="new-project-actions"><Link className="btn btn-quiet" href="/projects" onClick={clearNewProjectClaim}><ArrowLeft size={16} /> Cancel</Link><button className="btn btn-primary" type="submit" disabled={submitting || !draft.importSource}>{submitting ? 'Creating project…' : hasSubmitted ? 'Try this file again' : 'Continue with this file'} {!submitting ? <ArrowRight size={16} /> : null}</button></div>
+        <div className="import-source-divider"><span>or</span></div>
+        <button className="btn btn-quiet manual-project-entry" type="button" onClick={() => { update('step', 'details'); setError(''); }}>Enter project details manually</button>
+      </form>
+    </> : <>
+      <span className="eyebrow">Manual setup</span>
+      <h1 id="new-project-title">Add the project details.</h1>
+      <p className="new-project-lede">Use this path when you do not have a project file to import.</p>
+      <form className="new-project-form" onSubmit={submit} key="manual-project-details">
         {error ? <p className="form-alert" role="alert">{error}</p> : null}
         <div className="new-project-grid">
           <label>Project name<input autoFocus value={draft.name} onChange={(event) => update('name', event.target.value)} required maxLength={200} placeholder="Ridge House" /></label>
@@ -194,24 +222,7 @@ export function NewProjectWizard({ ownerKey = 'test-user' }: Readonly<{ ownerKey
           <label>Timezone<select value={draft.timezone} onChange={(event) => update('timezone', event.target.value)} required>{timezones.map((timezone) => <option key={timezone} value={timezone}>{timezone.replaceAll('_', ' ')}</option>)}</select></label>
           <label>Project status<select value={draft.status} onChange={(event) => update('status', event.target.value as CreateProjectStatus)}><option value="planning">Planning</option><option value="active">Active</option><option value="paused">Paused</option></select></label>
         </div>
-        <div className="new-project-actions"><Link className="btn btn-quiet" href="/projects" onClick={clearNewProjectClaim}><ArrowLeft size={16} /> Cancel</Link><button className="btn btn-primary" type="submit">Continue to setup <ArrowRight size={16} /></button></div>
-      </form>
-    </> : <>
-      <span className="eyebrow">Setup method</span>
-      <h1 id="new-project-title">How do you want to set up the work?</h1>
-      <p className="new-project-lede">You can add the project plan now or begin with an empty workspace.</p>
-      <form className="new-project-form" onSubmit={submit}>
-        {error ? <p className="form-alert" role="alert">{error}</p> : null}
-        <fieldset className="setup-methods"><legend className="sr-only">Choose a setup method</legend>
-          <label className={draft.setupMethod === 'import' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="import" checked={draft.setupMethod === 'import'} onChange={() => update('setupMethod', 'import')} /><span className="setup-method-icon"><FileUp size={22} /></span><span><strong>Import an existing plan</strong><small>Recommended · Choose a Word, Excel, PDF, CSV, text, or Markdown file.</small></span></label>
-          <label className={draft.setupMethod === 'empty' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="empty" checked={draft.setupMethod === 'empty'} onChange={() => update('setupMethod', 'empty')} /><span className="setup-method-icon"><ListPlus size={22} /></span><span><strong>Start empty</strong><small>Add tasks and materials manually after the project is created.</small></span></label>
-        </fieldset>
-        {draft.setupMethod === 'import' ? <div className="setup-import-source">
-          <label className="import-file-field">Choose a project file<input aria-label="Choose a project file" type="file" accept={PROJECT_IMPORT_FILE_ACCEPT} onChange={(event) => void chooseImportFile(event)} /><span><Upload size={16} /> {draft.importSource?.source_name ?? 'Select project file'}</span></label>
-          <p>Word, Excel, PDF, and CSV up to 3 MB; text and Markdown up to 800 KB.</p>
-        </div> : null}
-        <div className="project-draft-summary"><span>Creating</span><strong>{draft.name.trim()}</strong><small>{draft.location.trim()}</small></div>
-        <div className="new-project-actions"><button className="btn btn-quiet" type="button" onClick={() => update('step', 'details')} disabled={submitting}><ArrowLeft size={16} /> Back</button><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Creating project…' : hasSubmitted ? 'Try creating again' : 'Create project'} {!submitting ? <ArrowRight size={16} /> : null}</button></div>
+        <div className="new-project-actions"><button className="btn btn-quiet" type="button" onClick={() => { update('step', 'method'); setError(''); }} disabled={submitting}><ArrowLeft size={16} /> Back to import</button><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Creating project…' : hasSubmitted ? 'Try creating empty project again' : 'Create empty project'} {!submitting ? <ArrowRight size={16} /> : null}</button></div>
       </form>
     </>}
   </section>;

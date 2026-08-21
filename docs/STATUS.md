@@ -333,6 +333,22 @@ Project Initialization office-document adapter extension on 2026-08-21:
 - `npm audit --audit-level=high` reports no high or critical findings; five
   moderate findings remain in the Firebase CLI development dependency chain
 
+Project Initialization file-first onboarding refinement on 2026-08-21:
+
+- `/projects/new` begins with supported file selection and keeps the complete
+  project-details form as the explicit start-empty fallback
+- confirmed first import applies reviewed project metadata in the same typed,
+  authorized transaction as canonical entities and `project.initialized`; later
+  additive imports preserve the populated project's metadata
+- the read-only review now shows the extracted name, location, type, status, and
+  dates before confirmation
+- focused importer/validation coverage: 36 passed; focused wizard/review
+  coverage: 30 passed; full non-backing backend: 695 passed with 30 deselected;
+  full frontend: 98 passed
+- Ruff check/format, app-wide mypy, TypeScript, ESLint, production build, and
+  docs validation passed; the corrected import confirmation/cancellation browser
+  gate passed four journeys across desktop and 360 px mobile Chromium
+
 Project Initialization PI-08 verification on 2026-08-21:
 
 - required frontend review/setup gate: 26 passed; ESLint and TypeScript passed

@@ -266,10 +266,10 @@ def test_prepared_plan_counts_every_atomic_commit_write() -> None:
 
     assert result.is_valid
     assert result.plan.provenance_write_count == 8
-    assert result.plan.canonical_write_count == 7
+    assert result.plan.canonical_write_count == 8
     assert result.plan.activity_write_count == 7
     assert result.plan.import_state_write_count == 1
-    assert result.plan.commit_write_count == 23
+    assert result.plan.commit_write_count == 24
 
 
 def test_oversized_import_record_is_a_blocking_conflict_without_discarding_draft() -> None:
