@@ -90,8 +90,11 @@ class PubSubClient:
         }
         try:
             import os
+
             emulator_host = os.environ.get("PUBSUB_EMULATOR_HOST")
-            base_url = f"http://{emulator_host}" if emulator_host else "https://pubsub.googleapis.com"
+            base_url = (
+                f"http://{emulator_host}" if emulator_host else "https://pubsub.googleapis.com"
+            )
             response = self._get_session().post(
                 f"{base_url}/v1/{topic_path}:publish",
                 json=payload,
@@ -134,6 +137,7 @@ class PubSubClient:
             if self._session is None:
                 import os
                 import requests
+
                 if os.environ.get("PUBSUB_EMULATOR_HOST"):
                     self._session = cast(HttpSession, requests.Session())
                 else:

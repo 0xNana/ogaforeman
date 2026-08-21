@@ -447,8 +447,14 @@ class ProjectImportService:
                 )
             tasks_by_id = {task.id: task for task in entities.tasks}
             for dependency in entities.plan.dependencies:
-                pred_task = tasks_by_id.get(dependency.predecessor_task_id) or _authorized_repository(session, Task, access).get(draft.project_id, dependency.predecessor_task_id)
-                succ_task = tasks_by_id.get(dependency.successor_task_id) or _authorized_repository(session, Task, access).get(draft.project_id, dependency.successor_task_id)
+                pred_task = tasks_by_id.get(
+                    dependency.predecessor_task_id
+                ) or _authorized_repository(session, Task, access).get(
+                    draft.project_id, dependency.predecessor_task_id
+                )
+                succ_task = tasks_by_id.get(dependency.successor_task_id) or _authorized_repository(
+                    session, Task, access
+                ).get(draft.project_id, dependency.successor_task_id)
                 pred_name = pred_task.title if pred_task else dependency.predecessor_task_id
                 succ_name = succ_task.title if succ_task else dependency.successor_task_id
 

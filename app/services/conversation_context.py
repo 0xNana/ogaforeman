@@ -124,7 +124,9 @@ def plan_context_query(message: str) -> ContextQuery:
                 domains=(ContextDomain.MATERIALS, ContextDomain.MATERIAL_REQUESTS),
                 focus=ContextFocus.LOW_STOCK,
             )
-        terms = tuple(t for t in _search_terms(normalized) if t not in {"material", "materials", "status"})
+        terms = tuple(
+            t for t in _search_terms(normalized) if t not in {"material", "materials", "status"}
+        )
         return ContextQuery(
             domains=(ContextDomain.MATERIALS, ContextDomain.MATERIAL_REQUESTS),
             search_terms=terms,

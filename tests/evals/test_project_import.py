@@ -245,9 +245,7 @@ def test_eval_fails_when_a_dependency_references_an_absent_task() -> None:
     )
 
     assert result.passed is False
-    assert [item.name for item in result.assertions if not item.passed] == [
-        "dependency_references"
-    ]
+    assert [item.name for item in result.assertions if not item.passed] == ["dependency_references"]
 
 
 @pytest.mark.asyncio

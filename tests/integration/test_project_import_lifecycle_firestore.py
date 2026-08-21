@@ -139,10 +139,7 @@ async def test_reference_retry_reuses_firestore_source_and_claim_after_restart()
     invalid_data["conflicts"] = [
         {
             "code": "UNKNOWN_PREDECESSOR",
-            "message": (
-                "dependency predecessor does not exist: "
-                "tmp_task_site_setting_out"
-            ),
+            "message": ("dependency predecessor does not exist: tmp_task_site_setting_out"),
         }
     ]
     invalid = ProjectImportDraft.model_validate(invalid_data)
@@ -177,9 +174,11 @@ async def test_reference_retry_reuses_firestore_source_and_claim_after_restart()
         idempotency_key=retry_key,
     )
 
-    final = FirestoreRepositoryStore(
-        firestore.Client(project=cloud_project)
-    ).repository(ProjectImportRecord).require(PROJECT_ID, IMPORT_ID)
+    final = (
+        FirestoreRepositoryStore(firestore.Client(project=cloud_project))
+        .repository(ProjectImportRecord)
+        .require(PROJECT_ID, IMPORT_ID)
+    )
     assert retried.record.status is ProjectImportStatus.NEEDS_REVIEW
     assert replayed.replayed is True
     assert final.extraction_attempt == 2
