@@ -56,6 +56,51 @@ describe('NewProjectWizard', () => {
     expect(replace).toHaveBeenCalledWith('/projects/prj_ridge/setup?method=import');
   });
 
+  it('stages a selected Markdown file for import after creating the project', async () => {
+    render(<NewProjectWizard ownerKey="firebase-user" />);
+
+    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Ridge House' } });
+    fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'East Legon' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to setup' }));
+
+    const file = new File(['# Ridge plan\nTask: Foundation'], 'ridge-plan.md', { type: 'text/markdown' });
+    Object.defineProperty(file, 'text', {
+      value: vi.fn().mockResolvedValue('# Ridge plan\nTask: Foundation'),
+    });
+    fireEvent.change(screen.getByLabelText('Choose a .txt or .md file'), {
+      target: { files: [file] },
+    });
+
+    expect(await screen.findByText('ridge-plan.md')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects/prj_ridge/setup?method=import'));
+    expect(JSON.parse(
+      window.sessionStorage.getItem('oga:project-import:create-claim:prj_ridge') ?? '{}',
+    )).toMatchObject({
+      ownerKey: 'firebase-user',
+      projectId: 'prj_ridge',
+      source_name: 'ridge-plan.md',
+      source_text: '# Ridge plan\nTask: Foundation',
+      source_type: 'markdown',
+      idempotencyKey: expect.stringMatching(/^project-import:/),
+    });
+  });
+
+  it('rejects unsupported files before project creation', async () => {
+    render(<NewProjectWizard />);
+
+    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Ridge House' } });
+    fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'East Legon' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to setup' }));
+    fireEvent.change(screen.getByLabelText('Choose a .txt or .md file'), {
+      target: { files: [new File(['PDF'], 'ridge-plan.pdf', { type: 'application/pdf' })] },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Use a .txt or .md file');
+    expect(createProject).not.toHaveBeenCalled();
+  });
+
   it('retains one project-creation claim when a timed-out request is retried', async () => {
     createProject
       .mockRejectedValueOnce(new Error('request timed out'))

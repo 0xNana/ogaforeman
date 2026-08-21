@@ -1,11 +1,21 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, FileUp, ListPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileUp, ListPlus, Upload } from 'lucide-react';
 import Link from 'next/link';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { api, type CreateProjectInput, type CreateProjectStatus } from '@/lib/api';
+import {
+  api,
+  type CreateProjectImportInput,
+  type CreateProjectInput,
+  type CreateProjectStatus,
+} from '@/lib/api';
+import {
+  PROJECT_IMPORT_FILE_ACCEPT,
+  readProjectImportFile,
+  stageProjectImportClaim,
+} from '@/lib/project-import-claim';
 
 export const NEW_PROJECT_CLAIM_STORAGE_KEY = 'oga:new-project:create-claim';
 
@@ -23,6 +33,8 @@ type ProjectDraft = {
   targetEndDate: string;
   status: CreateProjectStatus;
   setupMethod: SetupMethod;
+  importIdempotencyKey: string;
+  importSource: CreateProjectImportInput | null;
   step: WizardStep;
 };
 
@@ -51,6 +63,8 @@ function freshDraft(ownerKey: string): ProjectDraft {
     targetEndDate: '',
     status: 'planning',
     setupMethod: 'import',
+    importIdempotencyKey: `project-import:${crypto.randomUUID()}`,
+    importSource: null,
     step: 'details',
   };
 }
@@ -105,6 +119,19 @@ export function NewProjectWizard({ ownerKey = 'test-user' }: Readonly<{ ownerKey
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
+  async function chooseImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const result = await readProjectImportFile(file);
+    if (!result.ok) {
+      setError(result.error);
+      event.target.value = '';
+      return;
+    }
+    update('importSource', result.source);
+    setError('');
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
@@ -130,6 +157,14 @@ export function NewProjectWizard({ ownerKey = 'test-user' }: Readonly<{ ownerKey
     };
     try {
       const project = await api.createProject(input, draft.idempotencyKey);
+      if (draft.setupMethod === 'import' && draft.importSource) {
+        stageProjectImportClaim(
+          project.id,
+          ownerKey,
+          draft.importSource,
+          draft.importIdempotencyKey,
+        );
+      }
       const setupPath = `/projects/${project.id}/setup?method=${draft.setupMethod}`;
       router.replace(setupPath);
     } catch {
@@ -168,9 +203,13 @@ export function NewProjectWizard({ ownerKey = 'test-user' }: Readonly<{ ownerKey
       <form className="new-project-form" onSubmit={submit}>
         {error ? <p className="form-alert" role="alert">{error}</p> : null}
         <fieldset className="setup-methods"><legend className="sr-only">Choose a setup method</legend>
-          <label className={draft.setupMethod === 'import' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="import" checked={draft.setupMethod === 'import'} onChange={() => update('setupMethod', 'import')} /><span className="setup-method-icon"><FileUp size={22} /></span><span><strong>Import an existing plan</strong><small>Recommended · Paste text, Markdown, or an OG template on the next screen.</small></span></label>
+          <label className={draft.setupMethod === 'import' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="import" checked={draft.setupMethod === 'import'} onChange={() => update('setupMethod', 'import')} /><span className="setup-method-icon"><FileUp size={22} /></span><span><strong>Import an existing plan</strong><small>Recommended · Choose a text or Markdown file now, or paste a plan after creation.</small></span></label>
           <label className={draft.setupMethod === 'empty' ? 'setup-method selected' : 'setup-method'}><input type="radio" name="setup-method" value="empty" checked={draft.setupMethod === 'empty'} onChange={() => update('setupMethod', 'empty')} /><span className="setup-method-icon"><ListPlus size={22} /></span><span><strong>Start empty</strong><small>Add tasks and materials manually after the project is created.</small></span></label>
         </fieldset>
+        {draft.setupMethod === 'import' ? <div className="setup-import-source">
+          <label className="import-file-field">Choose a .txt or .md file<input aria-label="Choose a .txt or .md file" type="file" accept={PROJECT_IMPORT_FILE_ACCEPT} onChange={(event) => void chooseImportFile(event)} /><span><Upload size={16} /> {draft.importSource?.source_name ?? 'Select project file'}</span></label>
+          <p>Plain text or Markdown, up to 800 KB.</p>
+        </div> : null}
         <div className="project-draft-summary"><span>Creating</span><strong>{draft.name.trim()}</strong><small>{draft.location.trim()}</small></div>
         <div className="new-project-actions"><button className="btn btn-quiet" type="button" onClick={() => update('step', 'details')} disabled={submitting}><ArrowLeft size={16} /> Back</button><button className="btn btn-primary" type="submit" disabled={submitting}>{submitting ? 'Creating project…' : hasSubmitted ? 'Try creating again' : 'Create project'} {!submitting ? <ArrowRight size={16} /> : null}</button></div>
       </form>

@@ -115,9 +115,22 @@ test('new-project import rejects unsupported files and recovers a committed extr
   await page.getByLabel('Project name').fill(projectName);
   await page.getByLabel('Location').fill('East Legon, Accra');
   await page.getByRole('button', { name: 'Continue to setup' }).click();
+  await page.getByLabel('Choose a .txt or .md file').setInputFiles({
+    name: 'plan.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF unsupported'),
+  });
+  await expect(page.locator('.form-alert')).toContainText('Use a .txt or .md file');
+  await page.getByLabel('Choose a .txt or .md file').setInputFiles({
+    name: 'ridge-plan.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from('# Foundation\nTask: Excavation\nTask: Foundation'),
+  });
+  await expect(page.getByText('ridge-plan.md')).toBeVisible();
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
   await expect(page.getByRole('heading', { name: 'Add your project plan.' })).toBeVisible();
+  await expect(page.getByLabel('Plan source')).toHaveValue('# Foundation\nTask: Excavation\nTask: Foundation');
 
   const accessibility = await new AxeBuilder({ page })
     .include('.project-import-setup')
@@ -130,12 +143,6 @@ test('new-project import rejects unsupported files and recovers a committed extr
     if (request.method() === 'POST') importRequests += 1;
     await route.continue();
   });
-  await page.getByLabel('Choose a .txt or .md file').setInputFiles({
-    name: 'plan.pdf',
-    mimeType: 'application/pdf',
-    buffer: Buffer.from('%PDF unsupported'),
-  });
-  await expect(page.locator('.form-alert')).toContainText('Use a .txt or .md file');
   expect(importRequests).toBe(0);
 
   await page.unroute('**/api/v1/projects/*/imports');
@@ -152,7 +159,6 @@ test('new-project import rejects unsupported files and recovers a committed extr
     }
     await route.continue();
   });
-  await page.getByLabel('Plan source').fill('# Foundation\nTask: Excavation\nTask: Foundation');
   await page.getByRole('button', { name: 'Extract project plan' }).click();
   await expect(page.locator('.form-alert')).toContainText('saved in this tab');
   expect(consoleErrors).toEqual(['Failed to load resource: net::ERR_FAILED']);

@@ -587,7 +587,8 @@ npm run typecheck
 
 - [x] Add typed `createProjectImport` and bounded import-list/latest APIs to the
   frontend client.
-- [x] Build `/projects/{id}/setup` source paste and `.txt`/`.md` text-read states.
+- [x] Build direct `.txt`/`.md` selection in `/projects/new`, stage the source
+  through project creation, and retain source paste/editing in `/projects/{id}/setup`.
 - [x] Preserve the import idempotency claim across timeout, reload, and retry.
 - [x] Recover the latest nonterminal import and route to its current state.
 
@@ -598,10 +599,12 @@ npm run typecheck
 - [x] Project-created/import-failed state is explicit and retryable.
 - [x] Unsupported file types are rejected before model invocation.
 
-Completed locally on 2026-08-19. The project-scoped setup route accepts pasted
-text and local `.txt`/`.md` files, retains the source plus caller-owned import
-claim through response loss and reload, and recovers the latest nonterminal
-server record without a copied import ID. Recovery uses a bounded, authorized
+Completed locally on 2026-08-19 and extended on 2026-08-21. `/projects/new`
+accepts local `.txt`/`.md` files without manual transcription and stages the
+source into the project-scoped setup route. That route also accepts pasted text,
+retains the source plus caller-owned import claim through response loss and
+reload, and recovers the latest nonterminal server record without a copied
+import ID. Recovery uses a bounded, authorized
 summary feed that excludes terminal records before applying its limit and never
 returns source text. Unsupported adapter types are rejected at both browser and
 HTTP boundaries before persistence or extraction. Desktop and mobile Chromium

@@ -817,6 +817,8 @@ p { font-size: 1.05rem; }
 .setup-method > span:last-child { display: grid; gap: 5px; }
 .setup-method strong { color: var(--ink); font-size: 0.96rem; }
 .setup-method small { color: var(--ink-soft); font-size: 0.78rem; line-height: 1.45; }
+.setup-import-source { display: grid; gap: 8px; }
+.setup-import-source > p { color: var(--ink-faint); font-size: 0.74rem; }
 .project-draft-summary { display: grid; gap: 3px; padding: 15px 17px; background: var(--paper); border-left: 3px solid var(--orange); }
 .project-draft-summary span { color: var(--ink-faint); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .project-draft-summary small { color: var(--ink-soft); }
