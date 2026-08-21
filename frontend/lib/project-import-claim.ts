@@ -27,6 +27,7 @@ const CLAIM_STORAGE_PREFIX = 'oga:project-import:create-claim';
 const volatileClaims = new Map<string, ProjectImportClaim>();
 
 export type ProjectImportClaim = CreateProjectImportInput & {
+  autoStart: boolean;
   ownerKey: string;
   projectId: string;
   idempotencyKey: string;
@@ -59,6 +60,7 @@ function hasValidPayload(value: Partial<ProjectImportClaim>): boolean {
 
 function freshClaim(projectId: string, ownerKey: string): ProjectImportClaim {
   return {
+    autoStart: false,
     ownerKey,
     projectId,
     idempotencyKey: `project-import:${crypto.randomUUID()}`,
@@ -84,7 +86,10 @@ export function restoreProjectImportClaim(projectId: string, ownerKey: string): 
       || !isSourceType(value.source_type)
       || !hasValidPayload(value)
     ) return freshClaim(projectId, ownerKey);
-    return value as ProjectImportClaim;
+    return {
+      ...value,
+      autoStart: value.autoStart === true,
+    } as ProjectImportClaim;
   } catch {
     return freshClaim(projectId, ownerKey);
   }
@@ -105,7 +110,13 @@ export function stageProjectImportClaim(
   source: CreateProjectImportInput,
   idempotencyKey: string,
 ): void {
-  persistProjectImportClaim({ projectId, ownerKey, idempotencyKey, ...source });
+  persistProjectImportClaim({
+    autoStart: true,
+    projectId,
+    ownerKey,
+    idempotencyKey,
+    ...source,
+  });
 }
 
 export function clearProjectImportClaim(projectId: string): void {

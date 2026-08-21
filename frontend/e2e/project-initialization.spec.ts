@@ -17,12 +17,10 @@ async function startImportReview(page: Page, label: string): Promise<{ projectId
     buffer: Buffer.from(`# ${sourceProjectName}\nLocation: East Legon, Accra\nTask: Excavation\nTask: Foundation`),
   });
   await page.getByRole('button', { name: 'Continue with this file' }).click();
-  await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
-  const projectId = page.url().match(/\/projects\/(prj_[a-z0-9]+)\/setup/)?.[1];
+  await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/imports\/imp_[a-z0-9]+$/);
+  const projectId = page.url().match(/\/projects\/(prj_[a-z0-9]+)\/imports/)?.[1];
   expect(projectId).toBeTruthy();
 
-  await page.getByRole('button', { name: 'Extract project plan' }).click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/imports/imp_[a-z0-9]+$`));
   await expect(page.getByRole('heading', { name: 'Review project initialization' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Project details' })).toBeVisible();
   await expect(page.getByText(reviewedProjectName)).toBeVisible();

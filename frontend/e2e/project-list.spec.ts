@@ -122,25 +122,7 @@ test('new-project import rejects unsupported files and recovers a committed extr
     buffer: Buffer.from('Task: Excavation\nTask: Foundation'),
   });
   await expect(page.getByText('ridge-plan.csv')).toBeVisible();
-  await page.getByRole('button', { name: 'Continue with this file' }).click();
-  await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
-  await expect(page.getByRole('heading', { name: 'Add your project plan.' })).toBeVisible();
-  await expect(page.getByText('ridge-plan.csv')).toBeVisible();
-
-  const accessibility = await new AxeBuilder({ page })
-    .include('.project-import-setup')
-    .withTags(['wcag2a', 'wcag2aa'])
-    .analyze();
-  expect(accessibility.violations).toEqual([]);
-
   let importRequests = 0;
-  await page.route('**/api/v1/projects/*/imports', async (route, request) => {
-    if (request.method() === 'POST') importRequests += 1;
-    await route.continue();
-  });
-  expect(importRequests).toBe(0);
-
-  await page.unroute('**/api/v1/projects/*/imports');
   let committedResponseLost = false;
   await page.route('**/api/v1/projects/*/imports', async (route, request) => {
     if (request.method() === 'POST') {
@@ -154,8 +136,18 @@ test('new-project import rejects unsupported files and recovers a committed extr
     }
     await route.continue();
   });
-  await page.getByRole('button', { name: 'Extract project plan' }).click();
-  await expect(page.locator('.form-alert')).toContainText('saved in this tab');
+  await page.getByRole('button', { name: 'Continue with this file' }).click();
+  await expect(page).toHaveURL(/\/projects\/prj_[a-z0-9]+\/setup\?method=import$/);
+  await expect(page.getByRole('heading', { name: 'Extraction needs another try.' })).toBeVisible();
+  await expect(page.getByText('ridge-plan.csv')).toBeVisible();
+  await expect(page.getByLabel('Choose a project file')).toHaveCount(0);
+  await expect(page.getByLabel('Plan source')).toHaveCount(0);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.setup-handoff')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
   expect(consoleErrors).toEqual(['Failed to load resource: net::ERR_FAILED']);
   consoleErrors.length = 0;
 

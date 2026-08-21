@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowRight, FileText, Loader2, Upload } from 'lucide-react';
 import Link from 'next/link';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { clearNewProjectClaim } from '@/components/new-project-wizard';
@@ -18,6 +18,7 @@ import {
   PROJECT_IMPORT_FILE_ACCEPT,
   readProjectImportFile,
   restoreProjectImportClaim,
+  type ProjectImportClaim,
 } from '@/lib/project-import-claim';
 
 function isTextSource(source: CreateProjectImportInput): source is Extract<
@@ -35,6 +36,8 @@ export function ProjectImportSetup({ projectId, ownerKey }: Readonly<{ projectId
   const [submitting, setSubmitting] = useState(false);
   const [recoveryError, setRecoveryError] = useState('');
   const [error, setError] = useState('');
+  const [editingSource, setEditingSource] = useState(false);
+  const autoStarted = useRef(false);
 
   useEffect(() => {
     clearNewProjectClaim();
@@ -65,6 +68,7 @@ export function ProjectImportSetup({ projectId, ownerKey }: Readonly<{ projectId
 
   function updateSource(source: CreateProjectImportInput) {
     setClaim((current) => ({
+      autoStart: false,
       ownerKey: current.ownerKey,
       projectId: current.projectId,
       idempotencyKey: current.idempotencyKey,
@@ -85,49 +89,84 @@ export function ProjectImportSetup({ projectId, ownerKey }: Readonly<{ projectId
     updateSource(result.source);
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const startExtraction = useCallback(async (sourceClaim: ProjectImportClaim) => {
     setError('');
-    if (isTextSource(claim)) {
-      const byteSize = new TextEncoder().encode(claim.source_text).byteLength;
-      if (!claim.source_text.trim()) {
+    if (isTextSource(sourceClaim)) {
+      const byteSize = new TextEncoder().encode(sourceClaim.source_text).byteLength;
+      if (!sourceClaim.source_text.trim()) {
         setError('Paste your project plan or choose a supported project file.');
-        return;
+        return false;
       }
       if (byteSize > MAX_PROJECT_IMPORT_SOURCE_BYTES) {
         setError('That source is larger than the 800 KB import limit.');
-        return;
+        return false;
       }
     }
-    persistProjectImportClaim(claim);
+    const retryClaim = { ...sourceClaim, autoStart: false };
+    setClaim(retryClaim);
+    persistProjectImportClaim(retryClaim);
     setSubmitting(true);
     try {
-      const input: CreateProjectImportInput = isTextSource(claim)
+      const input: CreateProjectImportInput = isTextSource(retryClaim)
         ? {
-          source_name: claim.source_name,
-          source_text: claim.source_text,
-          source_type: claim.source_type,
+          source_name: retryClaim.source_name,
+          source_text: retryClaim.source_text,
+          source_type: retryClaim.source_type,
         }
         : {
-          source_name: claim.source_name,
-          source_data_base64: claim.source_data_base64,
-          source_type: claim.source_type,
+          source_name: retryClaim.source_name,
+          source_data_base64: retryClaim.source_data_base64,
+          source_type: retryClaim.source_type,
         };
-      const created = await api.createProjectImport(projectId, input, claim.idempotencyKey);
+      const created = await api.createProjectImport(projectId, input, retryClaim.idempotencyKey);
       clearProjectImportClaim(projectId);
       router.replace(`/projects/${projectId}/imports/${created.id}`);
+      return true;
     } catch {
       setLatest((current) => current ?? null);
       setError('OG couldn’t start extraction. Your source and retry claim are saved in this tab; try again when the service is available.');
-    } finally {
       setSubmitting(false);
+      return false;
     }
+  }, [projectId, router]);
+
+  useEffect(() => {
+    if (
+      checking
+      || recoveryError
+      || latest
+      || !claim.autoStart
+      || autoStarted.current
+    ) return;
+    autoStarted.current = true;
+    queueMicrotask(() => void startExtraction(claim));
+  }, [checking, claim, latest, recoveryError, startExtraction]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void startExtraction(claim);
   }
 
   if (checking) return <div className="loading-stack" aria-busy="true" aria-label="Checking project imports"><p className="loading-label">Checking for an existing import…</p><div className="loading-block loading-card" /></div>;
   if (recoveryError) return <section className="setup-handoff"><span className="setup-handoff-icon"><AlertTriangle /></span><h1>We couldn’t check project setup.</h1><p role="alert">{recoveryError}</p><div className="setup-handoff-actions"><button className="btn btn-primary" type="button" onClick={() => void recoverLatest()}>Check again</button><Link className="btn btn-quiet" href={`/projects/${projectId}`}>Project overview</Link></div></section>;
 
+  if (submitting) return <section className="setup-handoff" aria-busy="true"><span className="setup-handoff-icon"><Loader2 className="spinner" size={24} /></span><span className="eyebrow">Project created</span><h1>Reading your project plan.</h1><p role="status">OG is reading {claim.source_name}…</p></section>;
+
   const isRetry = latest?.status === 'extraction_failed';
+  const hasSavedSource = isTextSource(claim)
+    ? Boolean(claim.source_text.trim())
+    : Boolean(claim.source_data_base64);
+  if ((isRetry || error) && hasSavedSource && !editingSource) {
+    return <section className="setup-handoff" aria-labelledby="project-import-retry-title">
+      <span className="setup-handoff-icon"><AlertTriangle size={24} /></span>
+      <span className="eyebrow">Project created</span>
+      <h1 id="project-import-retry-title">Extraction needs another try.</h1>
+      <p role="alert">{error || latest?.failure_message || 'Your saved source can be retried safely.'}</p>
+      <div className="import-recovery-alert" role="status"><FileText size={19} /><div><strong>{claim.source_name === 'pasted-project.md' ? 'Pasted project plan' : claim.source_name}</strong><p>Your source and retry claim are still saved in this tab.</p></div></div>
+      <div className="setup-handoff-actions"><Link className="btn btn-quiet" href={`/projects/${projectId}`}>Project overview</Link><button className="btn btn-quiet" type="button" onClick={() => setEditingSource(true)}>Choose a different file</button><button className="btn btn-primary" type="button" onClick={() => void startExtraction(claim)}>Retry extraction <ArrowRight size={16} /></button></div>
+    </section>;
+  }
+
   return <section className="new-project-card project-import-setup" aria-labelledby="project-import-title">
     <span className="setup-handoff-icon"><FileText size={24} /></span>
     <span className="eyebrow">Project created</span>

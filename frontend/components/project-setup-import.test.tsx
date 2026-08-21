@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectImportSetup } from './project-import-setup';
 import type { ProjectImportReviewRecord, ProjectImportSummary } from '@/lib/api';
+import { stageProjectImportClaim } from '@/lib/project-import-claim';
 
 const { createProjectImport, getLatestProjectImport, replace, router } = vi.hoisted(() => {
   const replace = vi.fn();
@@ -55,6 +56,58 @@ describe('ProjectImportSetup', () => {
   });
 
   afterEach(cleanup);
+
+  it('automatically starts extraction for the file staged by new-project setup', async () => {
+    stageProjectImportClaim(
+      'prj_ridge',
+      'firebase-user',
+      {
+        source_name: 'ridge-plan.docx',
+        source_type: 'file',
+        source_data_base64: 'AQID',
+      },
+      'project-import:from-new-project',
+    );
+
+    render(<ProjectImportSetup projectId="prj_ridge" ownerKey="firebase-user" />);
+
+    expect(await screen.findByText('OG is reading ridge-plan.docx…')).toBeVisible();
+    await waitFor(() => expect(createProjectImport).toHaveBeenCalledWith(
+      'prj_ridge',
+      {
+        source_name: 'ridge-plan.docx',
+        source_type: 'file',
+        source_data_base64: 'AQID',
+      },
+      'project-import:from-new-project',
+    ));
+    expect(screen.queryByRole('heading', { name: 'Add your project plan.' })).not.toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith('/projects/prj_ridge/imports/imp_ridge');
+  });
+
+  it('shows a focused retry state when automatic extraction cannot start', async () => {
+    createProjectImport.mockRejectedValueOnce(new Error('network lost'));
+    stageProjectImportClaim(
+      'prj_ridge',
+      'firebase-user',
+      {
+        source_name: 'ridge-plan.docx',
+        source_type: 'file',
+        source_data_base64: 'AQID',
+      },
+      'project-import:from-new-project',
+    );
+
+    render(<ProjectImportSetup projectId="prj_ridge" ownerKey="firebase-user" />);
+
+    expect(await screen.findByRole('heading', { name: 'Extraction needs another try.' })).toBeVisible();
+    expect(screen.getByText('ridge-plan.docx')).toBeVisible();
+    expect(screen.queryByLabelText('Choose a project file')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Plan source')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a different file' }));
+    expect(screen.getByLabelText('Choose a project file')).toBeVisible();
+  });
 
   it('starts extraction from pasted structured text and routes to its persisted import', async () => {
     render(<ProjectImportSetup projectId="prj_ridge" ownerKey="firebase-user" />);
@@ -171,7 +224,7 @@ describe('ProjectImportSetup', () => {
     render(<ProjectImportSetup projectId="prj_ridge" ownerKey="firebase-user" />);
 
     expect(await screen.findByText('Extraction needs another try.')).toBeVisible();
-    expect(screen.getByLabelText('Plan source')).toHaveValue('Task: Foundation');
+    expect(screen.queryByLabelText('Plan source')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry extraction' }));
 
     await waitFor(() => expect(createProjectImport).toHaveBeenLastCalledWith(

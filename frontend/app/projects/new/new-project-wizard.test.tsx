@@ -92,6 +92,7 @@ describe('NewProjectWizard', () => {
     expect(JSON.parse(
       window.sessionStorage.getItem('oga:project-import:create-claim:prj_ridge') ?? '{}',
     )).toMatchObject({
+      autoStart: true,
       ownerKey: 'firebase-user',
       projectId: 'prj_ridge',
       source_name: 'ridge-plan.md',
@@ -120,6 +121,7 @@ describe('NewProjectWizard', () => {
     expect(JSON.parse(
       window.sessionStorage.getItem('oga:project-import:create-claim:prj_ridge') ?? '{}',
     )).toMatchObject({
+      autoStart: true,
       source_name: 'ridge-plan.docx',
       source_type: 'file',
       source_data_base64: 'UEsDBA==',
