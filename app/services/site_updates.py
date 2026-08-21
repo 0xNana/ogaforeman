@@ -69,6 +69,12 @@ class SiteUpdateResult:
     pending_actions: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _MaterialRequirementSelection:
+    required_quantity: Decimal
+    affected_task_ids: tuple[str, ...]
+
+
 class SiteUpdateService:
     def __init__(
         self,
@@ -445,20 +451,20 @@ class SiteUpdateService:
                         material = material_change.material
                         materials_updated += int(not material_change.duplicate)
 
-                required_quantity = _required_material_quantity(
+                requirement = _select_material_requirement(
                     material,
                     self._material_requests._store,
                     access.project_id,
-                    project_context.active_tasks,
+                    resolved_focus,
                 )
-                if required_quantity is None or reported_quantity >= required_quantity:
+                if requirement is None or reported_quantity >= requirement.required_quantity:
                     continue
                 shortage = self._material_requests.evaluate_shortage(
                     access,
                     MaterialShortageCommand(
                         project_id=access.project_id,
                         material_id_or_alias=material.id,
-                        required_quantity=required_quantity,
+                        required_quantity=requirement.required_quantity,
                         unit=material.unit,
                         needed_by=_earliest_focus_date(resolved_focus),
                         reason=(
@@ -466,7 +472,7 @@ class SiteUpdateService:
                         ),
                         supplier=material.default_supplier,
                         estimated_unit_cost=material.estimated_unit_cost,
-                        affected_task_ids=[task.id for task, _fact in resolved_focus],
+                        affected_task_ids=list(requirement.affected_task_ids),
                         occurred_at=site_update.submitted_at,
                     ),
                     _mutation_context(
@@ -503,7 +509,11 @@ class SiteUpdateService:
                         },
                     )
                 )
-                for focus_index, (focus_task, _focus_fact) in enumerate(resolved_focus):
+                affected_task_ids = set(requirement.affected_task_ids)
+                affected_focus = [
+                    item for item in resolved_focus if item[0].id in affected_task_ids
+                ]
+                for focus_index, (focus_task, _focus_fact) in enumerate(affected_focus):
                     delay_issue_change = self._issues.create_issue(
                         access,
                         CreateIssueCommand(
@@ -700,27 +710,51 @@ def _resolve_issue_tasks(
     return [task.id], False
 
 
-def _required_material_quantity(
-    material: Material, store: RepositoryStore, project_id: str, active_tasks: Sequence[Task]
-) -> Decimal | None:
-    reqs = store.repository(MaterialRequirement).list(project_id)
-    active_task_ids = {
-        t.id for t in active_tasks if t.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
-    }
+def _select_material_requirement(
+    material: Material,
+    store: RepositoryStore,
+    project_id: str,
+    resolved_focus: Sequence[tuple[Task, ReportFact]],
+) -> _MaterialRequirementSelection | None:
+    focus_task_ids = tuple(
+        task.id
+        for task, _fact in resolved_focus
+        if task.status not in {TaskStatus.COMPLETED, TaskStatus.CANCELLED}
+    )
+    if not focus_task_ids:
+        return None
 
-    has_reqs = False
-    total = Decimal("0")
-    for r in reqs:
-        if r.material_id == material.id:
-            has_reqs = True
-            if r.task_id in active_task_ids:
-                total += r.required_quantity
+    material_requirements = [
+        requirement
+        for requirement in store.repository(MaterialRequirement).list(project_id)
+        if requirement.material_id == material.id
+    ]
+    if material_requirements:
+        requirements_by_task = {
+            requirement.task_id: requirement for requirement in material_requirements
+        }
+        affected_task_ids = tuple(
+            task_id for task_id in focus_task_ids if task_id in requirements_by_task
+        )
+        required_quantity = sum(
+            (requirements_by_task[task_id].required_quantity for task_id in affected_task_ids),
+            start=Decimal("0"),
+        )
+        if not affected_task_ids or required_quantity <= 0:
+            return None
+        return _MaterialRequirementSelection(
+            required_quantity=required_quantity,
+            affected_task_ids=affected_task_ids,
+        )
 
-    if has_reqs:
-        return total if total > 0 else None
-
-    return material.upcoming_requirement_quantity or (
+    fallback_quantity = material.upcoming_requirement_quantity or (
         material.minimum_required_quantity if material.minimum_required_quantity > 0 else None
+    )
+    if fallback_quantity is None:
+        return None
+    return _MaterialRequirementSelection(
+        required_quantity=fallback_quantity,
+        affected_task_ids=focus_task_ids,
     )
 
 

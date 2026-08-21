@@ -45,6 +45,9 @@ _ALLOWED_FIELDS = {
     "route",
     "method",
     "status_class",
+    "import_id",
+    "model_key",
+    "prompt_key",
 }
 
 

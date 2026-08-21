@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app.api.cors import install_cors_middleware
 from app.api.dead_letters import router as dead_letter_router
 from app.api.errors import install_error_handlers, install_request_id_middleware
+from app.api.limits import InMemoryRateLimiter
 from app.api.events import router as event_router
 from app.api.health import create_runtime_health_router
 from app.api.runtime_auth import ConfiguredAuthRuntime
@@ -41,6 +42,12 @@ app = FastAPI(
     version="0.1.0",
 )
 app.state.settings = settings
+app.state.project_import_rate_limiter = InMemoryRateLimiter(
+    user_limit=settings.rate_limit_per_user,
+    project_limit=settings.rate_limit_per_project,
+    ip_limit=settings.rate_limit_per_user,
+    window_seconds=60,
+)
 if settings.auth_audience:
     app.state.auth_runtime = ConfiguredAuthRuntime(settings)
     app.state.current_user_provider = app.state.auth_runtime.authenticate

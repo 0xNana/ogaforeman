@@ -56,12 +56,19 @@ Project wizard, complete project fields, explicit import-or-empty setup choice,
 stable creation replay, and the project-scoped setup handoff. PI-07 adds typed
 structured-source creation, paste and local text/Markdown entry, a reload-stable
 import claim, and latest-nonterminal recovery through a source-safe bounded API.
-Unsupported source adapters are rejected before extraction. One strict expected
-failure still covers task-incorrect shortage calculation. PI-08 completes the
+Unsupported source adapters are rejected before extraction. PI-08 completes the
 review UI lifecycle, persists stable decision claims across reload and response
 loss, recovers optimistic conflicts, refreshes imported project state before
-routing, and returns cancellation to setup. PI-09 through PI-14
-remain open.
+routing, and returns cancellation to setup. PI-09 and PI-10 now prove that Golden
+Operations consume task-specific imported requirements and dependencies, including
+the deterministic 90/70 shortage results and typed operational material evolution.
+PI-11 adds one-trace import diagnostics, typed prompt/model registry keys, bounded
+telemetry, three alert policies, and an operator runbook. PI-12 closes tenant,
+authorization, source-size, rate-limit, prompt-injection, and model-authority gates.
+PI-13 replaces the print probe with a versioned seven-case live assertion artifact;
+the 2026-08-21 Vertex run with `gemini-3.6-flash` passed all seven cases. PI-14 adds
+the normative documentation and authenticated initialization/post-rollback smoke,
+while real staging preservation evidence remains open.
 
 Project Initialization Phase 1 has partial local implementation: strict, schema-versioned
 Pydantic contracts cover import drafts, draft-only temporary references,
@@ -133,10 +140,11 @@ Project Initialization Phase 12 has partial local implementation: conversational
 queries against the newly imported model now fetch entity-specific material
 requirements and downstream dependency impact, returning precise facts without
 generic fallbacks.
-Project Initialization Phase 13 has partial local implementation: Golden Operations
-read `MaterialRequirement` records instead of hardcoded quantities, but currently
-aggregate unrelated active-task requirements. Task-specific shortage calculation
-remains open under PI-09.
+Project Initialization Phase 13 is complete locally: Golden Operations read only
+the focused task's imported `MaterialRequirement` records. A requirement of 100
+with 10 on hand creates a 90-bag request; changing it to 80 creates 70, and an
+unrelated task cannot affect either quantity. Inventory-only updates remain safe
+when no focused requirement exists.
 Project Initialization Phase 14 has partial local implementation: conversational dependency reasoning
 uses the data-driven canonical task graph for schedule impact, guaranteeing that removing
 a dependency automatically prevents the system from claiming the downstream impact.
@@ -317,6 +325,27 @@ Project Initialization PI-08 verification on 2026-08-21:
   task after confirmation
 - keyboard order passed and the review state had no WCAG A/AA violations in the
   desktop or 360 px scans
+
+Project Initialization PI-09 through PI-14 local verification on 2026-08-21:
+
+- PI-09 exact gate: 21 passed; the focused imported requirements produced 90
+  and 70 bags without including the unrelated task.
+- PI-10 exact gate: 8 passed; 3 durable worker cases skipped because both
+  Firestore and Storage emulators were not available to that command.
+- PI-11 exact telemetry gate: 12 passed; the no-argument observability smoke
+  passed liveness, readiness, and metrics with correlated request/trace IDs.
+- PI-12 exact security gate: 44 passed; 1 Firestore authorization case skipped
+  because `FIRESTORE_EMULATOR_HOST` was not available to that command.
+- PI-13 Vertex evidence: `gemini-3.6-flash` passed all 7 versioned project-import
+  cases with typed assertion results and no source/model body in the artifact.
+- PI-14 frontend evidence: 88 unit tests, lint, typecheck, production build, and
+  4 desktop/mobile project-initialization browser journeys passed. Authenticated
+  staging initialization and post-rollback preservation remain external gates.
+- repository-wide non-backing gate: 682 passed with 30 backing tests deselected;
+  production readiness passed 12 with 1 emulator-only restart skip.
+- the explicit backing-service gate selected 30 tests, all of which skipped
+  because emulator hosts were not exported to that command. Ruff check/format,
+  app-wide mypy, documentation validation, and production dependency audit passed.
 
 Project Initialization PI-01 verification on 2026-08-19:
 

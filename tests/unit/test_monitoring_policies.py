@@ -15,6 +15,9 @@ def test_phase8_monitoring_policy_templates_are_complete_and_bounded() -> None:
         "pubsub-queue-age.json",
         "dead-letter-count.json",
         "backup-failure.json",
+        "project-import-stuck.json",
+        "project-import-extraction-failures.json",
+        "project-import-commit-failures.json",
     }
     policies = {
         path.name: json.loads(path.read_text(encoding="utf-8"))
@@ -43,6 +46,17 @@ def test_monitoring_templates_only_use_documented_placeholders() -> None:
     assert source.count("${API_SERVICE}") == 3
     assert source.count("${WORKER_SUBSCRIPTION}") == 1
     assert source.count("${DEAD_LETTER_SUBSCRIPTION}") == 1
+
+
+def test_repeated_import_failure_rate_represents_more_than_two_in_five_minutes() -> None:
+    policy = json.loads(
+        (POLICY_DIR / "project-import-extraction-failures.json").read_text(encoding="utf-8")
+    )
+    threshold = policy["conditions"][0]["conditionThreshold"]
+
+    assert threshold["aggregations"][0]["alignmentPeriod"] == "300s"
+    assert threshold["aggregations"][0]["perSeriesAligner"] == "ALIGN_RATE"
+    assert 2 / 300 < threshold["thresholdValue"] < 3 / 300
 
 
 def test_monitoring_apply_matches_policy_names_client_side_without_duplicates() -> None:

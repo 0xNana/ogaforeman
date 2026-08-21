@@ -12,6 +12,26 @@ FAILED -> DEAD_LETTERED
 
 Each workflow persists `AgentRun` and a checkpoint after externally visible steps. Steps include event ID, trace ID, prompt/model/policy versions, attempt, and safe user-facing summary. Every step is idempotent.
 
+## Project Initialization Import
+
+```text
+authorized project creation
+  -> persist bounded source and exact create claim
+  -> resumable ADK extraction using untrusted-source delimiters
+  -> schema validation and deterministic normalization
+  -> deterministic validation and additive-only conflict preflight
+  -> persist review draft plus safe trace/registry diagnostics
+  -> human confirm with expected version and idempotency claim
+  -> rebuild and revalidate the immutable mutation plan transactionally
+  -> atomically create canonical records, provenance, ledger, and activity
+  -> mark import complete and refresh the operational project snapshot
+```
+
+The model owns only draft temporary references. Canonical IDs, persisted source
+provenance, authorization, confirmation authority, and mutation execution remain
+deterministic. Retry, refresh, and process restart resume the same persisted
+source/import claim; exact replay cannot create another canonical mutation set.
+
 ## Daily Site Update
 
 ```text

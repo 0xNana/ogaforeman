@@ -49,6 +49,14 @@ matrix, errors, and workload boundary are defined in [AUTH.md](AUTH.md).
 - Do not let the model choose arbitrary URLs, collection paths, code, or shell commands.
 - Log model ID, prompt version, token/latency metadata, and validation outcome, but not hidden reasoning.
 
+Project-import source text is bounded by UTF-8 bytes, delimited as untrusted
+data, and processed only after active membership plus `MANAGE` authorization.
+The extraction schema rejects canonical IDs, trusted provenance, arbitrary
+fields, mutation tokens, and decision authority. Deterministic normalization
+binds temporary source references to the persisted project source, and the
+transactional importer generates every canonical ID. Per-user/project extraction
+limits run before source persistence and Gemini invocation.
+
 ## Approval and Autonomy
 
 - Purchases, external commitments, financial actions, task cancellation, major schedule changes, and high-impact changes always require a human decision in V1.

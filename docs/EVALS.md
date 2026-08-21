@@ -100,6 +100,22 @@ present:
 name the backend so an exhausted local key cannot mask the configured Vertex
 billing route.
 
+Run the locked live project-initialization extraction gate:
+
+```bash
+.venv/bin/python scripts/eval_phase19.py \
+  --backend vertex \
+  --output artifacts/evals/project-import-live.json
+```
+
+`evals/project_import_v1.json` covers structured and imperfect Markdown,
+construction typos, incomplete dates, ambiguous quantities, prompt injection,
+and canonical-ID forgery. The command exits nonzero unless every typed assertion
+passes and records the model ID, typed prompt/model registry keys, UTC timestamp,
+commit SHA, and per-case assertion results. It stores no source or model body in
+the artifact. A configured route that runs but fails assertions is not release
+evidence.
+
 Run the deterministic Phase 16 conversational gate:
 
 ```bash

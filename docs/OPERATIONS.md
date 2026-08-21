@@ -16,7 +16,9 @@ GET /metrics   bounded Prometheus-format local metrics
 ```
 
 The checked-in monitoring policies alert on API 5xx ratio, API p95 latency,
-worker queue age, dead-letter backlog, and backup-verification failures.
+worker queue age, dead-letter backlog, backup-verification failures, project
+import extraction exceeding its five-minute lease, repeated extraction failure,
+and canonical import commit failure.
 
 ## Staging observability smoke
 
@@ -106,6 +108,25 @@ Restore rehearsal:
 - If the continuation route is PR-04, keep the incident open until the worker
   actually resumes the persisted run.
 
+### Project import incidents
+
+1. Correlate `import_id` with the persisted `telemetry_trace_id`, safe
+   `failure_code`, `diagnostic_stage`, and `diagnostic_attempt`. Query
+   `project_import_stage_finished` by trace ID; never retrieve source text,
+   prompt bodies, or model responses for routine diagnosis.
+2. For extraction older than five minutes, verify the persisted extraction lease
+   has expired before retrying through the same import ID and extraction claim.
+   Do not create a replacement import to bypass an active claim.
+3. For repeated extraction failure, compare the bounded prompt/model registry
+   keys and failure codes. Validate dependency health and source size/type without
+   logging the source body.
+4. For commit failure, confirm the record is `import_failed`, the exact decision
+   claim is unchanged, and no partial canonical entities or provenance exist.
+   Retry only through the versioned confirm endpoint.
+5. Escalate when a retry produces a different safe failure code, a lease cannot
+   be reclaimed, or atomic rollback verification fails. Preserve trace/log links
+   and the commit SHA in the incident record.
+
 ### Duplicate event alarm
 
 - Inspect the `ProcessedEvent` fingerprint and activity/outbox counts.
@@ -130,3 +151,9 @@ Use `infra/rollback.sh` with explicit verified API and worker revisions. Preserv
 events and activities. After traffic shift, run readiness, event delivery,
 duplicate suppression, and approval-resume checks. A successful command without
 those smokes is not a completed rollback rehearsal.
+
+For a project-initialization release, first preserve the JSON output from
+`scripts/smoke_authenticated_staging.py`. After rollback, rerun it with
+`--verify-evidence` pointing to that artifact. Close the rollback only when the
+same project/import IDs, imported status, task/material snapshot, and authorized
+activity feed remain available.

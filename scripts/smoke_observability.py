@@ -115,7 +115,11 @@ def run_smoke(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Smoke-test Oga observability endpoints")
-    parser.add_argument("--base-url", required=True, help="deployed API base URL")
+    parser.add_argument(
+        "--base-url",
+        default=os.getenv("OGA_STAGING_API_URL", "http://127.0.0.1:8000"),
+        help="API base URL (defaults to OGA_STAGING_API_URL or local port 8000)",
+    )
     parser.add_argument(
         "--token-env",
         default="OGA_STAGING_TOKEN",

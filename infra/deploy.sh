@@ -578,17 +578,39 @@ if [[ -n "${SCHEDULE_PROJECT_ID}" ]]; then
   fi
 fi
 
-if exists gcloud logging metrics describe oga_backup_failure_count --project "${GOOGLE_CLOUD_PROJECT}"; then
-  run gcloud logging metrics update oga_backup_failure_count \
-    --project "${GOOGLE_CLOUD_PROJECT}" \
-    --description "Oga backup verification failures" \
-    --log-filter 'jsonPayload.event="backup_verification_failed"'
-else
-  run gcloud logging metrics create oga_backup_failure_count \
-    --project "${GOOGLE_CLOUD_PROJECT}" \
-    --description "Oga backup verification failures" \
-    --log-filter 'jsonPayload.event="backup_verification_failed"'
-fi
+upsert_log_metric() {
+  local name="$1"
+  local description="$2"
+  local filter="$3"
+  if exists gcloud logging metrics describe "${name}" --project "${GOOGLE_CLOUD_PROJECT}"; then
+    run gcloud logging metrics update "${name}" \
+      --project "${GOOGLE_CLOUD_PROJECT}" \
+      --description "${description}" \
+      --log-filter "${filter}"
+  else
+    run gcloud logging metrics create "${name}" \
+      --project "${GOOGLE_CLOUD_PROJECT}" \
+      --description "${description}" \
+      --log-filter "${filter}"
+  fi
+}
+
+upsert_log_metric \
+  oga_backup_failure_count \
+  "Oga backup verification failures" \
+  'jsonPayload.event="backup_verification_failed"'
+upsert_log_metric \
+  oga_project_import_stuck_count \
+  "Project import extraction stages reaching the 45-second workflow timeout" \
+  'jsonPayload.event="project_import_stage_finished" AND jsonPayload.step="extraction" AND jsonPayload.duration_ms>=45000'
+upsert_log_metric \
+  oga_project_import_extraction_failure_count \
+  "Failed project import extraction stages" \
+  'jsonPayload.event="project_import_stage_finished" AND jsonPayload.step="extraction" AND jsonPayload.status="failed"'
+upsert_log_metric \
+  oga_project_import_commit_failure_count \
+  "Failed project import commit stages" \
+  'jsonPayload.event="project_import_stage_finished" AND jsonPayload.step="commit" AND jsonPayload.status="failed"'
 
 GOOGLE_CLOUD_PROJECT="${GOOGLE_CLOUD_PROJECT}" \
 API_SERVICE="${API_SERVICE}" \

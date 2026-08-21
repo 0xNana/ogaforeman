@@ -246,6 +246,8 @@ class ProjectImportService:
                         "decision_expected_version": expected_review_version,
                         "failure_code": None,
                         "failure_message": None,
+                        "diagnostic_stage": "commit",
+                        "commit_outcome": "running",
                         "updated_at": now,
                     }
                 ),
@@ -334,6 +336,9 @@ class ProjectImportService:
                         "import_attempt": attempt,
                         "failure_code": None,
                         "failure_message": None,
+                        "diagnostic_stage": "commit",
+                        "diagnostic_attempt": attempt,
+                        "commit_outcome": "running",
                         "updated_at": now,
                     }
                 ),
@@ -509,6 +514,9 @@ class ProjectImportService:
                         "material_count": len(entities.materials),
                         "requirement_count": len(entities.requirements),
                         "completed_at": now,
+                        "diagnostic_stage": "commit",
+                        "diagnostic_attempt": existing.import_attempt,
+                        "commit_outcome": "succeeded",
                         "updated_at": now,
                     }
                 ),
@@ -562,6 +570,9 @@ class ProjectImportService:
                         "status": ProjectImportStatus.IMPORT_FAILED,
                         "failure_code": failure_code,
                         "failure_message": failure_message,
+                        "diagnostic_stage": "commit",
+                        "diagnostic_attempt": record.import_attempt,
+                        "commit_outcome": "failed",
                         "updated_at": now,
                     }
                 ),

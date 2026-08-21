@@ -2,7 +2,8 @@
 
 These checked-in alert-policy templates cover the Phase 8 minimum operational
 signals: API 5xx ratio, API p95 latency, worker queue age, dead-letter backlog,
-and backup-verification failures.
+backup-verification failures, slow project-import extraction, repeated import
+extraction failure, and project-import commit failure.
 
 `infra/deploy.sh` renders `${API_SERVICE}`, `${WORKER_SUBSCRIPTION}`, and
 `${DEAD_LETTER_SUBSCRIPTION}` into temporary files before applying them. The
@@ -24,9 +25,14 @@ in Cloud Logging and the corresponding span in Cloud Trace. Trigger each alert
 only in staging, record the incident URL and recovery timestamp, and restore the
 threshold immediately afterward.
 
+Project-import policies use log-derived counters from the bounded
+`project_import_stage_finished` event. Labels never contain project, import,
+source, prompt body, or model response content. The incident procedure is in the
+Project import incidents section of `docs/OPERATIONS.md`.
+
 The deployed staging API and exact Cloud Logging correlation are recorded in
 `artifacts/operations/staging-observability.json` and
-`artifacts/operations/staging-log-correlation.json`; five policies are provisioned.
+`artifacts/operations/staging-log-correlation.json`; eight policies are provisioned.
 Cloud Trace span visibility and an alert-delivery incident are still open and
 must not be inferred from the log-correlation pass.
 

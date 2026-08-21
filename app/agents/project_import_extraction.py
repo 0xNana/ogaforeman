@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from typing import Any, Protocol
 
 from google.adk.agents.context import Context
@@ -11,6 +12,7 @@ from google.adk.workflow import FunctionNode, START, Workflow
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.config.settings import Settings
+from app.agents.project_import_registry import PROJECT_IMPORT_RUNTIME
 from app.domain.project_import import (
     DependencyDraft,
     ExtractedMaterialDraft,
@@ -75,12 +77,12 @@ class ProjectImportCandidate(BaseModel):
 class GeminiProjectImportExtractor:
     """Gemini schema-constrained extraction boundary for project sources."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, prefer_vertex: bool = False) -> None:
         from app.infrastructure.gemini import create_gemini_client
 
         if not settings.gemini_model_id:
             raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
-        self._client = create_gemini_client(settings)
+        self._client = create_gemini_client(settings, prefer_vertex=prefer_vertex)
         self._model_name = settings.gemini_model_id
 
     async def extract(self, source_text: str) -> ProjectImportCandidate:
@@ -88,24 +90,53 @@ class GeminiProjectImportExtractor:
 
         response = await self._client.aio.models.generate_content(
             model=self._model_name,
-            contents=(
-                "Extract a construction project plan into the supplied schema. "
-                "Identify tasks, phases, dependencies, materials, quantities, units, "
-                "dates, and requirements from the source. Use only draft temp IDs "
-                "matching tmp_...; never output Firestore IDs, canonical entity IDs, "
-                "approval authority, or mutation tokens. Do not invent missing date "
-                "months or years; add unresolved references instead.\n\n"
-                f"<project_source>\n{source_text}\n</project_source>"
-            ),
+            contents=PROJECT_IMPORT_RUNTIME.render_prompt(source_text),
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=ProjectImportCandidate,
+                response_json_schema=_gemini_candidate_schema(),
                 temperature=0.0,
             ),
         )
         if not response.text:
             raise ValueError("Gemini returned an empty project import extraction")
         return ProjectImportCandidate.model_validate_json(response.text)
+
+
+def _gemini_candidate_schema() -> dict[str, Any]:
+    """Remove generation hints unsupported by the Vertex schema dialect.
+
+    The complete Pydantic contract still validates the returned JSON. These
+    keywords are redundant at generation time and otherwise make Vertex reject
+    the request before inference.
+    """
+
+    unsupported = {
+        "additionalProperties",
+        "format",
+        "maxItems",
+        "maxLength",
+        "maximum",
+        "minLength",
+        "minimum",
+        "pattern",
+    }
+    schema = deepcopy(ProjectImportCandidate.model_json_schema())
+
+    def clean(value: object) -> None:
+        if isinstance(value, dict):
+            for key in unsupported:
+                value.pop(key, None)
+            for child in value.values():
+                clean(child)
+        elif isinstance(value, list):
+            for child in value:
+                clean(child)
+
+    clean(schema)
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        schema["required"] = list(properties)
+    return schema
 
 
 class ProjectImportExtractionState(BaseModel):
@@ -234,7 +265,7 @@ def build_project_import_workflow(
         FunctionNode(func=needs_review, name="needs_review", timeout=timeout_seconds),
     ]
     return Workflow(
-        name="project_import_extraction_workflow",
+        name=PROJECT_IMPORT_RUNTIME.workflow_name,
         state_schema=ProjectImportExtractionState,
         edges=[(START, *nodes)],
     )

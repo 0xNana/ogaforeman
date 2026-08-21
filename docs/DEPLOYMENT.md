@@ -143,6 +143,10 @@ After a real deploy:
   --base-url "$OGA_STAGING_API_URL" \
   --output artifacts/operations/staging-observability.json
 
+.venv/bin/python scripts/smoke_authenticated_staging.py \
+  --base-url "$OGA_STAGING_API_URL" \
+  --output artifacts/operations/staging-project-initialization.json
+
 .venv/bin/python scripts/verify_backups.py \
   --project-id "$GOOGLE_CLOUD_PROJECT" \
   --bucket "$MEDIA_BUCKET" \
@@ -170,8 +174,20 @@ WORKER_REVISION=oga-worker-staging-00009-def \
 ```
 
 The rollback script does not delete or rewrite Firestore, Storage, Pub/Sub,
-events, runs, or activities. Run readiness, event delivery, and approval-resume
-smokes immediately after traffic moves.
+events, runs, or activities. Preserve the pre-rollback initialization artifact,
+shift traffic, then verify the same project, import, canonical snapshot, and
+activity remain readable:
+
+```bash
+.venv/bin/python scripts/smoke_authenticated_staging.py \
+  --base-url "$OGA_STAGING_API_URL" \
+  --verify-evidence artifacts/operations/staging-project-initialization.json \
+  --output artifacts/operations/staging-project-initialization-rollback.json
+```
+
+Also run readiness, event delivery, duplicate suppression, and approval-resume
+smokes immediately after traffic moves. A traffic shift without these persisted
+state checks is not a completed rollback rehearsal.
 
 ## Current evidence state
 

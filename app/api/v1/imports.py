@@ -10,7 +10,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
-from app.domain.authorization import ProjectPermission
+from app.api.limits import InMemoryRateLimiter
+from app.domain.authorization import ProjectAccessContext, ProjectPermission
 from app.domain.import_records import ProjectImportRecord
 from app.domain.project_import import (
     DependencyDraft,
@@ -82,6 +83,13 @@ class ProjectImportReviewResponse(BaseModel):
     unresolved_references: list[str] = Field(default_factory=list)
     failure_code: str | None = None
     failure_message: str | None = None
+    telemetry_trace_id: str | None = None
+    prompt_registry_key: str | None = None
+    model_registry_key: str | None = None
+    diagnostic_stage: str | None = None
+    diagnostic_attempt: int
+    validation_outcome: str | None = None
+    commit_outcome: str | None = None
     retryable: bool
     created_at: AwareDatetime
     updated_at: AwareDatetime
@@ -137,6 +145,20 @@ def _review_service(
     )
 
 
+def _enforce_extraction_rate_limit(
+    request: Request,
+    access: ProjectAccessContext,
+) -> None:
+    limiter = getattr(request.app.state, "project_import_rate_limiter", None)
+    if not isinstance(limiter, InMemoryRateLimiter):
+        return
+    limiter.check(
+        user_id=access.actor.user_id,
+        project_id=access.project_id,
+        ip_address=request.client.host if request.client else None,
+    )
+
+
 def _response(result: ProjectImportReviewResult) -> ProjectImportReviewResponse:
     record = result.record
     draft = record.draft
@@ -157,6 +179,13 @@ def _response(result: ProjectImportReviewResult) -> ProjectImportReviewResponse:
         unresolved_references=list(draft.unresolved_references) if draft is not None else [],
         failure_code=record.failure_code,
         failure_message=record.failure_message,
+        telemetry_trace_id=record.telemetry_trace_id,
+        prompt_registry_key=record.prompt_registry_key,
+        model_registry_key=record.model_registry_key,
+        diagnostic_stage=record.diagnostic_stage,
+        diagnostic_attempt=record.diagnostic_attempt,
+        validation_outcome=record.validation_outcome,
+        commit_outcome=record.commit_outcome,
         retryable=_is_retryable(record.status),
         created_at=record.created_at,
         updated_at=record.updated_at,
@@ -230,10 +259,21 @@ async def create_import(
 ) -> ProjectImportReviewResponse:
     access = configured_project_access(request, project_id, ProjectPermission.MANAGE)
     idempotency_key = require_idempotency_key(request)
+    import_id = _import_id(project_id, idempotency_key)
+    service = _review_service(request)
     try:
-        result = await _review_service(request).extract_text(
+        existing = service.get(access, import_id)
+    except ProjectImportReviewNotFoundError:
+        existing = None
+    if existing is None or existing.status in {
+        ProjectImportStatus.UPLOADED,
+        ProjectImportStatus.EXTRACTION_FAILED,
+    }:
+        _enforce_extraction_rate_limit(request, access)
+    try:
+        result = await service.extract_text(
             access,
-            import_id=_import_id(project_id, idempotency_key),
+            import_id=import_id,
             source_id=_source_id(project_id, idempotency_key),
             source_name=payload.source_name,
             source_text=payload.source_text,

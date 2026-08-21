@@ -10,6 +10,11 @@ from app.observability.context import bind_context, current_context, new_correla
 from app.observability.health import HealthCheck, HealthRegistry
 from app.observability.logging import JsonLogFormatter, log_event
 from app.observability.metrics import MetricRegistry, metrics
+from app.observability.project_import import (
+    ProjectImportOutcome,
+    ProjectImportStage,
+    ProjectImportTelemetry,
+)
 from app.observability.tracing import CloudTraceExporter, TraceRecord, TraceSpan, cloud_trace_id
 
 
@@ -25,6 +30,14 @@ class FakeTraceClient:
         timeout: float,
     ) -> None:
         self.calls.append({"request": request, "retry": retry, "timeout": timeout})
+
+
+class RecordingTraceExporter:
+    def __init__(self) -> None:
+        self.records: list[TraceRecord] = []
+
+    def export(self, record: TraceRecord) -> None:
+        self.records.append(record)
 
 
 def test_context_is_scoped_and_contains_correlation_ids() -> None:
@@ -139,3 +152,65 @@ def test_health_and_readiness_report_dependency_state() -> None:
     payload, code = failing.readiness()
     assert code == 503
     assert payload["checks"] == {"firestore": {"status": "failed", "detail": "offline"}}
+
+
+def test_project_import_telemetry_uses_one_trace_and_bounded_safe_fields() -> None:
+    stream = StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonLogFormatter())
+    logger = logging.getLogger("test-project-import-observability")
+    logger.handlers.clear()
+    logger.propagate = False
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    registry = MetricRegistry(
+        allowed_label_values={
+            "import_stage": frozenset(stage.value for stage in ProjectImportStage),
+            "outcome": frozenset(outcome.value for outcome in ProjectImportOutcome),
+        }
+    )
+    exporter = RecordingTraceExporter()
+    telemetry = ProjectImportTelemetry(
+        registry=registry,
+        logger=logger,
+        exporter=exporter,
+    )
+    trace_id = "trc_0123456789abcdef0123456789abcdef"
+
+    for stage in ProjectImportStage:
+        with telemetry.observe(
+            stage=stage,
+            trace_id=trace_id,
+            project_id="prj_importtelemetry",
+            import_id="imp_importtelemetry",
+            attempt=1,
+            prompt_key="project_import_extraction.v1",
+            model_key="project_import_gemini.configured",
+        ) as observation:
+            if stage is ProjectImportStage.REVIEW:
+                observation.outcome = ProjectImportOutcome.BLOCKED
+
+    assert [record.name for record in exporter.records] == [
+        f"project_import.{stage.value}" for stage in ProjectImportStage
+    ]
+    assert {record.trace_id for record in exporter.records} == {trace_id}
+    samples = registry.snapshot()
+    assert sum(
+        sample.value
+        for sample in samples
+        if sample.name == "project_import_stage_total" and sample.kind == "counter"
+    ) == len(ProjectImportStage)
+    assert sum(
+        sample.value
+        for sample in samples
+        if sample.name == "project_import_stage_duration_seconds"
+        and sample.kind == "histogram_count"
+    ) == len(ProjectImportStage)
+    payloads = [json.loads(line) for line in stream.getvalue().splitlines()]
+    stage_logs = [
+        payload for payload in payloads if payload["event"] == "project_import_stage_finished"
+    ]
+    assert len(stage_logs) == len(ProjectImportStage)
+    assert {payload["trace_id"] for payload in stage_logs} == {trace_id}
+    assert {payload["prompt_key"] for payload in stage_logs} == {"project_import_extraction.v1"}
+    assert "project_source" not in stream.getvalue()

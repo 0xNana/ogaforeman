@@ -261,6 +261,29 @@ last_error_code: string | null
 
 This technical entity is required for at-least-once event delivery and is not shown as a product feature.
 
+### ProjectSource and ProjectImportRecord
+
+```text
+ProjectSource:
+  id, project_id, source_type, source_name, content, sha256
+  created_by, status, created_at, updated_at
+
+ProjectImportRecord:
+  id, project_id, source_id, status, version
+  create/confirmation idempotency keys and fingerprints
+  complete review draft and immutable mutation plan
+  failure code/message and retry claim state
+  telemetry trace ID, prompt/model registry keys
+  diagnostic stage/attempt, validation outcome, commit outcome
+  created_at, updated_at, reviewed_at, confirmed_at, imported_at
+```
+
+Draft tasks, phases, dependencies, materials, requirements, and milestones use
+`tmp_` references only. Confirmation creates canonical IDs deterministically and
+binds provenance to the persisted source. Import commit writes canonical records,
+material ledger openings, provenance, one import activity, and terminal import
+state atomically; failed transactions retain no partial canonical truth.
+
 ## Relationships
 
 ```text
@@ -272,6 +295,8 @@ Project --< Material --< MaterialRequest >-- Approval
 Project --< DailyReport
 Project --< AgentRun --< ActivityEvent
 Project --< ProjectEvent --< ProcessedEvent
+Project --< ProjectSource --< ProjectImportRecord
+ProjectImportRecord --< imported canonical records (provenance)
 ```
 
 ## Invariants
@@ -292,6 +317,10 @@ Project --< ProjectEvent --< ProcessedEvent
     entity's submitted, created, requested, started, or first-seen timestamp.
 14. A human correction may reopen a completed task to `in_progress`; it does not bypass the rest
     of the task transition policy or revive cancelled state.
+15. Model extraction can create only temporary draft references; canonical identity
+    and trusted provenance are server-owned.
+16. A confirmed import commits its complete mutation plan and ActivityEvent atomically,
+    and exact confirmation replay creates no additional canonical record.
 
 ## Firestore Collection Layout
 
@@ -310,6 +339,8 @@ projects/{project_id}/agent_runs/{run_id}
 projects/{project_id}/activity/{activity_id}
 projects/{project_id}/events/{event_id}
 projects/{project_id}/processed_events/{idempotency_key}
+projects/{project_id}/project_sources/{source_id}
+projects/{project_id}/project_imports/{import_id}
 users/{user_id}
 ```
 

@@ -18,3 +18,7 @@
 | Observability | AgentRun/Activity | correlation | all | run detail | trace smoke | R-03 |
 | SLO/recovery | Source entities/events | all | all | health/status | load, backup, restore | R-04, L-01 |
 | Demo reset | seed project | deterministic fixture | all | admin script | repeated reset | L-01 |
+| Project initialization source/review | ProjectSource, ProjectImportRecord, draft contracts | exact create/decision claims | Project Initialization Import | import create/list/detail/confirm/cancel and New Project wizard | lifecycle, recovery, cross-project, prompt-injection, rate-limit | PI-01..PI-08, PI-12 |
+| Imported operational truth | Task, dependency, Material, MaterialRequirement, ledger, provenance | atomic import activity | Project Initialization Import + four V1 workflows | initialized snapshot | 90/70 shortage, dependency impact, typed material evolution, replay/restart | PI-09, PI-10, PI-13 |
+| Import diagnostics | persisted trace and typed registry keys | stage outcome logs | source through commit trace | authorized import detail | bounded metrics/logs, alert policies, smoke | PI-11 |
+| Initialization release recovery | all source/import/canonical/activity records | persisted claims | import recovery | authenticated staging and post-rollback reads | live eval artifact, staging smoke, rollback preservation | PI-13, PI-14 |

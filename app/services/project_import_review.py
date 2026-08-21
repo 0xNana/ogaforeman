@@ -10,6 +10,7 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
+from app.agents.project_import_registry import PROJECT_IMPORT_RUNTIME
 from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.authorization import ProjectAccessContext, ProjectPermission, ensure_permission
 from app.domain.enums import ActorType
@@ -29,6 +30,13 @@ from app.repositories.interfaces import (
     VersionConflictError,
 )
 from app.repositories.membership import AuthorizedProjectRepository
+from app.observability.context import current_context
+from app.observability.project_import import (
+    ProjectImportOutcome,
+    ProjectImportStage,
+    ProjectImportTelemetry,
+)
+from app.observability.tracing import new_trace_id
 from app.services.project_import import ProjectImportService
 from app.services.project_import_diff import ProjectImportDiffService
 from app.services.project_import_validation import (
@@ -84,6 +92,8 @@ class ProjectImportReviewService:
         self,
         store: RepositoryStore,
         extractor: ProjectImportDraftExtractor | None = None,
+        *,
+        telemetry: ProjectImportTelemetry | None = None,
     ) -> None:
         self._store = store
         self._extractor = extractor
@@ -91,6 +101,7 @@ class ProjectImportReviewService:
         self._diff = ProjectImportDiffService()
         self._importer = ProjectImportService(store)
         self._sources = ProjectSourceService(store)
+        self._telemetry = telemetry or ProjectImportTelemetry()
 
     async def extract_text(
         self,
@@ -102,59 +113,90 @@ class ProjectImportReviewService:
         source_text: str,
         source_type: SourceType | None,
         extraction_idempotency_key: str | None = None,
+        trace_id: str | None = None,
     ) -> ProjectImportReviewResult:
         ensure_permission(access, ProjectPermission.MANAGE)
-        source = StructuredTextProjectAdapter(
-            name=source_name,
-            source_type=source_type,
-        ).load(source_text)
-        self._sources.persist_text(
-            access,
-            source_id=source_id,
-            name=source.name,
-            text=source.text,
-            source_type=source.source_type,
-        )
-        self._ensure_uploaded(
-            access,
-            import_id=import_id,
-            source_id=source_id,
-            extraction_idempotency_key=extraction_idempotency_key,
-        )
-        claimed = self._claim_extraction_or_replay(access, import_id=import_id)
-        if claimed.should_validate:
-            return self._validate_stored_draft(access, claimed.record)
-        if not claimed.should_extract:
-            return claimed
-        extraction_attempt = claimed.record.extraction_attempt
         try:
-            if self._extractor is None:
-                raise ProjectImportDependencyUnavailableError(
-                    "project import extractor is unavailable"
-                )
-            draft = await self._extractor.extract(
-                project_id=access.project_id,
+            persisted_trace_id = self.get(access, import_id).telemetry_trace_id
+        except ProjectImportReviewNotFoundError:
+            persisted_trace_id = None
+        import_trace_id = (
+            persisted_trace_id or trace_id or current_context().trace_id or new_trace_id()
+        )
+        with self._telemetry.observe(
+            stage=ProjectImportStage.SOURCE,
+            trace_id=import_trace_id,
+            project_id=access.project_id,
+            import_id=import_id,
+            attempt=0,
+            prompt_key=PROJECT_IMPORT_RUNTIME.prompt_key,
+            model_key=PROJECT_IMPORT_RUNTIME.model_key,
+        ):
+            source = StructuredTextProjectAdapter(
+                name=source_name,
+                source_type=source_type,
+            ).load(source_text)
+            self._sources.persist_text(
+                access,
+                source_id=source_id,
+                name=source.name,
+                text=source.text,
+                source_type=source.source_type,
+            )
+            self._ensure_uploaded(
+                access,
                 import_id=import_id,
                 source_id=source_id,
-                source_text=source.text,
+                extraction_idempotency_key=extraction_idempotency_key,
+                trace_id=import_trace_id,
             )
-            try:
-                self._ensure_draft_scope(draft, access, import_id, source_id)
-            except ValueError as exc:
-                raise ProjectImportExtractionError(str(exc)) from exc
-        except Exception as exc:
-            self._mark_extraction_failed(
-                access,
-                import_id,
-                exc,
-                expected_extraction_attempt=extraction_attempt,
-            )
-            raise
-        drafted = self._store_draft(
-            access,
-            draft,
-            expected_extraction_attempt=extraction_attempt,
-        )
+
+        claimed = self._claim_extraction_or_replay(access, import_id=import_id)
+        extraction_attempt = claimed.record.extraction_attempt
+        with self._telemetry.observe(
+            stage=ProjectImportStage.EXTRACTION,
+            trace_id=import_trace_id,
+            project_id=access.project_id,
+            import_id=import_id,
+            attempt=extraction_attempt,
+            prompt_key=PROJECT_IMPORT_RUNTIME.prompt_key,
+            model_key=PROJECT_IMPORT_RUNTIME.model_key,
+        ) as observation:
+            if claimed.should_validate:
+                observation.outcome = ProjectImportOutcome.REPLAYED
+                drafted = claimed
+            elif not claimed.should_extract:
+                observation.outcome = ProjectImportOutcome.REPLAYED
+                return claimed
+            else:
+                try:
+                    if self._extractor is None:
+                        raise ProjectImportDependencyUnavailableError(
+                            "project import extractor is unavailable"
+                        )
+                    draft = await self._extractor.extract(
+                        project_id=access.project_id,
+                        import_id=import_id,
+                        source_id=source_id,
+                        source_text=source.text,
+                    )
+                    try:
+                        self._ensure_draft_scope(draft, access, import_id, source_id)
+                    except ValueError as exc:
+                        raise ProjectImportExtractionError(str(exc)) from exc
+                except Exception as exc:
+                    self._mark_extraction_failed(
+                        access,
+                        import_id,
+                        exc,
+                        expected_extraction_attempt=extraction_attempt,
+                    )
+                    raise
+                drafted = self._store_draft(
+                    access,
+                    draft,
+                    expected_extraction_attempt=extraction_attempt,
+                )
         return self._validate_stored_draft(access, drafted.record)
 
     def get(self, access: ProjectAccessContext, import_id: str) -> ProjectImportRecord:
@@ -288,23 +330,35 @@ class ProjectImportReviewService:
             raise ProjectImportReviewStateError(
                 f"project import cannot be confirmed from {record.status.value}"
             )
-        now = datetime.now(UTC)
-        confirmed_draft = record.draft.model_copy(
-            update={
-                "status": ProjectImportStatus.CONFIRMED,
-                "confirmed_at": record.confirmed_at or now,
-            }
-        )
-        result = self._importer.import_confirmed(
-            confirmed_draft,
-            access,
-            expected_review_version=expected_version,
-            decision_idempotency_key=idempotency_key,
-        )
-        return ProjectImportReviewResult(
-            record=self.get(access, import_id),
-            replayed=result.replayed,
-        )
+        trace_id = record.telemetry_trace_id or current_context().trace_id or new_trace_id()
+        with self._telemetry.observe(
+            stage=ProjectImportStage.COMMIT,
+            trace_id=trace_id,
+            project_id=access.project_id,
+            import_id=import_id,
+            attempt=record.import_attempt + 1,
+            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_RUNTIME.prompt_key,
+            model_key=record.model_registry_key or PROJECT_IMPORT_RUNTIME.model_key,
+        ) as observation:
+            now = datetime.now(UTC)
+            confirmed_draft = record.draft.model_copy(
+                update={
+                    "status": ProjectImportStatus.CONFIRMED,
+                    "confirmed_at": record.confirmed_at or now,
+                }
+            )
+            result = self._importer.import_confirmed(
+                confirmed_draft,
+                access,
+                expected_review_version=expected_version,
+                decision_idempotency_key=idempotency_key,
+            )
+            if result.replayed:
+                observation.outcome = ProjectImportOutcome.REPLAYED
+            return ProjectImportReviewResult(
+                record=self.get(access, import_id),
+                replayed=result.replayed,
+            )
 
     def _ensure_uploaded(
         self,
@@ -313,6 +367,7 @@ class ProjectImportReviewService:
         import_id: str,
         source_id: str,
         extraction_idempotency_key: str | None = None,
+        trace_id: str,
     ) -> ProjectImportRecord:
         now = datetime.now(UTC)
         key = extraction_idempotency_key or import_id
@@ -349,6 +404,10 @@ class ProjectImportReviewService:
                     extraction_request_fingerprint=request_fingerprint,
                     extraction_session_id=import_id,
                     extraction_invocation_id=f"extract:{import_id}",
+                    telemetry_trace_id=trace_id,
+                    prompt_registry_key=PROJECT_IMPORT_RUNTIME.prompt_key,
+                    model_registry_key=PROJECT_IMPORT_RUNTIME.model_key,
+                    diagnostic_stage=ProjectImportStage.SOURCE.value,
                     created_at=now,
                     updated_at=now,
                 )
@@ -400,6 +459,8 @@ class ProjectImportReviewService:
                         update={
                             "extraction_lease_until": lease_until,
                             "extraction_attempt": record.extraction_attempt + 1,
+                            "diagnostic_stage": ProjectImportStage.EXTRACTION.value,
+                            "diagnostic_attempt": record.extraction_attempt + 1,
                             "failure_code": None,
                             "failure_message": None,
                             "updated_at": now,
@@ -440,6 +501,8 @@ class ProjectImportReviewService:
                         "status": ProjectImportStatus.EXTRACTING,
                         "extraction_lease_until": lease_until,
                         "extraction_attempt": attempt,
+                        "diagnostic_stage": ProjectImportStage.EXTRACTION.value,
+                        "diagnostic_attempt": attempt,
                         "failure_code": None,
                         "failure_message": None,
                         "updated_at": now,
@@ -500,6 +563,8 @@ class ProjectImportReviewService:
                         "status": ProjectImportStatus.DRAFT,
                         "draft": persisted_draft,
                         "extraction_lease_until": None,
+                        "diagnostic_stage": ProjectImportStage.EXTRACTION.value,
+                        "diagnostic_attempt": expected_extraction_attempt,
                         "updated_at": now,
                     }
                 ),
@@ -524,21 +589,43 @@ class ProjectImportReviewService:
         access: ProjectAccessContext,
         record: ProjectImportRecord,
     ) -> ProjectImportReviewResult:
-        validating = (
-            self._start_validation(access, record.id)
-            if record.status is ProjectImportStatus.DRAFT
-            else record
-        )
-        if validating.status is not ProjectImportStatus.VALIDATING or validating.draft is None:
-            raise ProjectImportReviewStateError(
-                f"project import cannot validate from {validating.status.value}"
+        trace_id = record.telemetry_trace_id or current_context().trace_id or new_trace_id()
+        with self._telemetry.observe(
+            stage=ProjectImportStage.VALIDATION,
+            trace_id=trace_id,
+            project_id=access.project_id,
+            import_id=record.id,
+            attempt=record.extraction_attempt,
+            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_RUNTIME.prompt_key,
+            model_key=record.model_registry_key or PROJECT_IMPORT_RUNTIME.model_key,
+        ):
+            validating = (
+                self._start_validation(access, record.id)
+                if record.status is ProjectImportStatus.DRAFT
+                else record
             )
-        try:
-            validation = self._validator.validate(validating.draft)
-        except Exception:
-            self._mark_validation_failed(access, validating.id)
-            raise
-        return self._finish_validation(access, validating.id, validation)
+            if validating.status is not ProjectImportStatus.VALIDATING or validating.draft is None:
+                raise ProjectImportReviewStateError(
+                    f"project import cannot validate from {validating.status.value}"
+                )
+            try:
+                validation = self._validator.validate(validating.draft)
+            except Exception:
+                self._mark_validation_failed(access, validating.id)
+                raise
+        with self._telemetry.observe(
+            stage=ProjectImportStage.REVIEW,
+            trace_id=trace_id,
+            project_id=access.project_id,
+            import_id=record.id,
+            attempt=record.extraction_attempt,
+            prompt_key=record.prompt_registry_key or PROJECT_IMPORT_RUNTIME.prompt_key,
+            model_key=record.model_registry_key or PROJECT_IMPORT_RUNTIME.model_key,
+        ) as observation:
+            reviewed = self._finish_validation(access, validating.id, validation)
+            if reviewed.record.status is ProjectImportStatus.VALIDATION_FAILED:
+                observation.outcome = ProjectImportOutcome.BLOCKED
+            return reviewed
 
     def _start_validation(
         self,
@@ -565,6 +652,8 @@ class ProjectImportReviewService:
                     update={
                         "status": ProjectImportStatus.VALIDATING,
                         "draft": validating_draft,
+                        "diagnostic_stage": ProjectImportStage.VALIDATION.value,
+                        "diagnostic_attempt": record.extraction_attempt,
                         "updated_at": now,
                     }
                 ),
@@ -633,6 +722,13 @@ class ProjectImportReviewService:
                         "reviewed_at": now,
                         "failure_code": None,
                         "failure_message": None,
+                        "diagnostic_stage": ProjectImportStage.REVIEW.value,
+                        "diagnostic_attempt": record.extraction_attempt,
+                        "validation_outcome": (
+                            "succeeded"
+                            if review_status is ProjectImportStatus.NEEDS_REVIEW
+                            else "blocked"
+                        ),
                         "phase_count": len(reviewed_draft.phases),
                         "task_count": len(reviewed_draft.tasks) + len(reviewed_draft.milestones),
                         "material_count": len(reviewed_draft.materials),
@@ -705,6 +801,8 @@ class ProjectImportReviewService:
                         "extraction_lease_until": None,
                         "failure_code": failure_code,
                         "failure_message": failure_message,
+                        "diagnostic_stage": ProjectImportStage.EXTRACTION.value,
+                        "diagnostic_attempt": record.extraction_attempt,
                         "updated_at": now,
                     }
                 ),
@@ -750,6 +848,9 @@ class ProjectImportReviewService:
                         "failure_message": (
                             "Project import validation failed and requires review."
                         ),
+                        "diagnostic_stage": ProjectImportStage.VALIDATION.value,
+                        "diagnostic_attempt": record.extraction_attempt,
+                        "validation_outcome": "failed",
                         "updated_at": now,
                     }
                 ),

@@ -113,7 +113,9 @@ POST /projects/{project_id}/imports/{import_id}/cancel
 `source_type`. The V1 HTTP boundary accepts only `text` and `markdown`; PDF,
 spreadsheet, and other adapter types are rejected before source persistence or
 model invocation. The caller must retain and replay its `Idempotency-Key` after a
-timeout. Exact replay resumes the same source and import identity.
+timeout. Exact replay resumes the same source and import identity. Extraction is
+rate-limited per canonical user and project (with IP as an additional abuse
+signal) before source persistence or model invocation.
 
 `GET /imports` is an authorized, newest-first recovery feed bounded to 1–50
 records. `status` filters one lifecycle state. `nonterminal=true` excludes
@@ -123,6 +125,11 @@ summary returns IDs, status, optimistic version, safe failure code/message,
 retryability, timestamps, and draft entity counts; it never returns source text,
 prompts, or raw model output. Reads require active project membership; creation,
 confirmation, and cancellation require project management permission.
+
+The authorized detail response additionally exposes bounded diagnostics:
+`telemetry_trace_id`, prompt/model registry keys, diagnostic stage/attempt, and
+validation/commit outcomes. These fields correlate safe logs and traces without
+exposing the source, generated body, prompt body, credentials, or chain-of-thought.
 
 Confirmation and cancellation require `expected_version` plus a stable
 `Idempotency-Key`. Canonical project records are created only by successful

@@ -16,8 +16,9 @@ Overall status: **partial**. The checked implementation claims from the prior
 phase sequence are reopened as partial evidence until
 [`docs/PROJ_INIT_IMPLE.md`](../docs/PROJ_INIT_IMPLE.md) passes its production
 gates. Strict expected-failure tests track audited defects without misreporting
-them as passing behavior. PI-00 through PI-08 and the canonical-import backend
-checkpoint are complete locally; the remaining strict expected failure tracks PI-09.
+them as passing behavior. PI-00 through PI-12 and the canonical-import backend
+checkpoint are complete locally. PI-13/PI-14 implementation is wired, but live
+model-quality and authenticated staging/rollback evidence remain release gates.
 
 PI-06 routes every New Project action through one accessible, reload-safe wizard;
 persists name, location, timezone, description, dates, and project status; and
@@ -85,12 +86,13 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
   material, requirement, schedule, initial-state, and configuration-gap facts.
 - [~] Phase 12 queries the newly imported model for operational context (e.g. material
   requirements, dependencies) using entity-specific project state without generic fallbacks.
-- [~] Phase 13 connects imported requirements to Golden Operations rather than
-  hardcoded quantities, but task-specific shortage selection remains open.
-- [~] Phase 14 enforces data-driven schedule dependency reasoning. Blockers dynamically
+- [x] Phase 13 connects imported task-specific requirements to Golden Operations;
+  100 required with 10 on hand produces 90, while 80 produces 70, and unrelated
+  task requirements do not alter either result.
+- [x] Phase 14 enforces data-driven schedule dependency reasoning. Blockers dynamically
   traverse actual canonical task dependencies rather than making hallucinated or hardcoded
   fallback impact claims.
-- [~] Phase 15 supports material auto-creation during site operations. A valid material
+- [x] Phase 15 supports material auto-creation during site operations. A valid material
   fact with sufficient naming and unit data creates a typed entity when it does not exist,
   without treating operations as a project re-import.
 - [~] Phase 16 emits user-facing activity for project import lifecycle events and entity
@@ -104,6 +106,19 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
   persisted as review conflicts, only genuinely new entities remain additive,
   and the same guard reruns inside the commit transaction. Full reconciliation
   remains deferred by policy.
+
+- [x] PI-11 import telemetry follows one persisted trace through source, extraction,
+  validation, review, and commit with bounded labels, typed registry keys, safe
+  diagnostics, alerts, and runbook coverage.
+- [x] PI-12 enforces import tenant scope, `MANAGE` authorization, bounded UTF-8
+  sources, extraction rate limits, untrusted-source prompting, and a draft-only
+  model identity/authority boundary.
+- [x] PI-13 has a versioned seven-case live evaluator and deterministic 90/70,
+  dependency, replay, concurrency, and restart coverage. The 2026-08-21 Vertex
+  run with `gemini-3.6-flash` passed all seven typed cases.
+- [!] PI-14 documentation and authenticated project initialization/post-rollback
+  smoke tooling are complete locally. A real staging execution and preservation
+  artifact are still required before release closure.
 
 - [ ] P0 Approval continuation resumes the same durable ADK session and
   invocation after worker/container restart and completes the original run once.

@@ -1,0 +1,28 @@
+{
+  "displayName": "Oga Foreman project import commit failure",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "A confirmed project import failed during canonical commit. Follow the Project import incidents section in docs/OPERATIONS.md; confirm atomic rollback before allowing an exact-claim retry.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Project import commit failure logged",
+      "conditionThreshold": {
+        "filter": "resource.type=\"global\" AND metric.type=\"logging.googleapis.com/user/oga_project_import_commit_failure_count\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "trigger": {"count": 1}
+      }
+    }
+  ]
+}

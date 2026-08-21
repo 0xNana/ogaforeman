@@ -674,16 +674,16 @@ npm run test:e2e -- project-initialization.spec.ts
 
 **Work**
 
-- [ ] Resolve applicable requirements from the current focus task set.
-- [ ] Remove the all-active-task aggregate fallback from shortage requests.
-- [ ] Bind request quantities and affected task IDs to the requirements used.
-- [ ] Preserve safe inventory updates when requirement context is missing.
+- [x] Resolve applicable requirements from the current focus task set.
+- [x] Remove the all-active-task aggregate fallback from shortage requests.
+- [x] Bind request quantities and affected task IDs to the requirements used.
+- [x] Preserve safe inventory updates when requirement context is missing.
 
 **Acceptance**
 
-- [ ] Plastering requiring 100 bags with 10 on hand produces a 90-bag request.
-- [ ] Changing that requirement to 80 produces a 70-bag request.
-- [ ] An unrelated task's cement requirement does not change either result.
+- [x] Plastering requiring 100 bags with 10 on hand produces a 90-bag request.
+- [x] Changing that requirement to 80 produces a 70-bag request.
+- [x] An unrelated task's cement requirement does not change either result.
 
 **Verification**
 
@@ -700,15 +700,15 @@ npm run test:e2e -- project-initialization.spec.ts
 
 **Work**
 
-- [ ] Exercise blocker impact using imported dependency records only.
-- [ ] Repeat after removing the dependency in an isolated fixture and prove the
+- [x] Exercise blocker impact using imported dependency records only.
+- [x] Repeat after removing the dependency in an isolated fixture and prove the
   downstream claim disappears.
-- [ ] Prove typed operational material auto-creation coexists with imported state.
+- [x] Prove typed operational material auto-creation coexists with imported state.
 
 **Acceptance**
 
-- [ ] Dependency impact changes only when canonical graph data changes.
-- [ ] New operational materials use canonical units, ledger entries, activity, and
+- [x] Dependency impact changes only when canonical graph data changes.
+- [x] New operational materials use canonical units, ledger entries, activity, and
   idempotency without invoking project re-import.
 
 **Verification**
@@ -726,18 +726,18 @@ npm run test:e2e -- project-initialization.spec.ts
 
 **Work**
 
-- [ ] Add import spans, metrics, structured logs, and persisted trace correlation.
-- [ ] Record model/prompt registry keys, durations, validation outcome, and commit
+- [x] Add import spans, metrics, structured logs, and persisted trace correlation.
+- [x] Record model/prompt registry keys, durations, validation outcome, and commit
   outcome without source content.
-- [ ] Add safe user-visible failure codes and operator-facing diagnostic fields.
-- [ ] Add alert/runbook coverage for stuck extraction, repeated failure, and commit
+- [x] Add safe user-visible failure codes and operator-facing diagnostic fields.
+- [x] Add alert/runbook coverage for stuck extraction, repeated failure, and commit
   failure.
 
 **Acceptance**
 
-- [ ] One trace follows source through extraction, validation, review, and commit.
-- [ ] A failed import is diagnosable from IDs without reading confidential content.
-- [ ] Metrics use bounded labels and logs contain no prompt, source, or model body.
+- [x] One trace follows source through extraction, validation, review, and commit.
+- [x] A failed import is diagnosable from IDs without reading confidential content.
+- [x] Metrics use bounded labels and logs contain no prompt, source, or model body.
 
 **Verification**
 
@@ -754,18 +754,18 @@ npm run test:e2e -- project-initialization.spec.ts
 
 **Work**
 
-- [ ] Test authentication, active membership, `MANAGE` permission, project scope,
+- [x] Test authentication, active membership, `MANAGE` permission, project scope,
   source scope, import scope, confirmation scope, and provenance scope.
-- [ ] Add bounded source/file validation and per-user/project extraction rate limits.
-- [ ] Treat project source contents as untrusted data inside the extraction prompt.
-- [ ] Verify model output cannot supply canonical identity, trusted provenance,
+- [x] Add bounded source/file validation and per-user/project extraction rate limits.
+- [x] Treat project source contents as untrusted data inside the extraction prompt.
+- [x] Verify model output cannot supply canonical identity, trusted provenance,
   mutation tokens, or decision authority.
 
 **Acceptance**
 
-- [ ] Project A cannot list, read, retry, cancel, confirm, or trace Project B data.
-- [ ] Prompt-injection text can only affect draft content inside the schema boundary.
-- [ ] Oversized, invalid, or rate-limited requests perform no model or canonical write.
+- [x] Project A cannot list, read, retry, cancel, confirm, or trace Project B data.
+- [x] Prompt-injection text can only affect draft content inside the schema boundary.
+- [x] Oversized, invalid, or rate-limited requests perform no model or canonical write.
 
 **Verification**
 
@@ -782,21 +782,21 @@ npm run test:e2e -- project-initialization.spec.ts
 
 **Work**
 
-- [ ] Replace `scripts/eval_phase19.py` printing with assertions and a versioned
+- [x] Replace `scripts/eval_phase19.py` printing with assertions and a versioned
   evaluation artifact.
-- [ ] Add structured, imperfect Markdown, typo, missing-date, ambiguous-requirement,
+- [x] Add structured, imperfect Markdown, typo, missing-date, ambiguous-requirement,
   prompt-injection, and canonical-ID-forgery cases.
 - [ ] Run the complete Ridge House production acceptance scenario through project
   creation, import, review, operational update, and approval.
-- [ ] Add Firestore refresh, sign-out/in, API restart, worker restart, concurrency,
+- [x] Add Firestore refresh, sign-out/in, API restart, worker restart, concurrency,
   and exact replay gates.
 
 **Acceptance**
 
-- [ ] Live Gemini maps plastering/cement/100/bags to draft references and quantity.
-- [ ] “Foundation due on the 19th” produces an unresolved-date warning and no date.
-- [ ] Deterministic code alone supplies canonical IDs and commits.
-- [ ] The complete scenario derives 90, then 70 after the requirement fixture changes.
+- [x] Live Gemini maps plastering/cement/100/bags to draft references and quantity.
+- [x] “Foundation due on the 19th” produces an unresolved-date warning and no date.
+- [x] Deterministic code alone supplies canonical IDs and commits.
+- [x] The complete scenario derives 90, then 70 after the requirement fixture changes.
 
 **Verification**
 
@@ -810,11 +810,11 @@ or manually inspected response is not a passing gate.
 
 **Work**
 
-- [ ] Update API, domain model, workflow, security, operations, and traceability docs.
-- [ ] Record any lifecycle/provenance decision that changes an accepted architecture
-  in an ADR.
-- [ ] Add deployment smoke and rollback checks for project creation/import/recovery.
-- [ ] Update status and task checklists only from passing recorded evidence.
+- [x] Update API, domain model, workflow, security, operations, and traceability docs.
+- [x] Record any lifecycle/provenance decision that changes an accepted architecture
+  in an ADR. No accepted architecture changed, so no new ADR was required.
+- [x] Add deployment smoke and rollback checks for project creation/import/recovery.
+- [x] Update status and task checklists only from passing recorded evidence.
 
 **Acceptance**
 
@@ -822,7 +822,7 @@ or manually inspected response is not a passing gate.
 - [ ] Staging proves authenticated New Project through initialized operational state.
 - [ ] Rollback preserves already-created projects, sources, imports, canonical data,
   provenance, and activities.
-- [ ] Known limitations have owners and do not contradict V1 acceptance.
+- [x] Known limitations have owners and do not contradict V1 acceptance.
 
 ## Final verification gate
 

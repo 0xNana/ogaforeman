@@ -136,8 +136,11 @@ async def test_new_project_snapshot_includes_persisted_creation_activity() -> No
             "id": PROJECT_ID,
             "name": "Ridge House",
             "location": "East Legon, Accra",
+            "description": None,
             "status": "ACTIVE",
             "timezone": "Africa/Accra",
+            "start_date": None,
+            "target_end_date": None,
         },
         "viewerId": ACTOR_ID,
         "members": [

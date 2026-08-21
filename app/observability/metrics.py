@@ -120,6 +120,8 @@ metrics = MetricRegistry(
     allowed_label_values={
         "method": frozenset({"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"}),
         "status_class": frozenset({"2xx", "3xx", "4xx", "5xx"}),
+        "import_stage": frozenset({"source", "extraction", "validation", "review", "commit"}),
+        "outcome": frozenset({"succeeded", "failed", "blocked", "replayed"}),
         "workflow": frozenset(
             {
                 "daily_site_update",

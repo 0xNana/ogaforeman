@@ -278,6 +278,19 @@ def test_rollback_requires_explicit_verified_revisions_and_only_shifts_traffic()
     assert "pubsub topics delete" not in source
 
 
+def test_authenticated_staging_smoke_covers_project_import_and_rollback_preservation() -> None:
+    source = (ROOT / "scripts" / "smoke_authenticated_staging.py").read_text(encoding="utf-8")
+
+    assert "create_import" in source
+    assert "replay_import_creation" in source
+    assert "recover_import" in source
+    assert "confirm_import" in source
+    assert "read_initialized_snapshot" in source
+    assert "--verify-evidence" in source
+    assert "read_preserved_import" in source
+    assert "read_preserved_activity" in source
+
+
 def test_ci_runs_locked_backend_frontend_and_container_gates() -> None:
     source = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 

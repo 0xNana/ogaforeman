@@ -1,0 +1,28 @@
+{
+  "displayName": "Oga Foreman repeated project import extraction failures",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "Project import extraction failed repeatedly. Follow the Project import incidents section in docs/OPERATIONS.md and correlate the import ID, trace ID, prompt key, model key, attempt, and safe failure code.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "More than two extraction failures in five minutes",
+      "conditionThreshold": {
+        "filter": "resource.type=\"global\" AND metric.type=\"logging.googleapis.com/user/oga_project_import_extraction_failure_count\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.0066667,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "trigger": {"count": 1}
+      }
+    }
+  ]
+}

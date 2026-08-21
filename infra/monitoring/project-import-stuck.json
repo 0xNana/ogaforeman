@@ -1,0 +1,28 @@
+{
+  "displayName": "Oga Foreman project import extraction stuck",
+  "combiner": "OR",
+  "enabled": true,
+  "documentation": {
+    "content": "Project import extraction reached the 45-second workflow timeout. Follow the Project import incidents section in docs/OPERATIONS.md; inspect only bounded IDs and retry through the persisted import boundary.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Slow project import extraction logged",
+      "conditionThreshold": {
+        "filter": "resource.type=\"global\" AND metric.type=\"logging.googleapis.com/user/oga_project_import_stuck_count\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_RATE",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "trigger": {"count": 1}
+      }
+    }
+  ]
+}
