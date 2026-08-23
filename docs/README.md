@@ -10,7 +10,7 @@ This directory contains the public product, architecture, contract, operations, 
 4. [AUTH.md](AUTH.md) - human identity, canonical users, project roles, browser sessions, and workload authentication.
 5. [DOMAIN_MODEL.md](DOMAIN_MODEL.md) - entities, invariants, Firestore layout, and lifecycle rules.
 6. [EVENT_SCHEMA.md](EVENT_SCHEMA.md) - normalized `ProjectEvent` envelope and delivery semantics.
-7. [AGENT_DESIGN.md](AGENT_DESIGN.md) - coordinator and specialist responsibilities, structured outputs, and confidence policy.
+7. [AGENT_DESIGN.md](AGENT_DESIGN.md) - production workflow roots, model boundaries, structured outputs, and confidence policy.
 8. [TOOL_CONTRACTS.md](TOOL_CONTRACTS.md) - deterministic read and mutation interfaces.
 9. [WORKFLOWS.md](WORKFLOWS.md) - the four V1 workflow state machines.
 10. [API.md](API.md) - HTTP contracts consumed by the web application and integrations.
@@ -18,6 +18,9 @@ This directory contains the public product, architecture, contract, operations, 
 12. [SLOS.md](SLOS.md) - public-beta service, recovery, backup, and capacity targets.
 13. [DEPLOYMENT.md](DEPLOYMENT.md) - local environments, Google Cloud resources, CI/CD, and rollback.
 14. [OPERATIONS.md](OPERATIONS.md) - observability, alerts, failure recovery, and support procedures.
+15. [Submission package](submission/ARCHITECTURE.md) - hackathon architecture,
+production agent inventory, Devpost copy, demo script, judge testing
+instructions, and final checklist.
 The executable plan and implementation checklist are maintained separately from this public contract index.
 
 ## Canonical Ownership
@@ -37,6 +40,7 @@ The executable plan and implementation checklist are maintained separately from 
 - [ADR-004: Approval and safety boundaries](decisions/ADR-004-approval-and-safety-boundaries.md)
 - [ADR-005: Versioned API and Next.js client](decisions/ADR-005-versioned-api-and-nextjs-client.md)
 - [ADR-006: Reviewed gcloud infrastructure](decisions/ADR-006-reviewed-gcloud-infrastructure.md)
+- [ADR-007: Deployment build provenance](decisions/ADR-007-deployment-build-provenance.md)
 
 ## Document Authority
 

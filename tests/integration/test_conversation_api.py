@@ -12,7 +12,13 @@ from app.domain.activity import MutationContext
 from app.api.errors import install_error_handlers
 from app.api.v1.router import api_router
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext, ProjectForbiddenError
-from app.domain.conversation import IntentDecision, IntentType, PendingConversationCommand
+from app.domain.conversation import (
+    AgenticConversationAnswer,
+    ConversationalProjectContext,
+    IntentDecision,
+    IntentType,
+    PendingConversationCommand,
+)
 from app.domain.conversation import IssueOperation, MaterialOperation, TaskOperation
 from app.domain.enums import (
     AgentRunStatus,
@@ -58,7 +64,6 @@ from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_operations import ConversationScheduleService
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService
-from app.services.external_actions import ExternalActionService
 from app.services.site_update_intake import SiteUpdateIntakeService
 from app.workflows.resume import ResumeWorkflow
 
@@ -432,6 +437,47 @@ async def test_project_setup_question_reports_live_readiness_and_counts() -> Non
         "and materials are being tracked."
     )
     assert store.repository(ActivityEvent).list(PROJECT_ID) == ()
+
+
+@pytest.mark.asyncio
+async def test_project_answer_is_generated_from_authorized_live_context() -> None:
+    app, _store = make_app()
+
+    class CapturingConversationAgent:
+        def __init__(self) -> None:
+            self.contexts: list[object] = []
+
+        async def respond(
+            self,
+            message: str,
+            *,
+            intent: IntentType,
+            context: ConversationalProjectContext,
+        ) -> AgenticConversationAnswer:
+            self.contexts.append(context)
+            assert message == "what's blocking plastering?"
+            assert intent is IntentType.PROJECT_QUERY
+            issue = next(item for item in context.issues if "electrical" in item.description)
+            return AgenticConversationAnswer(
+                text="Gemini grounded answer: electrical clearance is blocking plastering.",
+                cited_record_ids=(issue.id,),
+            )
+
+    agent = CapturingConversationAgent()
+    app.state.conversation_agent = agent
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "what's blocking plastering?"},
+            headers={"Idempotency-Key": "conversation:grounded-agent:1"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["text"].startswith("Gemini grounded answer:")
+    assert response.json()["cited_record_ids"]
+    assert len(agent.contexts) == 1
 
 
 @pytest.mark.asyncio
@@ -1440,8 +1486,7 @@ async def test_purchase_routes_to_existing_durable_approval_workflow_exactly_onc
     assert store.repository(AgentRun).require(PROJECT_ID, runs[0].id).pending_actions == []
     outbox = store.repository(OutboxMessage).list(PROJECT_ID)
     assert len(outbox) == 1
-    ExternalActionService(store).process_outbox_message(PROJECT_ID, outbox[0].id)
-    ResumeWorkflow(store).complete_approved_purchase(
+    ResumeWorkflow(store).complete_approved_material_workflow(
         PROJECT_ID,
         approvals[0].id,
         "usr_ace123",

@@ -2,20 +2,30 @@
 
 ## Principle
 
-ADK Runner workflows are the execution authority. Agents return typed facts or
-proposals; deterministic tools enforce policies and mutations, and Firestore is
-the durable source of truth.
+Production uses a small set of real ADK `Workflow` roots. It does not construct
+or advertise a coordinator plus decorative `LlmAgent` specialists.
 
 ```text
-ADK Runner / durable SessionService
-  +-- typed event and conversation tools
-  +-- model boundary (SiteInterpreter / registered LlmAgents)
-  +-- AgentRun observable projection
+production entry point
+  -> ADK Runner / durable SessionService
+  -> one named Workflow root
+  -> explicit FunctionNode graph
+  -> bounded Gemini adapter and/or typed tools
+  -> Firestore domain truth + ActivityEvents
 ```
 
-## Canonical Registry
+The canonical production and removed-agent classification is maintained in
+[the submission agent inventory](submission/AGENT_INVENTORY.md).
 
-Agent name, ADK name, prompt file/version, allowed tools, model configuration, and telemetry label live in one typed registry. Startup fails if a coordinator route references an absent/duplicate agent or prompt.
+## Runtime names and prompts
+
+`AdkWorkflowId`, `AdkAgentId`, `AdkNodeId`, and `AdkToolId` are typed runtime and
+telemetry identifiers. The `agent` telemetry value names the actual root
+workflow passed to `Runner`; it does not impersonate an unexecuted specialist.
+
+`app/prompts/manifest.yaml` is a prompt registry. It contains only prompt files
+and versions consumed by production Gemini adapters. A prompt profile is not an
+ADK agent declaration.
 
 ## Execution boundary
 
@@ -25,7 +35,20 @@ continuation. Typed services remain responsible for authorization, idempotent
 mutations, and atomic activity events. `AgentRun` is an authorized projection,
 not an execution cursor.
 
-## SiteInterpreter
+## Production workflows
+
+- `daily_site_update_workflow` coordinates the Taskmaster site-update graph and
+  durable approval continuation.
+- `delivery_delay_workflow` coordinates authenticated delivery impact and real
+  external notification.
+- `agentic_project_conversation` conditionally coordinates grounded reasoning
+  or existing safe mutation tools.
+- `project_event_workflow` remains a truthful single-node compatibility root
+  for other registered events; it is not described as multi-agent work.
+
+## Gemini model boundaries
+
+### SiteInterpreter
 
 Input: untrusted text/transcript, permitted media, and bounded authorized context.
 
@@ -40,17 +63,13 @@ Rules:
 - safety/structural observations are high-priority signals;
 - the interpreter has no mutation tools.
 
-## ProjectPlanner
+The intent classifier, conversation reasoner, and action interpreter follow the
+same boundary: schema-constrained model output enters deterministic validation,
+authorization, policy, and typed services. They are not independent ADK agents.
 
-Returns affected task IDs, dependency impact, projected delay and assumptions, mitigation proposals, review requirement, and confidence. It cannot silently alter committed dates or cancel work.
-
-## MaterialsSpecialist
-
-Uses canonical material IDs, stock ledger, task requirements, and project policy to calculate shortage and prepare a typed request. It cannot submit a supplier action without a resolved approval and claimed external action.
-
-## Reporter
-
-Builds source-linked daily reports, briefs, and concise user messages from durable facts. Unsupported claims are omitted rather than filled in.
+Schedule impact, material arithmetic, report projection, and notification
+delivery remain deterministic services or typed tools. They are not model
+specialists and must not be documented as such.
 
 ## Structured Output Policy
 

@@ -1,34 +1,17 @@
-agents:
-  - name: oga_coordinator
-    description: "Root Oga Foreman Coordinator Agent. Routes events, manages specialist sub-agents, and oversees job site execution."
-    prompt_file: "oga_coordinator.txt"
-    tools: []
-    sub_agents:
-      - site_report
-      - planner
-      - materials
-      - communicator
+prompts:
   - name: site_report
-    description: "Extracts structured progress, blockers, and material notes from raw site transcripts and photos."
+    purpose: "Extract structured progress, blockers, and material observations from authorized site evidence."
     prompt_file: "site_report.txt"
-    tools: []
-  - name: planner
-    description: "Evaluates construction schedule impacts and re-sequences tasks when blockers occur."
-    prompt_file: "planner.txt"
-    tools: []
-  - name: materials
-    description: "Monitors construction inventory levels, prepares purchase orders, and evaluates cost thresholds."
-    prompt_file: "materials.txt"
-    tools: []
-  - name: communicator
-    description: "Generates daily briefs, formats executive summaries for PMs, and formats site notifications."
-    prompt_file: "communicator.txt"
-    tools: []
+    prompt_version: "v2"
   - name: intent_router
-    description: "Classifies conversational messages into typed, non-mutating destinations."
+    purpose: "Classify conversational messages into typed, non-mutating destinations."
     prompt_file: "intent_router.txt"
-    tools: []
+    prompt_version: "v1"
   - name: action_interpreter
-    description: "Interprets one authorized conversational mutation, including independent task batches, into typed semantic actions."
+    purpose: "Interpret one authorized conversational mutation into typed semantic actions."
     prompt_file: "action_interpreter.txt"
-    tools: []
+    prompt_version: "v1"
+  - name: agentic_conversation
+    purpose: "Generate grounded project-specific answers from authorized live context."
+    prompt_file: "agentic_conversation.txt"
+    prompt_version: "v1"

@@ -12,6 +12,9 @@ LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 REQUIRED_RELEASE_PATHS = (
     "scripts/run_demo.py",
     "scripts/run_evals.py",
+    "scripts/run_golden_evals.py",
+    "scripts/run_adk_resume_gate.py",
+    "scripts/verify_deployment_provenance.py",
     "scripts/run_capacity_baseline.py",
     "scripts/smoke_observability.py",
     "scripts/verify_backups.py",
@@ -20,6 +23,14 @@ REQUIRED_RELEASE_PATHS = (
     "infra/rollback.sh",
     "infra/monitoring/apply.sh",
     ".github/workflows/ci.yml",
+    "docs/submission/ARCHITECTURE.md",
+    "docs/submission/architecture-diagram.svg",
+    "docs/submission/AGENT_INVENTORY.md",
+    "docs/submission/DEVPOST.md",
+    "docs/submission/DEMO_SCRIPT.md",
+    "docs/submission/TESTING.md",
+    "docs/submission/SUBMISSION_CHECKLIST.md",
+    "internal-docs/video.md",
 )
 
 

@@ -1,6 +1,16 @@
 steps:
   - name: gcr.io/cloud-builders/docker
-    args: ["build", "-t", "${_IMAGE_URI}", "."]
+    args:
+      - build
+      - --build-arg
+      - APP_GIT_SHA=${_APP_GIT_SHA}
+      - --build-arg
+      - APP_BUILD_TIME=${_APP_BUILD_TIME}
+      - --build-arg
+      - APP_VERSION=${_APP_VERSION}
+      - -t
+      - ${_IMAGE_URI}
+      - .
 images:
   - "${_IMAGE_URI}"
 options:

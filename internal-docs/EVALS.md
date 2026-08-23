@@ -65,6 +65,37 @@ conflict, permission, and multi-turn outcomes rather than prose similarity.
 
 Thresholds are measured against a versioned dataset and recorded with model ID, prompt version, commit SHA, and configuration.
 
+### P0 Golden operational gate
+
+The release and recording gate is the eight-check Golden operational evaluator,
+not the legacy model-token evaluator and not the project-import evaluator. It
+calls the production `GeminiSiteInterpreter` for the canonical mixed update,
+then scores state produced by deterministic production services. Gemini is not
+asked for canonical IDs or mutation tokens.
+
+Required live result:
+
+- blockwork completion resolves to the canonical task;
+- electrician absence creates the canonical electrical blocker and follow-up;
+- cement inventory becomes 10 bags;
+- plastering resolves against the persisted 100-bag cement requirement;
+- the shortage is exactly 90 bags;
+- one material request and one pending purchase approval are created;
+- no supplier action occurs before approval;
+- the later delivery-delay event updates the same request and audited risk;
+- case pass rate and canonical entity resolution are both 1.0.
+
+```bash
+.venv/bin/python scripts/run_golden_evals.py \
+  --adapter gemini \
+  --backend vertex \
+  --output artifacts/evals/golden-live-gemini.json
+```
+
+The command must exit nonzero for any failed check. A fixture pass proves the
+evaluator, not model quality. The old `artifacts/evals/live-gemini.json` result
+of 3/8 remains failure evidence and cannot be used for release.
+
 Run the deterministic release gate:
 
 ```bash

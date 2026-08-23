@@ -1,10 +1,11 @@
 from enum import StrEnum
 from functools import lru_cache
+import re
 from typing import Self
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AwareDatetime, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,11 @@ class RuntimeEnvironment(StrEnum):
     PREVIEW = "preview"
     STAGING = "staging"
     PRODUCTION = "production"
+
+
+class NotificationProviderName(StrEnum):
+    LOGGING = "logging"
+    GOOGLE_CHAT = "google_chat"
 
 
 # Keep the local agent factory aligned with the minimum model generation used by
@@ -36,6 +42,13 @@ class Settings(BaseSettings):
     use_fake_model: bool = True
     default_project_timezone: str = "Africa/Accra"
 
+    app_git_sha: str | None = None
+    app_build_time: AwareDatetime | None = None
+    app_version: str = Field(default="0.1.0", min_length=1, max_length=64)
+    app_source_tree_dirty: bool = True
+    k_service: str | None = None
+    k_revision: str | None = None
+
     google_cloud_project: str | None = None
     google_cloud_region: str | None = None
     firestore_database: str | None = None
@@ -53,6 +66,9 @@ class Settings(BaseSettings):
     gemini_location: str | None = None
     gemini_api_key: SecretStr | None = None
     conversation_proposal_signing_key: SecretStr | None = None
+    notification_provider: NotificationProviderName = NotificationProviderName.LOGGING
+    google_chat_webhook_url: SecretStr | None = None
+    public_app_base_url: str | None = None
 
     # A lease must cover the longest bounded local SQLite ADK queue as well as
     # a single workflow attempt.  Local SQLite serializes its one writer; a
@@ -62,6 +78,9 @@ class Settings(BaseSettings):
     event_claim_max_attempts: int = Field(default=3, ge=1, le=10)
     agent_workflow_timeout_seconds: int = Field(default=45, ge=5, le=300)
     project_import_extraction_timeout_seconds: int = Field(default=90, ge=5, le=300)
+    notification_max_attempts: int = Field(default=3, ge=1, le=5)
+    notification_backoff_seconds: float = Field(default=1.0, ge=0, le=10)
+    notification_claim_lease_seconds: int = Field(default=30, ge=5, le=300)
     adk_session_backend: str = "auto"
     adk_session_database_url: str = "sqlite+aiosqlite:///./.adk/sessions.db"
     adk_agent_engine_id: str | None = None
@@ -86,6 +105,13 @@ class Settings(BaseSettings):
             ZoneInfo(value)
         except ZoneInfoNotFoundError as exc:
             raise ValueError("default_project_timezone must be a valid IANA timezone") from exc
+        return value
+
+    @field_validator("app_git_sha")
+    @classmethod
+    def validate_app_git_sha(cls, value: str | None) -> str | None:
+        if value is not None and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", value) is None:
+            raise ValueError("APP_GIT_SHA must be a full lowercase Git object ID")
         return value
 
     @field_validator("cors_allowed_origins")
@@ -126,6 +152,44 @@ class Settings(BaseSettings):
         if value is not None and len(value.get_secret_value().encode()) < 32:
             raise ValueError("conversation proposal signing key must be at least 32 bytes")
         return value
+
+    @field_validator("google_chat_webhook_url")
+    @classmethod
+    def validate_google_chat_webhook_url(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value.get_secret_value())
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "chat.googleapis.com"
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+            or re.fullmatch(r"/v1/spaces/[A-Za-z0-9_-]+/messages", parsed.path) is None
+            or not query.get("key")
+            or not query.get("token")
+        ):
+            raise ValueError("GOOGLE_CHAT_WEBHOOK_URL must be a Google Chat HTTPS webhook")
+        return value
+
+    @field_validator("public_app_base_url")
+    @classmethod
+    def validate_public_app_base_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("PUBLIC_APP_BASE_URL must be an exact HTTPS origin")
+        return value.rstrip("/")
 
     @model_validator(mode="after")
     def validate_environment_requirements(self) -> Self:
@@ -182,16 +246,22 @@ class Settings(BaseSettings):
                 "gemini_model_id",
                 "gemini_location",
                 "conversation_proposal_signing_key",
+                "google_chat_webhook_url",
+                "public_app_base_url",
                 "adk_agent_engine_id",
                 "auth_issuer",
                 "auth_audience",
                 "cors_allowed_origins",
+                "app_git_sha",
+                "app_build_time",
             )
             missing_fields = [
                 field_name for field_name in required_fields if not getattr(self, field_name)
             ]
             if missing_fields:
                 raise ValueError("Deployed environments require: " + ", ".join(missing_fields))
+            if self.notification_provider is not NotificationProviderName.GOOGLE_CHAT:
+                raise ValueError("Deployed environments require NOTIFICATION_PROVIDER=google_chat")
         if self.adk_session_backend not in {"auto", "database", "vertex_ai"}:
             raise ValueError("ADK_SESSION_BACKEND must be auto, database, or vertex_ai")
 

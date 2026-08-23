@@ -96,6 +96,8 @@ _STOP_WORDS = frozenset(
         "for",
         "me",
         "tell",
+        "blocking",
+        "blocker",
     }
 )
 
@@ -112,7 +114,10 @@ def plan_context_query(message: str) -> ContextQuery:
             focus=ContextFocus.TODAY,
         )
     if "blocking" in normalized or "blocker" in normalized:
-        return ContextQuery(domains=(ContextDomain.ISSUES, ContextDomain.TASKS))
+        return ContextQuery(
+            domains=(ContextDomain.ISSUES, ContextDomain.TASKS),
+            search_terms=_search_terms(normalized),
+        )
     if "late" in normalized or "overdue" in normalized:
         return ContextQuery(
             domains=(ContextDomain.SCHEDULE, ContextDomain.TASKS),

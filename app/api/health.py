@@ -7,7 +7,12 @@ from google.cloud.storage import Client as StorageClient
 from app.config.settings import RuntimeEnvironment, Settings
 from app.infrastructure.firestore import create_firestore_client
 from app.observability.health import HealthCheck, HealthRegistry, create_health_router
-from app.observability.probes import configuration_probe, firestore_probe, storage_probe
+from app.observability.probes import (
+    configuration_probe,
+    external_notification_configuration_probe,
+    firestore_probe,
+    storage_probe,
+)
 
 
 router = create_health_router(registry=HealthRegistry())
@@ -16,7 +21,15 @@ router = create_health_router(registry=HealthRegistry())
 def create_runtime_health_router(settings: Settings):
     """Build a readiness router with dependency checks for a deployed process."""
 
-    registry = HealthRegistry((HealthCheck("configuration", configuration_probe(settings)),))
+    registry = HealthRegistry(
+        (
+            HealthCheck("configuration", configuration_probe(settings)),
+            HealthCheck(
+                "external_notification",
+                external_notification_configuration_probe(settings),
+            ),
+        )
+    )
     if settings.oga_env in {RuntimeEnvironment.LOCAL, RuntimeEnvironment.TEST}:
         if settings.firestore_emulator_host:
             try:

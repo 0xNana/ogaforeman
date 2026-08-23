@@ -1,4 +1,4 @@
-"""Durable execution for coordinator routes that do not require interpretation."""
+"""Durable execution for remaining project-event routes that do not require interpretation."""
 
 from __future__ import annotations
 
@@ -29,11 +29,15 @@ from app.domain.enums import (
 )
 from app.domain.events import EventActorType, EventSource, EventType, ProjectEvent
 from app.domain.models import (
+    ActivityEvent,
     DailyReport,
+    Approval,
     Issue,
+    Material,
     MaterialRequest,
     OutboxMessage,
     OutboxStatus,
+    Project,
     ProjectMember,
     ReportFact,
     ReportStatus,
@@ -47,9 +51,12 @@ from app.services.material_requests import MaterialRequestService, MaterialShort
 from app.services.outbox import OutboxService
 from app.services.schedule_impact import calculate_impact
 from app.services.tasks import TaskService, UpdateTaskCommand
+from app.services.tasks import CreateDeliveryFollowUpCommand
 from app.domain.models import AgentRun
 from app.domain.enums import AgentRunStatus
 from app.repositories.runs import AgentRunRepository, run_id_for_event
+from app.repositories.activity import ActivityRepository
+from app.repositories.membership import AuthorizedProjectRepository
 from datetime import UTC, datetime
 
 
@@ -58,6 +65,21 @@ class RoutedEventExecution:
     run_id: str
     result_ref: str
     waiting_for_approval: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryDelayContext:
+    project: Project
+    request: MaterialRequest
+    material: Material
+    tasks: tuple[Task, ...]
+    directly_affected_task_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryDelayAssessment:
+    affected_task_ids: tuple[str, ...]
+    severity: Severity
 
 
 class TypedEventService:
@@ -75,7 +97,6 @@ class TypedEventService:
             EventType.MATERIAL_REQUESTED: WorkflowName.MATERIAL_SHORTAGE,
             EventType.TASK_BLOCKED: WorkflowName.BLOCKER_DELAY,
             EventType.TASK_OVERDUE: WorkflowName.BLOCKER_DELAY,
-            EventType.DELIVERY_DELAYED: WorkflowName.BLOCKER_DELAY,
             EventType.DAILY_BRIEF_REQUESTED: WorkflowName.DAILY_BRIEF,
         }.get(event.event_type)
         if workflow is None:
@@ -116,6 +137,171 @@ class TypedEventService:
             waiting_for_approval=wait_for_approval,
         )
 
+    def start_delivery_delay(self, event: ProjectEvent) -> tuple[ProjectAccessContext, str]:
+        if event.event_type is not EventType.DELIVERY_DELAYED:
+            raise ValueError("delivery delay workflow requires DELIVERY_DELAYED")
+        if event.source is not EventSource.WEB or event.actor.type is not EventActorType.USER:
+            raise ProjectForbiddenError("delivery delay requires the authenticated operator intake")
+        access = self._authorize(event)
+        ensure_permission(access, ProjectPermission.OPERATE)
+        run_id = run_id_for_event(event.event_id)
+        self._start_run(
+            project_id=event.project_id,
+            trigger_event_id=event.event_id,
+            workflow=WorkflowName.BLOCKER_DELAY,
+            run_id=run_id,
+            trace_id=str(event.metadata.get("trace_id") or event.correlation_id),
+        )
+        return access, run_id
+
+    def retrieve_delivery_delay_context(
+        self,
+        event: ProjectEvent,
+        access: ProjectAccessContext,
+    ) -> DeliveryDelayContext:
+        ensure_permission(access, ProjectPermission.OPERATE)
+        project = AuthorizedProjectRepository(self._store.repository(Project), access).require(
+            event.project_id, event.project_id
+        )
+        request = AuthorizedProjectRepository(
+            self._store.repository(MaterialRequest), access
+        ).require(event.project_id, str(event.payload["request_id"]))
+        material = AuthorizedProjectRepository(self._store.repository(Material), access).require(
+            event.project_id, request.material_id
+        )
+        affected: tuple[str, ...] = ()
+        if request.approval_id:
+            approval = AuthorizedProjectRepository(
+                self._store.repository(Approval), access
+            ).require(event.project_id, request.approval_id)
+            raw_ids = approval.proposed_action.get("affected_task_ids", [])
+            if isinstance(raw_ids, list):
+                affected = tuple(dict.fromkeys(str(value) for value in raw_ids))
+        tasks = tuple(
+            AuthorizedProjectRepository(self._store.repository(Task), access).list(event.project_id)
+        )
+        self._require_task_ids(list(tasks), list(affected))
+        return DeliveryDelayContext(
+            project=project,
+            request=request,
+            material=material,
+            tasks=tasks,
+            directly_affected_task_ids=affected,
+        )
+
+    @staticmethod
+    def assess_delivery_delay(context: DeliveryDelayContext) -> DeliveryDelayAssessment:
+        affected = tuple(
+            sorted(calculate_impact(context.tasks, list(context.directly_affected_task_ids)))
+        )
+        severity = Severity.HIGH if affected else Severity.MEDIUM
+        return DeliveryDelayAssessment(affected_task_ids=affected, severity=severity)
+
+    def mark_delivery_delayed(
+        self,
+        event: ProjectEvent,
+        access: ProjectAccessContext,
+        run_id: str,
+    ) -> MaterialRequest:
+        request_id = str(event.payload["request_id"])
+        result = self._activities.mutate(
+            self._context(event, run_id, f"delivery-delayed:{request_id}"),
+            ActivitySpec(
+                action="material_request.delayed",
+                entity_type="material_request",
+                entity_id=request_id,
+                summary="A material delivery delay was reported.",
+                metadata={
+                    "new_date": str(event.payload["new_date"]),
+                    "reason_digest": sha256(
+                        str(event.payload["reason"]).encode("utf-8")
+                    ).hexdigest()[:16],
+                },
+            ),
+            lambda session: self._mark_request_delayed(
+                session,
+                event,
+                request_id,
+                access,
+            ),
+            replay=lambda session, _activity: AuthorizedProjectRepository(
+                session.repository(MaterialRequest),
+                access,
+            ).require(event.project_id, request_id),
+        )
+        if result.value is None:
+            raise RuntimeError("delivery delay did not resolve its material request")
+        return result.value
+
+    def create_delivery_delay_risk(
+        self,
+        event: ProjectEvent,
+        access: ProjectAccessContext,
+        run_id: str,
+        assessment: DeliveryDelayAssessment,
+    ) -> Issue:
+        request_id = str(event.payload["request_id"])
+        return (
+            IssueService(self._store)
+            .create_issue(
+                access,
+                CreateIssueCommand(
+                    project_id=event.project_id,
+                    issue_type=IssueType.DELAY_RISK,
+                    severity=assessment.severity,
+                    description=(
+                        f"Material request {request_id} moved to "
+                        f"{event.payload['new_date']}: {event.payload['reason']}"
+                    ),
+                    evidence_refs=[event.event_id],
+                    task_ids=list(assessment.affected_task_ids),
+                    detected_by=IssueDetectedBy.DELIVERY_EVENT,
+                    occurred_at=event.occurred_at,
+                ),
+                self._context(event, run_id, "delivery-delay-issue"),
+            )
+            .issue
+        )
+
+    def create_delivery_delay_follow_up(
+        self,
+        event: ProjectEvent,
+        access: ProjectAccessContext,
+        run_id: str,
+        assessment: DeliveryDelayAssessment,
+        issue: Issue,
+    ) -> Task:
+        return (
+            TaskService(self._store)
+            .create_delivery_follow_up(
+                access,
+                CreateDeliveryFollowUpCommand(
+                    project_id=event.project_id,
+                    material_request_id=str(event.payload["request_id"]),
+                    source_issue_id=issue.id,
+                    source_event_id=event.event_id,
+                    affected_task_ids=assessment.affected_task_ids,
+                    occurred_at=event.occurred_at,
+                ),
+                self._context(event, run_id, "delivery-delay-follow-up"),
+            )
+            .task
+        )
+
+    def complete_delivery_delay(
+        self, project_id: str, run_id: str, issue_id: str
+    ) -> RoutedEventExecution:
+        self._complete_run(project_id, run_id)
+        return RoutedEventExecution(run_id=run_id, result_ref=f"issue:{issue_id}")
+
+    def fail_delivery_delay(self, project_id: str, run_id: str, exc: Exception) -> None:
+        self._fail_run(
+            project_id,
+            run_id,
+            type(exc).__name__[:128],
+            str(exc)[:5_000] or "delivery delay workflow failed",
+        )
+
     def _start_run(
         self,
         project_id: str,
@@ -128,6 +314,9 @@ class TypedEventService:
             now = datetime.now(UTC)
             run_repo = AgentRunRepository.for_session(session)
             run = run_repo.get(project_id, run_id)
+            activity_phase: str | None = None
+            activity_action: str | None = None
+            activity_summary: str | None = None
             if run is None:
                 run = run_repo.create(
                     AgentRun(
@@ -144,6 +333,9 @@ class TypedEventService:
                         updated_at=now,
                     )
                 )
+                activity_phase = "started"
+                activity_action = "agent_run.started"
+                activity_summary = "Started an agent workflow run."
             elif run.status in {
                 AgentRunStatus.QUEUED,
                 AgentRunStatus.WAITING_FOR_APPROVAL,
@@ -151,6 +343,9 @@ class TypedEventService:
             }:
                 run = run.model_copy(update={"status": AgentRunStatus.RUNNING, "updated_at": now})
                 run = run_repo.save(run, expected_version=run.version)
+                activity_phase = "resumed"
+                activity_action = "agent_run.resumed"
+                activity_summary = "Resumed an agent workflow run."
             elif run.status is AgentRunStatus.FAILED:
                 run = run.model_copy(
                     update={
@@ -163,6 +358,17 @@ class TypedEventService:
                     }
                 )
                 run = run_repo.save(run, expected_version=run.version)
+                activity_phase = "retried"
+                activity_action = "agent_run.retried"
+                activity_summary = "Retried a failed agent workflow run."
+            if activity_phase and activity_action and activity_summary:
+                self._record_run_activity(
+                    session,
+                    run,
+                    phase=activity_phase,
+                    action=activity_action,
+                    summary=activity_summary,
+                )
             return run
 
         return AgentRunRepository(self._store).run_transaction(_start)
@@ -178,7 +384,15 @@ class TypedEventService:
                     "updated_at": datetime.now(UTC),
                 }
             )
-            return run_repo.save(run, expected_version=run.version)
+            saved = run_repo.save(run, expected_version=run.version)
+            self._record_run_activity(
+                session,
+                saved,
+                phase="paused",
+                action="agent_run.paused",
+                summary="Paused an agent workflow run for approval.",
+            )
+            return saved
 
         return AgentRunRepository(self._store).run_transaction(_pause)
 
@@ -196,7 +410,15 @@ class TypedEventService:
                     "updated_at": completed_at,
                 }
             )
-            return run_repo.save(run, expected_version=run.version)
+            saved = run_repo.save(run, expected_version=run.version)
+            self._record_run_activity(
+                session,
+                saved,
+                phase="completed",
+                action="agent_run.completed",
+                summary="Completed an agent workflow run.",
+            )
+            return saved
 
         return AgentRunRepository(self._store).run_transaction(_complete)
 
@@ -218,9 +440,60 @@ class TypedEventService:
                     "updated_at": completed_at,
                 }
             )
-            return run_repo.save(run, expected_version=run.version)
+            saved = run_repo.save(run, expected_version=run.version)
+            self._record_run_activity(
+                session,
+                saved,
+                phase=f"failed-{saved.attempt}",
+                action="agent_run.failed",
+                summary="An agent workflow run failed.",
+                error_code=error_code,
+            )
+            return saved
 
         return AgentRunRepository(self._store).run_transaction(_fail)
+
+    @staticmethod
+    def _record_run_activity(
+        session: RepositorySession,
+        run: AgentRun,
+        *,
+        phase: str,
+        action: str,
+        summary: str,
+        error_code: str | None = None,
+    ) -> None:
+        context = MutationContext(
+            project_id=run.project_id,
+            actor_type=ActorType.SYSTEM,
+            source_event_id=run.trigger_event_id,
+            agent_run_id=run.id,
+            idempotency_key=f"agent-run:{run.id}:{phase}:{run.attempt}",
+            occurred_at=run.updated_at,
+        )
+        metadata: dict[str, object] = {
+            "workflow": run.workflow.value,
+            "status": run.status.value,
+            "attempt": run.attempt,
+        }
+        if error_code is not None:
+            metadata["error_code"] = error_code
+        activity = ActivityRepository.build_event(
+            context,
+            ActivitySpec(
+                action=action,
+                entity_type="agent_run",
+                entity_id=run.id,
+                summary=summary,
+                metadata=metadata,
+            ),
+        )
+        repository = session.repository(ActivityEvent)
+        existing = repository.get(run.project_id, activity.id)
+        if existing is None:
+            repository.create(activity)
+        else:
+            ActivityRepository.ensure_replay_matches(existing, activity)
 
     def _execute_route(
         self,
@@ -238,8 +511,6 @@ class TypedEventService:
             return self._handle_blocked_task(event, access, run_id), False
         if event.event_type is EventType.TASK_OVERDUE:
             return self._handle_overdue_task(event, access, run_id), False
-        if event.event_type is EventType.DELIVERY_DELAYED:
-            return self._handle_delivery_delay(event, access, run_id), False
         if event.event_type is EventType.DAILY_BRIEF_REQUESTED:
             return self._generate_daily_brief(event, access, run_id), False
         raise ValueError(f"unhandled routed event type {event.event_type.value}")
@@ -440,69 +711,6 @@ class TypedEventService:
         )
         return f"issue:{issue.id}"
 
-    def _handle_delivery_delay(
-        self,
-        event: ProjectEvent,
-        access: ProjectAccessContext,
-        run_id: str,
-    ) -> str:
-        ensure_permission(access, ProjectPermission.OPERATE)
-        request_id = str(event.payload["request_id"])
-        context = self._context(event, run_id, f"delivery-delayed:{request_id}")
-        request_result = self._activities.mutate(
-            context,
-            ActivitySpec(
-                action="material_request.delayed",
-                entity_type="material_request",
-                entity_id=request_id,
-                summary="Supplier delayed a material delivery.",
-                metadata={
-                    "new_date": str(event.payload["new_date"]),
-                    "reason_digest": sha256(
-                        str(event.payload["reason"]).encode("utf-8")
-                    ).hexdigest()[:16],
-                },
-            ),
-            lambda session: self._mark_request_delayed(session, event, request_id),
-            replay=lambda session, _activity: session.repository(MaterialRequest).require(
-                event.project_id, request_id
-            ),
-        )
-        if request_result.value is None:
-            raise RuntimeError("delivery delay did not resolve its material request")
-        issue = (
-            IssueService(self._store)
-            .create_issue(
-                access,
-                CreateIssueCommand(
-                    project_id=event.project_id,
-                    issue_type=IssueType.DELAY_RISK,
-                    severity=Severity.MEDIUM,
-                    description=(
-                        f"Material request {request_id} moved to "
-                        f"{event.payload['new_date']}: {event.payload['reason']}"
-                    ),
-                    evidence_refs=[event.event_id],
-                    task_ids=[],
-                    detected_by=IssueDetectedBy.DELIVERY_EVENT,
-                    occurred_at=event.occurred_at,
-                ),
-                self._context(event, run_id, "delivery-delay-issue"),
-            )
-            .issue
-        )
-        OutboxService(self._store).queue(
-            project_id=event.project_id,
-            message_type="notification:delivery_delay",
-            payload={
-                "issue_id": issue.id,
-                "request_id": request_id,
-                "new_date": str(event.payload["new_date"]),
-            },
-            deduplication_key=_step_key(event.idempotency_key, "delivery-delay"),
-        )
-        return f"issue:{issue.id}"
-
     def _generate_daily_brief(
         self,
         event: ProjectEvent,
@@ -575,8 +783,12 @@ class TypedEventService:
         session: RepositorySession,
         event: ProjectEvent,
         request_id: str,
+        access: ProjectAccessContext,
     ) -> MaterialRequest:
-        repository = session.repository(MaterialRequest)
+        repository = AuthorizedProjectRepository(
+            session.repository(MaterialRequest),
+            access,
+        )
         request = repository.require(event.project_id, request_id)
         ensure_material_request_transition(request.status, MaterialRequestStatus.DELAYED)
         return repository.save(

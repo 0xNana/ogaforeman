@@ -69,12 +69,13 @@ MATERIAL_LOW/site fact
   -> deduplicate open request
   -> create request + approval
   -> checkpoint WAITING_FOR_APPROVAL
-  -> approve: resume and claim supplier action
-  -> reject: close request branch, notify, no supplier action
-  -> delivery event: update request and downstream risk
+  -> approve: resume the same logical run and record the approved request
+  -> reject: close the request branch with no external commitment
+  -> authenticated delivery-delay report: update request and downstream risk
 ```
 
-All purchases require approval in V1, even when a cost threshold would otherwise allow automation.
+All purchases require approval in V1, even when a cost threshold would otherwise
+allow automation. Approval does not place an order or fabricate supplier state.
 
 ## Blocker and Delay
 

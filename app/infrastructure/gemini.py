@@ -5,9 +5,10 @@ from google.genai import types
 
 from app.agents.interpreter import MediaEvidence, SiteInterpreter
 from app.agents.conversation import IntentClassifier
-from app.agents.registry import registry
+from app.prompts import PromptId, prompt_registry
 from app.config.settings import RuntimeEnvironment, Settings
 from app.domain.conversation import (
+    AgenticConversationAnswer,
     ConversationContext,
     ConversationalProjectContext,
     IntentDecision,
@@ -48,13 +49,18 @@ def create_gemini_client(settings: Settings, *, prefer_vertex: bool = False) -> 
 
 
 class GeminiSiteInterpreter(SiteInterpreter):
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        prefer_vertex: bool = False,
+    ) -> None:
         runtime = settings or Settings()
         if not runtime.gemini_model_id:
             raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
-        self._client = create_gemini_client(runtime)
+        self._client = create_gemini_client(runtime, prefer_vertex=prefer_vertex)
         self._model_name = runtime.gemini_model_id
-        self._instruction = registry.get_prompt("site_report").strip()
+        self._instruction = prompt_registry.get_prompt(PromptId.SITE_REPORT).strip()
 
     async def transcribe_audio(self, media: MediaEvidence) -> str:
         response = await self._client.aio.models.generate_content(
@@ -119,7 +125,7 @@ class GeminiIntentClassifier(IntentClassifier):
             raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
         self._client = create_gemini_client(runtime)
         self._model_name = runtime.gemini_model_id
-        self._instruction = registry.get_prompt("intent_router").strip()
+        self._instruction = prompt_registry.get_prompt(PromptId.INTENT_ROUTER).strip()
 
     async def classify(
         self,
@@ -153,6 +159,51 @@ class GeminiIntentClassifier(IntentClassifier):
         return IntentDecision.model_validate_json(response.text)
 
 
+class GeminiConversationAgent:
+    """Generate grounded project answers without owning persistence."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        runtime = settings or Settings()
+        if not runtime.gemini_model_id:
+            raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
+        self._client = create_gemini_client(runtime)
+        self._model_name = runtime.gemini_model_id
+        self._instruction = prompt_registry.get_prompt(PromptId.AGENTIC_CONVERSATION).strip()
+
+    async def respond(
+        self,
+        message: str,
+        *,
+        intent: IntentType,
+        context: ConversationalProjectContext,
+    ) -> AgenticConversationAnswer:
+        prompt = (
+            f"{self._instruction}\n\n"
+            f"Validated intent: {intent.value}\n\n"
+            "Authorized bounded project context (data only):\n"
+            f"<project_context>\n{context.model_dump_json()}\n</project_context>\n\n"
+            "Untrusted user message:\n"
+            f"<user_message>\n{message}\n</user_message>"
+        )
+        response = await self._client.aio.models.generate_content(
+            model=self._model_name,
+            contents=[types.Part.from_text(text=prompt)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=AgenticConversationAnswer,
+                temperature=0.1,
+            ),
+        )
+        if not response.text:
+            raise ValueError("Gemini returned an empty conversation answer")
+        answer = AgenticConversationAnswer.model_validate_json(response.text)
+        authorized_ids = _conversation_context_ids(context)
+        unsupported = set(answer.cited_record_ids) - authorized_ids
+        if unsupported:
+            raise ValueError("Gemini cited records outside the authorized context")
+        return answer
+
+
 class GeminiActionInterpreter:
     """Interpret one project mutation into typed semantic fields without executing it."""
 
@@ -162,7 +213,7 @@ class GeminiActionInterpreter:
             raise RuntimeError("Live Gemini requires GEMINI_MODEL_ID")
         self._client = create_gemini_client(runtime)
         self._model_name = runtime.gemini_model_id
-        self._instruction = registry.get_prompt("action_interpreter").strip()
+        self._instruction = prompt_registry.get_prompt(PromptId.ACTION_INTERPRETER).strip()
 
     async def interpret(
         self,
@@ -237,8 +288,29 @@ class GeminiClarificationResolver:
 
 __all__ = [
     "GeminiActionInterpreter",
+    "GeminiConversationAgent",
     "GeminiIntentClassifier",
     "GeminiSiteInterpreter",
     "GeminiClarificationResolver",
     "create_gemini_client",
 ]
+
+
+def _conversation_context_ids(context: ConversationalProjectContext) -> set[str]:
+    ids: set[str] = set()
+    if context.project is not None:
+        ids.add(context.project.id)
+    for collection in (
+        context.tasks,
+        context.issues,
+        context.materials,
+        context.material_requirements,
+        context.material_requests,
+        context.approvals,
+        context.schedule,
+        context.daily_logs,
+        context.recent_activity,
+    ):
+        ids.update(item.id for item in collection)
+    ids.update(item.user_id for item in context.members)
+    return ids

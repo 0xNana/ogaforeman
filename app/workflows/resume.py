@@ -10,8 +10,10 @@ from app.domain.enums import (
     ApprovalActionType,
     ApprovalStatus,
     MaterialRequestStatus,
+    ProcessingStatus,
+    WorkflowName,
 )
-from app.domain.models import ActivityEvent, Approval, AgentRun, MaterialRequest
+from app.domain.models import ActivityEvent, Approval, AgentRun, MaterialRequest, SiteUpdate
 from app.repositories.activity import ActivityRepository
 from app.repositories.interfaces import EntityNotFoundError, RepositorySession, RepositoryStore
 
@@ -45,6 +47,7 @@ class ApprovalContinuationService:
                 project_id,
                 approval_id,
             )
+            site_update = self._load_linked_site_update(session, project_id, run)
             if approval.status is not ApprovalStatus.APPROVED:
                 raise RuntimeError("approval continuation requires an approved decision")
             if approval.resolved_by != resolver_id:
@@ -73,31 +76,61 @@ class ApprovalContinuationService:
                 phase="workflow-resumed",
                 summary="Resumed the workflow after the persisted approval decision.",
                 run_status=AgentRunStatus.RUNNING,
-                step="supplier_submission",
+                step="approved_material_request",
                 reason_code="approval_granted",
                 outcome="resumed",
             )
+            site_update_activity = self._prepare_site_update_activity(
+                session,
+                project_id=project_id,
+                run=run,
+                approval=approval,
+                site_update=site_update,
+                source_event_id=source_event_id or approval.id,
+                occurred_at=transition_at,
+                action="site_update.processing_resumed",
+                phase="site-update-resumed",
+                summary="Resumed site-update processing after approval.",
+                processing_status=ProcessingStatus.PROCESSING,
+            )
             if run.status is AgentRunStatus.WAITING_FOR_APPROVAL:
+                if (
+                    site_update is not None
+                    and site_update.processing_status is not ProcessingStatus.WAITING_FOR_APPROVAL
+                ):
+                    raise RuntimeError("site update and agent run approval states do not match")
                 run = session.repository(AgentRun).save(
                     run.model_copy(
                         update={
                             "status": AgentRunStatus.RUNNING,
-                            "step": "supplier_submission",
+                            "step": "approved_material_request",
                             "pending_actions": [],
                             "updated_at": transition_at,
                         }
                     ),
                     expected_version=run.version,
                 )
+                if site_update is not None:
+                    site_update_repo = session.repository(SiteUpdate)
+                    site_update_repo.save(
+                        site_update.model_copy(
+                            update={
+                                "processing_status": ProcessingStatus.PROCESSING,
+                                "updated_at": transition_at,
+                            }
+                        ),
+                        expected_version=site_update_repo.version_of(project_id, site_update.id),
+                    )
             elif run.status not in {AgentRunStatus.RUNNING, AgentRunStatus.COMPLETED}:
                 raise RuntimeError(f"cannot continue material run in status {run.status.value}")
             self._create_prepared_activity(session, resumed_activity)
             self._create_prepared_activity(session, workflow_activity)
+            self._create_prepared_activity(session, site_update_activity)
             return ApprovalContinuation(run_id=run.id, request_id=request.id)
 
         return self._store.run_transaction(_resume)
 
-    def complete_approved_purchase(
+    def complete_approved_material_workflow(
         self,
         project_id: str,
         approval_id: str,
@@ -106,7 +139,7 @@ class ApprovalContinuationService:
         source_event_id: str | None = None,
         occurred_at: datetime | None = None,
     ) -> ApprovalContinuation:
-        """Atomically complete the resumed run after its supplier action succeeds."""
+        """Atomically complete the resumed run after the approved request is recorded."""
 
         transition_at = occurred_at or datetime.now(UTC)
 
@@ -116,17 +149,19 @@ class ApprovalContinuationService:
                 project_id,
                 approval_id,
             )
+            site_update = self._load_linked_site_update(session, project_id, run)
             if approval.status is not ApprovalStatus.APPROVED:
                 raise RuntimeError("workflow completion requires an approved decision")
             if approval.resolved_by != resolver_id:
                 raise RuntimeError("approval continuation resolver does not match persisted state")
             if request.status not in {
+                MaterialRequestStatus.APPROVED,
                 MaterialRequestStatus.SUBMITTED,
                 MaterialRequestStatus.CONFIRMED,
                 MaterialRequestStatus.DELAYED,
                 MaterialRequestStatus.DELIVERED,
             }:
-                raise RuntimeError("supplier action must complete before the workflow run")
+                raise RuntimeError("material request must be approved before workflow completion")
             completed_activity = self._prepare_run_activity(
                 session,
                 project_id=project_id,
@@ -149,13 +184,31 @@ class ApprovalContinuationService:
                 occurred_at=transition_at,
                 action=WorkflowActivityAction.WORKFLOW_COMPLETED,
                 phase="workflow-completed",
-                summary="Completed the workflow after the approved external action.",
+                summary="Completed the workflow after the material request was approved.",
                 run_status=AgentRunStatus.COMPLETED,
                 step="completed",
-                reason_code="approved_external_action_succeeded",
+                reason_code="material_request_approved",
                 outcome="succeeded",
             )
+            site_update_activity = self._prepare_site_update_activity(
+                session,
+                project_id=project_id,
+                run=run,
+                approval=approval,
+                site_update=site_update,
+                source_event_id=source_event_id or approval.id,
+                occurred_at=transition_at,
+                action="site_update.processing_completed",
+                phase="site-update-completed",
+                summary="Completed site-update processing after the approved action.",
+                processing_status=ProcessingStatus.COMPLETED,
+            )
             if run.status is AgentRunStatus.RUNNING:
+                if (
+                    site_update is not None
+                    and site_update.processing_status is not ProcessingStatus.PROCESSING
+                ):
+                    raise RuntimeError("site update and agent run resumed states do not match")
                 run = session.repository(AgentRun).save(
                     run.model_copy(
                         update={
@@ -168,10 +221,23 @@ class ApprovalContinuationService:
                     ),
                     expected_version=run.version,
                 )
+                if site_update is not None:
+                    site_update_repo = session.repository(SiteUpdate)
+                    site_update_repo.save(
+                        site_update.model_copy(
+                            update={
+                                "processing_status": ProcessingStatus.COMPLETED,
+                                "processed_at": transition_at,
+                                "updated_at": transition_at,
+                            }
+                        ),
+                        expected_version=site_update_repo.version_of(project_id, site_update.id),
+                    )
             elif run.status is not AgentRunStatus.COMPLETED:
                 raise RuntimeError(f"cannot complete material run in status {run.status.value}")
             self._create_prepared_activity(session, completed_activity)
             self._create_prepared_activity(session, workflow_activity)
+            self._create_prepared_activity(session, site_update_activity)
             return ApprovalContinuation(run_id=run.id, request_id=request.id)
 
         return self._store.run_transaction(_complete)
@@ -331,6 +397,63 @@ class ApprovalContinuationService:
         if len(runs) > 1:
             raise RuntimeError("material request source is linked to more than one agent run")
         return approval, request, runs[0]
+
+    @staticmethod
+    def _load_linked_site_update(
+        session: RepositorySession,
+        project_id: str,
+        run: AgentRun,
+    ) -> SiteUpdate | None:
+        if run.workflow is not WorkflowName.DAILY_SITE_UPDATE:
+            return None
+        update_ids = {
+            activity.entity_id
+            for activity in session.repository(ActivityEvent).list(project_id)
+            if activity.action == "site_update.received"
+            and activity.entity_type == "site_update"
+            and activity.agent_run_id == run.id
+        }
+        if len(update_ids) != 1:
+            raise RuntimeError("Daily Site Update run must reference exactly one site update")
+        return session.repository(SiteUpdate).require(project_id, update_ids.pop())
+
+    @staticmethod
+    def _prepare_site_update_activity(
+        session: RepositorySession,
+        *,
+        project_id: str,
+        run: AgentRun,
+        approval: Approval,
+        site_update: SiteUpdate | None,
+        source_event_id: str,
+        occurred_at: datetime,
+        action: str,
+        phase: str,
+        summary: str,
+        processing_status: ProcessingStatus,
+    ) -> ActivityEvent | None:
+        if site_update is None:
+            return None
+        context = MutationContext(
+            project_id=project_id,
+            actor_type=ActorType.SYSTEM,
+            source_event_id=source_event_id,
+            agent_run_id=run.id,
+            idempotency_key=f"approval-continuation:{approval.id}:{phase}",
+            occurred_at=occurred_at,
+        )
+        spec = ActivitySpec(
+            action=action,
+            entity_type="site_update",
+            entity_id=site_update.id,
+            summary=summary,
+            metadata={
+                "approval_id": approval.id,
+                "run_id": run.id,
+                "processing_status": processing_status.value,
+            },
+        )
+        return ApprovalContinuationService._prepare_activity(session, context, spec)
 
     @staticmethod
     def _prepare_run_activity(

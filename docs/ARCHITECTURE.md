@@ -51,7 +51,7 @@ External events ----------------------------+                 v
 - Cloud Run service subscribed through Pub/Sub/Eventarc.
 - Claims events idempotently and starts/resumes the correct ADK workflow.
 - Loads only relevant project context.
-- Invokes Gemini specialists for structured reasoning.
+- Invokes bounded Gemini adapters only at explicit workflow nodes.
 - Invokes deterministic tools for reads and mutations.
 - Persists workflow checkpoints so retries and approval pauses survive restarts.
 
@@ -148,7 +148,7 @@ Firestore, Storage, Pub/Sub, auth, notification adapters
 Rules:
 
 - Domain code imports no FastAPI, Firestore, ADK, or UI package.
-- Workflows depend on tool interfaces and structured agent interfaces.
+- Workflows depend on typed tool interfaces and bounded model-adapter interfaces.
 - Tools enforce authorization/policy again; they do not trust model output.
 - Infrastructure adapters translate external errors into stable domain/application errors.
 

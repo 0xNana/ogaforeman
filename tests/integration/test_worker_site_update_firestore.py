@@ -586,6 +586,14 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
     assert update.processing_status is ProcessingStatus.WAITING_FOR_APPROVAL
     assert run.status is AgentRunStatus.WAITING_FOR_APPROVAL
     assert run.workflow.value == "daily_site_update"
+    assert run.adk_session_id is not None
+    assert run.adk_invocation_id == accepted["event_id"]
+    assert run.adk_workflow_id == "daily_site_update_workflow"
+    paused_adk_identity = (
+        run.adk_session_id,
+        run.adk_invocation_id,
+        run.adk_workflow_id,
+    )
     assert run.step == "approval_required"
     assert len(requests) == 1
     assert requests[0].quantity == Decimal("30")
@@ -762,6 +770,13 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
     if decision == "approved":
         assert final_run.status is AgentRunStatus.COMPLETED
         assert final_run.step == "completed"
+        assert (
+            final_run.adk_session_id,
+            final_run.adk_invocation_id,
+            final_run.adk_workflow_id,
+        ) == paused_adk_identity
+        assert final_update.processing_status is ProcessingStatus.COMPLETED
+        assert final_update.processed_at is not None
         assert final_run.updated_at >= run.updated_at
         assert final_run.completed_at is not None
         assert final_request.status is MaterialRequestStatus.SUBMITTED
@@ -783,6 +798,19 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
         )
         assert sum(activity.action == "agent_run.completed" for activity in final_activities) == 1
         assert sum(activity.action == "workflow.resumed" for activity in final_activities) == 1
+        assert (
+            sum(
+                activity.action == "site_update.processing_resumed" for activity in final_activities
+            )
+            == 1
+        )
+        assert (
+            sum(
+                activity.action == "site_update.processing_completed"
+                for activity in final_activities
+            )
+            == 1
+        )
         assert (
             sum(activity.action == "external_action.executed" for activity in final_activities) == 1
         )

@@ -20,7 +20,10 @@ Exit gate: all `PR-01` through `PR-06`, `PR-11`, and `PR-12` controls have tests
 
 ## Phase 3 - Agent Kernel
 
-Implement the typed agent registry, coordinator entrypoint, bounded context builder, structured specialist outputs, prompt versioning, model adapter, confidence policy, negation handling, entity resolution, and fake-model test adapter.
+Implement typed ADK workflow identifiers, a prompt-only registry, bounded context
+builders, structured model outputs, prompt versioning, model adapters,
+confidence policy, negation handling, entity resolution, and fake-model test
+adapters. Do not construct specialist agents without a production `Runner` path.
 
 Exit gate: interpreter tests prove explicit completion, ambiguity, negation, and unknown entity behavior.
 

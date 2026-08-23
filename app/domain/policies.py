@@ -86,7 +86,11 @@ _MATERIAL_REQUEST_TRANSITIONS: dict[MaterialRequestStatus, frozenset[MaterialReq
         }
     ),
     MaterialRequestStatus.APPROVED: frozenset(
-        {MaterialRequestStatus.SUBMITTED, MaterialRequestStatus.CANCELLED}
+        {
+            MaterialRequestStatus.SUBMITTED,
+            MaterialRequestStatus.DELAYED,
+            MaterialRequestStatus.CANCELLED,
+        }
     ),
     MaterialRequestStatus.REJECTED: frozenset(),
     MaterialRequestStatus.SUBMITTED: frozenset(

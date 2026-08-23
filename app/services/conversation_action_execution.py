@@ -318,7 +318,10 @@ class ConversationActionExecutionService:
             )
             return ConversationActionOutcome(
                 kind="needs_approval",
-                text="This purchase is waiting for approval. No supplier action has been taken.",
+                text=(
+                    "This purchase is waiting for approval. "
+                    "No binding order or external commitment has been made."
+                ),
                 mutation_performed=not purchase.duplicate,
                 proposed_action=message,
                 activity_id=purchase.activity.id,

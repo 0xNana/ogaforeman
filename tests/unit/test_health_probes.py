@@ -2,6 +2,7 @@ from app.config.settings import Settings
 from google.api_core.exceptions import NotFound
 from app.observability.probes import (
     configuration_probe,
+    external_notification_configuration_probe,
     firestore_probe,
     storage_probe,
 )
@@ -66,6 +67,10 @@ def test_storage_probe_checks_object_data_plane_without_leaking_details() -> Non
 def test_configuration_probe_reports_local_and_deployed_contracts() -> None:
     local = Settings(_env_file=None)
     assert configuration_probe(local)() == (True, "local")
+    assert external_notification_configuration_probe(local)() == (
+        True,
+        "logging_development_only",
+    )
 
     deployed = Settings(
         _env_file=None,
@@ -83,8 +88,21 @@ def test_configuration_probe_reports_local_and_deployed_contracts() -> None:
         gemini_model_id="gemini-model",
         gemini_location="global",
         conversation_proposal_signing_key="a" * 32,
+        notification_provider="google_chat",
+        google_chat_webhook_url=(
+            "https://chat.googleapis.com/v1/spaces/AAAA/messages?key=test-key&token=test-token"
+        ),
+        public_app_base_url="https://oga-staging.web.app",
+        adk_agent_engine_id="agent-engine-staging",
         auth_issuer="https://securetoken.google.com/oga-staging",
         auth_audience="oga-staging",
         cors_allowed_origins=("https://oga-staging.web.app",),
+        app_git_sha="b134039daa3bc1528f9e869678dd6d59a4f9d1f9",
+        app_build_time="2026-08-23T14:05:06Z",
+        app_source_tree_dirty=False,
     )
     assert configuration_probe(deployed)() == (True, "staging")
+    assert external_notification_configuration_probe(deployed)() == (
+        True,
+        "google_chat_configured",
+    )

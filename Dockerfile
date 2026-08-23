@@ -1,9 +1,20 @@
 FROM python:3.12-slim
 
+ARG APP_GIT_SHA
+ARG APP_BUILD_TIME
+ARG APP_VERSION
+
+LABEL org.opencontainers.image.revision=${APP_GIT_SHA} \
+    org.opencontainers.image.created=${APP_BUILD_TIME} \
+    org.opencontainers.image.version=${APP_VERSION}
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:$PATH" \
+    APP_GIT_SHA=${APP_GIT_SHA} \
+    APP_BUILD_TIME=${APP_BUILD_TIME} \
+    APP_VERSION=${APP_VERSION}
 
 WORKDIR /app
 

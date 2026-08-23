@@ -43,7 +43,8 @@ tmp/
 *.local.json
 
 # Local working documentation and task notes
-/internal-docs/
+/internal-docs/*
+!/internal-docs/video.md
 /tasks/
 
 # Editors and operating systems
@@ -52,3 +53,6 @@ tmp/
 .vscode/
 !.vscode/extensions.json
 *.swp
+artifacts/evals/golden-latest.json
+artifacts/evals/golden-live-gemini.json
+artifacts/operations/*-deployment-current.json

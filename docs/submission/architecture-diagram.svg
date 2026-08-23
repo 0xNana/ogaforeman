@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1180" viewBox="0 0 1600 1180" role="img" aria-labelledby="title desc">
+  <title id="title">OG Foreman Google Cloud architecture</title>
+  <desc id="desc">Construction updates flow from an authenticated Next.js web application to a FastAPI Cloud Run service, private media storage, Pub/Sub, a private Cloud Run worker, Google ADK and Gemini, typed mutation tools, Firestore, Google Chat, observability, and verified build provenance. Consequential actions pause for human approval.</desc>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#111827" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-teal" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+    <style>
+      .title { font: 700 34px Arial, sans-serif; fill: #111827; }
+      .subtitle { font: 400 16px Arial, sans-serif; fill: #4b5563; }
+      .footer-copy { font: 400 16px Arial, sans-serif; fill: #e5e7eb; }
+      .band { font: 700 14px Arial, sans-serif; fill: #374151; letter-spacing: 0; }
+      .box-title { font: 700 18px Arial, sans-serif; fill: #111827; }
+      .box-copy { font: 400 13px Arial, sans-serif; fill: #4b5563; }
+      .box-small { font: 600 12px Arial, sans-serif; fill: #374151; }
+      .pill { font: 700 11px Arial, sans-serif; fill: #ffffff; }
+      .flow { fill: none; stroke: #2563eb; stroke-width: 3; marker-end: url(#arrow-blue); }
+      .flow-teal { fill: none; stroke: #0f766e; stroke-width: 3; marker-end: url(#arrow-teal); }
+      .flow-orange { fill: none; stroke: #c2410c; stroke-width: 3; marker-end: url(#arrow-orange); }
+      .dash { stroke-dasharray: 9 7; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1180" fill="#f8fafc"/>
+  <rect x="0" y="0" width="1600" height="108" fill="#ffffff"/>
+  <rect x="0" y="106" width="1600" height="2" fill="#e5e7eb"/>
+  <text x="70" y="54" class="title">OG Foreman</text>
+  <text x="70" y="83" class="subtitle">Autonomous construction operations on Google ADK, Gemini, and Google Cloud</text>
+  <rect x="1294" y="34" width="236" height="42" rx="5" fill="#111827"/>
+  <text x="1412" y="60" class="pill" text-anchor="middle">TASKMASTER WORKFLOW</text>
+
+  <text x="70" y="145" class="band">FIELD AND PRODUCT EDGE</text>
+  <rect x="70" y="164" width="250" height="140" rx="7" fill="#ffffff" stroke="#d1d5db" filter="url(#shadow)"/>
+  <circle cx="112" cy="205" r="20" fill="#dcfce7"/>
+  <path d="M102 210 h20 M106 202 h12 M109 194 h6" stroke="#166534" stroke-width="3" stroke-linecap="round"/>
+  <text x="145" y="207" class="box-title">Site team</text>
+  <text x="95" y="244" class="box-copy">Foreman, PM, approver</text>
+  <text x="95" y="266" class="box-copy">Text, voice, photos, files</text>
+  <text x="95" y="287" class="box-small">Firebase Authentication</text>
+
+  <rect x="394" y="164" width="278" height="140" rx="7" fill="#ffffff" stroke="#d1d5db" filter="url(#shadow)"/>
+  <rect x="416" y="185" width="38" height="38" rx="5" fill="#dbeafe"/>
+  <path d="M426 195 h18 v18 h-18 z M430 200 h10 M430 205 h10" fill="none" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="472" y="207" class="box-title">Next.js PWA</text>
+  <text x="419" y="244" class="box-copy">Projects, capture, approvals</text>
+  <text x="419" y="266" class="box-copy">Runs, activity, reports</text>
+  <text x="419" y="287" class="box-small">Firebase Hosting to Cloud Run web</text>
+
+  <path d="M320 234 H386" class="flow"/>
+
+  <rect x="734" y="132" width="796" height="686" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="734" y="132" width="796" height="46" rx="8" fill="#e8f0fe"/>
+  <rect x="734" y="170" width="796" height="8" fill="#e8f0fe"/>
+  <text x="758" y="161" class="band" fill="#174ea6">GOOGLE CLOUD</text>
+
+  <rect x="780" y="214" width="296" height="132" rx="7" fill="#ffffff" stroke="#93c5fd" filter="url(#shadow)"/>
+  <rect x="802" y="232" width="74" height="24" rx="4" fill="#2563eb"/>
+  <text x="839" y="248" class="pill" text-anchor="middle">CLOUD RUN</text>
+  <text x="802" y="282" class="box-title">FastAPI service</text>
+  <text x="802" y="307" class="box-copy">Auth, API, /version, signed upload</text>
+  <text x="802" y="328" class="box-small">Canonical identity and project boundary</text>
+
+  <path d="M672 234 H772" class="flow"/>
+
+  <rect x="1130" y="214" width="342" height="132" rx="7" fill="#ffffff" stroke="#67e8f9" filter="url(#shadow)"/>
+  <rect x="1152" y="232" width="98" height="24" rx="4" fill="#0f766e"/>
+  <text x="1201" y="248" class="pill" text-anchor="middle">CLOUD STORAGE</text>
+  <text x="1152" y="282" class="box-title">Private site evidence</text>
+  <text x="1152" y="307" class="box-copy">Original media, verified metadata</text>
+  <text x="1152" y="328" class="box-small">Short-lived signed access</text>
+
+  <path d="M1076 278 H1122" class="flow-teal"/>
+
+  <rect x="780" y="392" width="296" height="116" rx="7" fill="#ffffff" stroke="#fdba74" filter="url(#shadow)"/>
+  <rect x="802" y="410" width="76" height="24" rx="4" fill="#c2410c"/>
+  <text x="840" y="426" class="pill" text-anchor="middle">PUB/SUB</text>
+  <text x="802" y="462" class="box-title">Project events</text>
+  <text x="802" y="486" class="box-copy">At-least-once, claims, retry, dead letter</text>
+
+  <path d="M928 346 V384" class="flow-orange"/>
+
+  <rect x="1130" y="392" width="342" height="116" rx="7" fill="#ffffff" stroke="#93c5fd" filter="url(#shadow)"/>
+  <rect x="1152" y="410" width="74" height="24" rx="4" fill="#2563eb"/>
+  <text x="1189" y="426" class="pill" text-anchor="middle">CLOUD RUN</text>
+  <text x="1152" y="462" class="box-title">Private worker</text>
+  <text x="1152" y="486" class="box-copy">Authenticated push and durable execution</text>
+
+  <path d="M1076 450 H1122" class="flow-orange"/>
+
+  <rect x="780" y="552" width="692" height="220" rx="7" fill="#f9fafb" stroke="#9ca3af" stroke-width="2"/>
+  <text x="802" y="582" class="band">AGENTIC EXECUTION BOUNDARY</text>
+
+  <rect x="802" y="608" width="194" height="126" rx="6" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="820" y="637" class="box-title">Google ADK</text>
+  <text x="820" y="663" class="box-small">Site update fork / join</text>
+  <text x="820" y="685" class="box-small">Delay + conversation graphs</text>
+  <text x="820" y="707" class="box-small">Durable session resume</text>
+
+  <rect x="1029" y="608" width="194" height="126" rx="6" fill="#ffffff" stroke="#fbbf24"/>
+  <text x="1047" y="637" class="box-title">Gemini 3.6 Flash</text>
+  <text x="1047" y="663" class="box-copy">Bounded extraction</text>
+  <text x="1047" y="685" class="box-small">Grounded project reasoning</text>
+  <text x="1047" y="707" class="box-small">No direct domain writes</text>
+
+  <rect x="1256" y="608" width="194" height="126" rx="6" fill="#ffffff" stroke="#34d399"/>
+  <text x="1274" y="637" class="box-title">Typed tools</text>
+  <text x="1274" y="663" class="box-copy">Auth, policy, evidence</text>
+  <text x="1274" y="685" class="box-copy">Idempotent mutations</text>
+  <text x="1274" y="707" class="box-small">Deterministic authority</text>
+
+  <path d="M1301 508 V544" class="flow"/>
+  <path d="M996 670 H1021" class="flow"/>
+  <path d="M1223 670 H1248" class="flow-teal"/>
+
+  <text x="70" y="356" class="band">HUMAN CONTROL</text>
+  <rect x="70" y="376" width="602" height="164" rx="7" fill="#fff7ed" stroke="#fb923c" filter="url(#shadow)"/>
+  <text x="96" y="410" class="box-title">Approval and safety gate</text>
+  <text x="96" y="442" class="box-copy">Safe, reversible work continues autonomously.</text>
+  <text x="96" y="467" class="box-copy">Purchases, commitments, financial actions, cancellation,</text>
+  <text x="96" y="489" class="box-copy">major schedule changes, and safety-critical actions pause.</text>
+  <rect x="96" y="507" width="183" height="22" rx="4" fill="#c2410c"/>
+  <text x="187" y="522" class="pill" text-anchor="middle">EXPLICIT HUMAN DECISION</text>
+
+  <path d="M780 708 H704 V458 H680" class="flow-orange dash"/>
+  <path d="M672 500 H718 V790 H1490 V670 H1458" class="flow-orange dash"/>
+
+  <text x="70" y="598" class="band">DURABLE TRUTH AND OPERATIONS</text>
+  <rect x="70" y="618" width="278" height="154" rx="7" fill="#ffffff" stroke="#67e8f9" filter="url(#shadow)"/>
+  <text x="94" y="651" class="box-title">Cloud Firestore</text>
+  <text x="94" y="679" class="box-copy">Projects, tasks, blockers, materials</text>
+  <text x="94" y="701" class="box-copy">Approvals, runs, claims, outbox</text>
+  <text x="94" y="723" class="box-small">Domain source of truth</text>
+  <rect x="94" y="740" width="137" height="21" rx="4" fill="#0f766e"/>
+  <text x="162" y="755" class="pill" text-anchor="middle">ATOMIC ACTIVITY</text>
+
+  <rect x="394" y="618" width="278" height="154" rx="7" fill="#ffffff" stroke="#c4b5fd" filter="url(#shadow)"/>
+  <text x="418" y="651" class="box-title">Cloud operations</text>
+  <text x="418" y="679" class="box-copy">Logging, Trace, Monitoring</text>
+  <text x="418" y="701" class="box-copy">Revisions, digests, backups, alerts</text>
+  <text x="418" y="723" class="box-small">Git SHA and runtime correlation</text>
+  <rect x="418" y="740" width="174" height="21" rx="4" fill="#6d28d9"/>
+  <text x="505" y="755" class="pill" text-anchor="middle">NO HIDDEN REASONING</text>
+
+  <path d="M1256 734 V794 H348 V780" class="flow-teal"/>
+  <path d="M1130 772 V812 H533 V780" class="flow dash"/>
+
+  <text x="70" y="858" class="band">EXTERNAL COORDINATION</text>
+  <rect x="780" y="876" width="692" height="112" rx="7" fill="#ffffff" stroke="#34d399" filter="url(#shadow)"/>
+  <text x="804" y="909" class="box-title">Google Chat destination</text>
+  <text x="804" y="936" class="box-copy">One typed delivery-delay message after durable outbox claim</text>
+  <text x="804" y="960" class="box-small">Deterministic request/message IDs; staging requires this provider</text>
+  <path d="M1450 734 H1500 V932 H1480" class="flow-teal"/>
+
+  <rect x="70" y="1020" width="1460" height="112" rx="7" fill="#111827"/>
+  <text x="96" y="1055" class="box-title" fill="#ffffff">Execution invariant</text>
+  <text x="96" y="1087" class="footer-copy">Gemini reasons or extracts. Google ADK coordinates. Typed tools mutate. Firestore is truth.</text>
+  <text x="96" y="1112" class="footer-copy">Every event and mutation is replay-safe, authorized, observable, and bounded by human approval policy.</text>
+  <rect x="1286" y="1053" width="214" height="42" rx="5" fill="#0f766e"/>
+  <text x="1393" y="1079" class="pill" text-anchor="middle">FOUR WORKFLOWS. ONE TRUTH.</text>
+</svg>

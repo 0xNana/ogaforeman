@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.agents.interpreter import FakeSiteInterpreter
+from app.agents.identifiers import AdkWorkflowId
 from app.config.settings import Settings
 from app.domain.enums import (
     AgentRunStatus,
@@ -81,7 +82,7 @@ def test_worker_claims_routes_and_suppresses_duplicate_delivery() -> None:
     )
 
     assert first.status == "completed"
-    assert first.route == "site_report"
+    assert first.route == AdkWorkflowId.DAILY_SITE_UPDATE
     assert replay.status == "duplicate"
     assert replay.result_ref == first.result_ref
     assert interpreter.calls == ["Blockwork is complete."]

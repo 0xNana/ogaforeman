@@ -9,16 +9,17 @@ from dataclasses import dataclass
 
 from pydantic import ValidationError
 
-from app.agents.event_execution import AdkEventExecutor
+from app.agents.event_execution import AdkEventExecutor, DeliveryDelayEventExecutor
 from app.agents.interpreter import SiteInterpreter
 from app.agents.site_update_execution import EventPayloadMismatchError, SiteUpdateEventExecutor
 from app.config.settings import Settings, get_settings
 from app.domain.authorization import ProjectForbiddenError, RoleRequiredError
 from app.domain.events import EventType, ProjectEvent
-from app.domain.enums import ApprovalActionType
-from app.domain.models import Approval
+from app.domain.enums import ApprovalActionType, WorkflowName
+from app.domain.models import AgentRun, Approval, MaterialRequest
 from app.infrastructure.gemini import GeminiSiteInterpreter
 from app.infrastructure.storage import StorageAdapter
+from app.infrastructure.notification_gateway import NotificationProvider
 from app.observability.context import bind_context, new_correlation_context
 from app.observability.logging import log_event
 from app.observability.metrics import metrics
@@ -26,13 +27,13 @@ from app.observability.tracing import TraceSpan
 from app.observability.tracing import cloud_trace_exporter
 from app.repositories.interfaces import EntityNotFoundError, RepositoryStore
 from app.services.event_claims import ClaimOutcome, EventClaimService, InvalidEventClaim
-from app.services.external_actions import ExternalActionService
 from app.services.event_router import route_project_event
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_approval import ConversationScheduleApprovalService
 from app.services.conversation_schedule_operations import ConversationScheduleService
 from app.services.site_update_lifecycle import InvalidSiteUpdateTransition
 from app.workflows.resume import ApprovalContinuationService
+from app.repositories.runs import run_id_for_event
 
 
 logger = logging.getLogger("ogaforeman.worker")
@@ -55,6 +56,7 @@ async def process_event_async(
     settings: Settings | None = None,
     site_interpreter: SiteInterpreter | None = None,
     storage_adapter: StorageAdapter | None = None,
+    notification_gateway: NotificationProvider | None = None,
 ) -> WorkerResult:
     """Validate, claim, route, and finalize one at-least-once event delivery."""
 
@@ -148,6 +150,11 @@ async def process_event_async(
                     isinstance(action, str) for action in execution_actions
                 ):
                     pending_actions = tuple(execution_actions)
+            elif event.event_type is EventType.DELIVERY_DELAYED:
+                routed_execution = await DeliveryDelayEventExecutor(
+                    store, runtime, notification_gateway
+                ).execute(event)
+                result_ref = routed_execution.result_ref
             elif event.event_type is EventType.APPROVAL_GRANTED:
                 approval_id = str(event.payload["approval_id"])
                 approval = store.repository(Approval).require(event.project_id, approval_id)
@@ -172,25 +179,45 @@ async def process_event_async(
                     )
                     result_ref = f"approval:{approval_id}"
                 else:
-                    approved_continuation = await AdkEventExecutor(store, runtime).resume_approved(
-                        event
-                    )
-                    delay_event = ExternalActionService(store).continue_approved_purchase(event)
-                    if delay_event is not None:
-                        await process_event_async(
-                            delay_event.model_dump_json().encode(),
-                            store=store,
-                            settings=runtime,
-                            site_interpreter=site_interpreter,
-                            storage_adapter=storage_adapter,
+                    requests = [
+                        request
+                        for request in store.repository(MaterialRequest).list(event.project_id)
+                        if request.approval_id == approval_id
+                    ]
+                    if len(requests) != 1:
+                        raise RuntimeError(
+                            "approval must be linked to exactly one material request"
                         )
-                    ApprovalContinuationService(store).complete_approved_purchase(
-                        event.project_id,
-                        approval_id,
-                        str(event.payload["resolver"]),
-                        source_event_id=event.event_id,
-                    )
-                    result_ref = f"run:{approved_continuation.run_id}"
+                    expected_run_id = run_id_for_event(requests[0].source_event_id)
+                    source_runs = [
+                        run
+                        for run in store.repository(AgentRun).list(event.project_id)
+                        if run.id == expected_run_id
+                        or run.trigger_event_id == requests[0].source_event_id
+                    ]
+                    if len(source_runs) != 1:
+                        raise RuntimeError("material request must reference exactly one agent run")
+                    source_run = source_runs[0]
+                    if source_run.workflow is WorkflowName.DAILY_SITE_UPDATE:
+                        interpreter = site_interpreter or GeminiSiteInterpreter(runtime)
+                        await SiteUpdateEventExecutor(
+                            store,
+                            interpreter,
+                            runtime,
+                            storage_adapter,
+                        ).resume_approved(event)
+                        result_ref = f"run:{source_run.id}"
+                    else:
+                        approved_continuation = await AdkEventExecutor(
+                            store, runtime
+                        ).resume_approved(event)
+                        ApprovalContinuationService(store).complete_approved_material_workflow(
+                            event.project_id,
+                            approval_id,
+                            str(event.payload["resolver"]),
+                            source_event_id=event.event_id,
+                        )
+                        result_ref = f"run:{approved_continuation.run_id}"
             elif event.event_type is EventType.APPROVAL_REJECTED:
                 approval_id = str(event.payload["approval_id"])
                 approval = store.repository(Approval).require(event.project_id, approval_id)
@@ -287,6 +314,7 @@ def process_event(
     settings: Settings | None = None,
     site_interpreter: SiteInterpreter | None = None,
     storage_adapter: StorageAdapter | None = None,
+    notification_gateway: NotificationProvider | None = None,
 ) -> WorkerResult:
     """Compatibility wrapper; production HTTP delivery uses ``process_event_async``."""
 
@@ -296,6 +324,7 @@ def process_event(
         settings=settings,
         site_interpreter=site_interpreter,
         storage_adapter=storage_adapter,
+        notification_gateway=notification_gateway,
     )
     try:
         asyncio.get_running_loop()

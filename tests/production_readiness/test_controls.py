@@ -22,7 +22,8 @@ from google.cloud import firestore
 from pydantic import ValidationError
 
 from app.agents.interpreter import FakeSiteInterpreter
-from app.agents.registry import Registry
+from app.agents.identifiers import AdkAgentId, AdkWorkflowId
+from app.prompts import PromptId, prompt_registry
 from app.config.settings import Settings
 from app.api.limits import InMemoryRateLimiter, RateLimitExceededError
 from app.api.v1.router import api_router
@@ -488,13 +489,9 @@ async def test_pr09_api_site_update_enters_the_worker_coordinator_path() -> None
     assert len(store.repository(AgentRun).list("prj_readiness123")) == 1
 
 
-def test_pr10_agent_registry_resolves_every_coordinator_route() -> None:
-    registry = Registry()
-    coordinator = registry.get_agent_config("oga_coordinator")
-
-    assert len(coordinator.sub_agents) == len(set(coordinator.sub_agents))
-    for route in coordinator.sub_agents:
-        assert registry.get_agent_config(route).name == route
+def test_pr10_runtime_names_match_real_workflow_roots_and_prompt_profiles() -> None:
+    assert {agent.value for agent in AdkAgentId} == {workflow.value for workflow in AdkWorkflowId}
+    assert set(prompt_registry.prompts) == set(PromptId)
 
 
 def test_pr11_task_mutation_emits_exactly_one_activity() -> None:

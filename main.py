@@ -10,7 +10,6 @@ from app.api.cors import install_cors_middleware
 from app.api.dead_letters import router as dead_letter_router
 from app.api.errors import install_error_handlers, install_request_id_middleware
 from app.api.limits import InMemoryRateLimiter
-from app.api.events import router as event_router
 from app.api.health import create_runtime_health_router
 from app.api.runtime_auth import ConfiguredAuthRuntime
 from app.api.uploads import router as upload_router
@@ -20,6 +19,7 @@ from app.infrastructure.pubsub import PubSubClient
 from app.infrastructure.storage import create_storage_adapter
 from app.infrastructure.gemini import (
     GeminiActionInterpreter,
+    GeminiConversationAgent,
     GeminiIntentClassifier,
     GeminiClarificationResolver,
 )
@@ -27,6 +27,7 @@ from app.services.attachments import AttachmentService
 from app.observability.logging import configure_logging
 from app.observability.tracing import cloud_trace_exporter
 from app.services.site_update_intake import SiteUpdateIntakeService
+from app.services.delivery_delay_intake import DeliveryDelayIntakeService
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_operations import ConversationScheduleService
 from app.services.project_import_extraction import (
@@ -41,7 +42,7 @@ configure_logging()
 app = FastAPI(
     title="OG Foreman API",
     description="Tell Oga what happened. Oga handles the follow-through.",
-    version="0.1.0",
+    version=settings.app_version,
 )
 app.state.settings = settings
 app.state.project_import_rate_limiter = InMemoryRateLimiter(
@@ -58,8 +59,13 @@ if settings.auth_audience:
         app.state.auth_runtime.store,
         PubSubClient(settings),
     )
+    app.state.delivery_delay_intake = DeliveryDelayIntakeService(
+        app.state.auth_runtime.store,
+        PubSubClient(settings),
+    )
     if not settings.use_fake_model:
         app.state.intent_classifier = GeminiIntentClassifier(settings)
+        app.state.conversation_agent = GeminiConversationAgent(settings)
         app.state.action_interpreter = GeminiActionInterpreter(settings)
         app.state.clarification_resolver = GeminiClarificationResolver(settings)
         app.state.project_import_draft_extractor = ProjectImportExtractionService(
@@ -94,7 +100,6 @@ app.include_router(create_runtime_health_router(settings))
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(upload_router)
 app.include_router(dead_letter_router, prefix="/api/v1")
-app.include_router(event_router, prefix="/api/v1/internal")
 
 
 @app.get("/", tags=["service"])
@@ -104,6 +109,7 @@ async def service_root() -> dict[str, str]:
         "status": "ok",
         "health": "/health/live",
         "readiness": "/health/ready",
+        "version": "/api/v1/version",
     }
 
 

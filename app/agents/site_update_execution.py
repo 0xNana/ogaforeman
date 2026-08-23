@@ -21,14 +21,25 @@ from app.domain.authorization import (
 from app.domain.activity import MutationContext, WorkflowActivityAction
 from app.agents.interpreter import MediaEvidence
 from app.agents.adk_runtime import (
+    SiteUpdateWorkflowHandlers,
     build_site_update_app,
     managed_session_service,
     session_app_name,
     sqlite_session_execution_guard,
 )
+from app.agents.telemetry import run_adk_stage
+from app.agents.identifiers import AdkAgentId, AdkNodeId, AdkToolId, AdkWorkflowId
 from app.domain.enums import ActorType, AgentRunStatus, AttachmentUploadStatus, ProcessingStatus
 from app.domain.events import EventActorType, EventSource, EventType, ProjectEvent
-from app.domain.models import AgentRun, Attachment, ProjectMember, SiteUpdate
+from app.domain.models import (
+    AgentRun,
+    Approval,
+    Attachment,
+    MaterialRequest,
+    OutboxMessage,
+    ProjectMember,
+    SiteUpdate,
+)
 from app.infrastructure.storage import StorageAdapter, create_storage_adapter
 from app.repositories.context import ContextRepository
 from app.repositories.interfaces import RepositoryStore
@@ -37,12 +48,14 @@ from app.services.issues import IssueService
 from app.services.material_requests import MaterialRequestService
 from app.services.materials import MaterialService
 from app.services.reports import ReportService
+from app.services.schedule_impact import calculate_impact
 from app.services.site_update_lifecycle import SiteUpdateExecutionStateService
-from app.services.site_updates import SiteUpdateService
+from app.services.site_updates import PreparedSiteUpdate, SiteUpdateResult, SiteUpdateService
 from app.services.tasks import TaskService
 from app.services.workflow_audit import WorkflowAuditService
 from app.tools.materials import MaterialTools
 from app.tools.tasks import TaskTools
+from app.workflows.resume import ApprovalContinuationService
 from app.repositories.runs import run_id_for_event
 
 
@@ -100,7 +113,28 @@ class SiteUpdateEventExecutor:
         adk_app_name = session_app_name(self._settings, self._store)
         adk_session_id = f"{run_id}-attempt-{claim_attempt}"
 
-        async def workflow() -> dict[str, Any]:
+        workflow_failure: list[Exception] = []
+        staged_update = update
+        staged_images: tuple[MediaEvidence, ...] = ()
+        staged_context: Any = None
+        staged_prepared: PreparedSiteUpdate | None = None
+        staged_resolutions: dict[str, Any] = {}
+        staged_branch_results: dict[str, dict[str, Any]] = {}
+        staged_result: SiteUpdateResult | None = None
+        staged_output: dict[str, Any] | None = None
+        service = SiteUpdateService(
+            interpreter=self._interpreter,
+            context_service=ContextService(ContextRepository(self._store)),
+            task_tools=TaskTools(TaskService(self._store), access),
+            material_tools=MaterialTools(MaterialService(self._store), access),
+            issue_service=IssueService(self._store),
+            material_request_service=MaterialRequestService(self._store),
+            report_service=ReportService(self._store),
+            workflow_audit=WorkflowAuditService(self._store),
+        )
+
+        async def receive_input() -> dict[str, Any]:
+            nonlocal staged_update
             started = self._state.start_attempt(
                 access,
                 update.id,
@@ -113,41 +147,165 @@ class SiteUpdateEventExecutor:
                 # local/test repository object is reconstructed.
                 adk_session_id=f"{adk_app_name}/{adk_session_id}",
                 adk_invocation_id=event.event_id,
-                adk_workflow_id="daily_site_update_workflow",
+                adk_workflow_id=AdkWorkflowId.DAILY_SITE_UPDATE,
             )
-            enriched_update, images = await self._prepare_media(
-                started.update,
+            staged_update = started.update
+            return {"update_id": staged_update.id, "run_id": run_id}
+
+        async def prepare_evidence() -> dict[str, Any]:
+            nonlocal staged_update, staged_images
+            staged_update, images = await self._prepare_media(
+                staged_update,
                 access=access,
                 source_event_id=event.event_id,
                 run_id=run_id,
                 trace_id=trace_id,
             )
+            staged_images = tuple(images)
             self._record_media_processed(
-                enriched_update,
-                images,
+                staged_update,
+                staged_images,
                 source_event_id=event.event_id,
                 run_id=run_id,
                 attempt=claim_attempt,
             )
-            service = SiteUpdateService(
-                interpreter=self._interpreter,
-                context_service=ContextService(ContextRepository(self._store)),
-                task_tools=TaskTools(TaskService(self._store), access),
-                material_tools=MaterialTools(MaterialService(self._store), access),
-                issue_service=IssueService(self._store),
-                material_request_service=MaterialRequestService(self._store),
-                report_service=ReportService(self._store),
-                workflow_audit=WorkflowAuditService(self._store),
+            return {
+                "attachment_count": len(staged_images),
+                "transcript_present": bool(staged_update.transcript),
+            }
+
+        async def retrieve_context() -> dict[str, Any]:
+            nonlocal staged_context
+            staged_context = service.retrieve_authorized_context(access)
+            return {
+                "project_id": staged_context.project_id,
+                "task_count": len(staged_context.active_tasks),
+                "material_count": len(staged_context.materials),
+                "issue_count": len(staged_context.open_issues),
+            }
+
+        async def interpret_evidence() -> dict[str, Any]:
+            nonlocal staged_prepared
+            if staged_context is None:
+                raise RuntimeError("site update context stage did not complete")
+            staged_prepared = await service.interpret_evidence(
+                staged_update,
+                staged_context,
+                images=staged_images,
             )
+            facts = staged_prepared.fact_set
+            return {
+                "task_fact_count": len(facts.tasks),
+                "issue_fact_count": len(facts.issues),
+                "material_fact_count": len(facts.materials),
+                "next_focus_fact_count": len(facts.next_focus),
+                "safety_fact_count": len(facts.safety_issues),
+            }
+
+        async def resolve_entities() -> dict[str, Any]:
+            nonlocal staged_resolutions
+            if staged_prepared is None:
+                raise RuntimeError("site update interpretation stage did not complete")
+            staged_resolutions = service.resolve_canonical_entities(staged_prepared)
+            return staged_resolutions
+
+        async def analyze_progress() -> dict[str, Any]:
+            if staged_prepared is None:
+                raise RuntimeError("site update resolution stage did not complete")
+            resolution = dict(staged_resolutions.get("progress", {}))
+            result = {
+                **resolution,
+                "completion_fact_count": sum(
+                    fact.is_completed for fact in staged_prepared.routed.actionable_tasks
+                ),
+                "unique_task_ids": sorted(set(resolution.get("resolved_ids", []))),
+                "next_focus_task_ids": staged_resolutions.get("next_focus", {}).get(
+                    "resolved_task_ids", []
+                ),
+            }
+            staged_branch_results["progress"] = result
+            return result
+
+        async def analyze_blockers() -> dict[str, Any]:
+            if staged_prepared is None:
+                raise RuntimeError("site update resolution stage did not complete")
+            resolution = dict(staged_resolutions.get("blockers", {}))
+            blocked_ids = list(resolution.get("resolved_task_ids", []))
+            impacted_ids = (
+                sorted(calculate_impact(staged_prepared.project_context.active_tasks, blocked_ids))
+                if blocked_ids
+                else []
+            )
+            result = {
+                **resolution,
+                "issue_fact_count": len(staged_prepared.routed.actionable_issues),
+                "impacted_task_ids": impacted_ids,
+            }
+            staged_branch_results["blockers"] = result
+            return result
+
+        async def analyze_materials() -> dict[str, Any]:
+            if staged_prepared is None:
+                raise RuntimeError("site update resolution stage did not complete")
+            resolution = dict(staged_resolutions.get("materials", {}))
+            quantities = [
+                fact.quantity
+                for fact in staged_prepared.routed.actionable_materials
+                if fact.quantity is not None and fact.quantity >= 0
+            ]
+            result = {
+                **resolution,
+                "stock_observation_count": len(quantities),
+                "invalid_quantity_count": sum(
+                    fact.quantity is None or fact.quantity < 0
+                    for fact in staged_prepared.routed.actionable_materials
+                ),
+            }
+            staged_branch_results["materials"] = result
+            return result
+
+        async def merge_results() -> dict[str, Any]:
+            missing = {"progress", "blockers", "materials"} - set(staged_branch_results)
+            if missing:
+                raise RuntimeError(f"site update merge is missing branches: {sorted(missing)}")
+            return {
+                "progress": staged_branch_results["progress"],
+                "blockers": staged_branch_results["blockers"],
+                "materials": staged_branch_results["materials"],
+                "next_focus": staged_resolutions.get("next_focus", {}),
+            }
+
+        async def apply_policy() -> dict[str, Any]:
+            if staged_prepared is None:
+                raise RuntimeError("site update interpretation stage did not complete")
+            return {
+                "safety_stop": bool(staged_prepared.routed.safety_stops),
+                "clarification_count": (
+                    len(staged_prepared.routed.clarifications)
+                    + sum(
+                        int(branch.get("unresolved_count", 0))
+                        + int(branch.get("ambiguous_count", 0))
+                        for branch in staged_branch_results.values()
+                    )
+                ),
+                "autonomous_mutations_allowed": not bool(staged_prepared.routed.safety_stops),
+            }
+
+        async def invoke_typed_tools() -> dict[str, Any]:
+            nonlocal staged_result, staged_output
+            if staged_prepared is None:
+                raise RuntimeError("site update preparation did not complete")
             result = await service.process_update(
                 access=access,
-                site_update=enriched_update,
+                site_update=staged_update,
                 run_id=run_id,
                 trace_id=trace_id,
                 source_event_id=event.event_id,
-                images=images,
+                images=staged_images,
                 attempt=claim_attempt,
+                prepared=staged_prepared,
             )
+            staged_result = result
             if result.has_safety_stops or result.has_clarifications:
                 final = self._state.wait_for_clarification(
                     access,
@@ -187,7 +345,7 @@ class SiteUpdateEventExecutor:
                 )
                 status = "completed"
 
-            return {
+            staged_output = {
                 "status": status,
                 "update_id": update.id,
                 "run_id": final.run.id,
@@ -204,22 +362,66 @@ class SiteUpdateEventExecutor:
                 "pending_actions": list(result.pending_actions),
                 "replayed": False,
             }
+            return staged_output
 
-        workflow_failure: list[Exception] = []
+        async def project_daily_log() -> dict[str, Any]:
+            if staged_result is None:
+                raise RuntimeError("site update tools did not produce a report")
+            return {"report_id": staged_result.report_id}
 
-        async def adk_execute() -> dict[str, Any]:
-            try:
-                return await workflow()
-            except Exception as exc:
-                # ADK 2.6.2's graph scheduler converts child exceptions into a
-                # node timeout while draining the graph. Preserve the original
-                # domain exception for the worker's retry/error contract.
-                workflow_failure.append(exc)
-                return {"status": "failed", "_adk_failure": True}
+        async def emit_activity() -> dict[str, Any]:
+            if staged_result is None:
+                raise RuntimeError("site update tools did not produce activity")
+            return {
+                "tasks_updated": staged_result.tasks_updated,
+                "materials_updated": staged_result.materials_updated,
+                "issues_created": staged_result.issues_created,
+            }
+
+        async def complete_stage() -> dict[str, Any]:
+            return staged_output or {}
+
+        def guarded(stage: Any, node: str, *, tool: str | None = None) -> Any:
+            async def run() -> dict[str, Any]:
+                try:
+                    return await run_adk_stage(
+                        logger,
+                        workflow=AdkWorkflowId.DAILY_SITE_UPDATE,
+                        agent=AdkAgentId.DAILY_SITE_UPDATE,
+                        node=node,
+                        tool=tool,
+                        execute=stage,
+                    )
+                except Exception as exc:
+                    workflow_failure.append(exc)
+                    raise
+
+            return run
+
+        handlers = SiteUpdateWorkflowHandlers(
+            receive_input=guarded(receive_input, AdkNodeId.RECEIVE_INPUT),
+            prepare_evidence=guarded(prepare_evidence, AdkNodeId.PREPARE_MULTIMODAL_INPUT),
+            retrieve_context=guarded(retrieve_context, AdkNodeId.RETRIEVE_AUTHORIZED_CONTEXT),
+            interpret_evidence=guarded(interpret_evidence, AdkNodeId.INTERPRET_EVIDENCE),
+            resolve_entities=guarded(resolve_entities, AdkNodeId.RESOLVE_CANONICAL_ENTITIES),
+            analyze_progress=guarded(analyze_progress, AdkNodeId.PROGRESS),
+            analyze_blockers=guarded(analyze_blockers, AdkNodeId.BLOCKER),
+            analyze_materials=guarded(analyze_materials, AdkNodeId.MATERIAL),
+            merge_results=guarded(merge_results, AdkNodeId.MERGE_ACTIONS),
+            apply_policy=guarded(apply_policy, AdkNodeId.EVALUATE_POLICY),
+            invoke_typed_tools=guarded(
+                invoke_typed_tools,
+                AdkNodeId.EXECUTE_SITE_UPDATE,
+                tool=AdkToolId.SITE_UPDATE_TOOLS,
+            ),
+            project_daily_log=guarded(project_daily_log, AdkNodeId.PROJECT_DAILY_LOG),
+            emit_activity=guarded(emit_activity, AdkNodeId.EMIT_ACTIVITY),
+            complete=guarded(complete_stage, AdkNodeId.FINALIZE_SITE_UPDATE),
+        )
 
         app = build_site_update_app(
             adk_app_name,
-            adk_execute,
+            handlers=handlers,
             timeout_seconds=self._settings.agent_workflow_timeout_seconds,
         )
         output: dict[str, Any] | None = None
@@ -265,6 +467,7 @@ class SiteUpdateEventExecutor:
                                 output = (call.args or {}).get("payload")
                                 break
         except Exception as exc:
+            failure = workflow_failure[0] if workflow_failure else exc
             self._record_failure(
                 event,
                 access,
@@ -272,9 +475,9 @@ class SiteUpdateEventExecutor:
                 run_id,
                 trace_id,
                 claim_attempt,
-                exc,
+                failure,
             )
-            raise
+            raise failure
         if output is None:
             error = RuntimeError("site update agent completed without an output")
             self._record_failure(
@@ -300,6 +503,177 @@ class SiteUpdateEventExecutor:
             )
             raise failure
         return output
+
+    async def resume_approved(self, event: ProjectEvent) -> dict[str, Any]:
+        """Resume the persisted Daily Site Update ADK invocation after approval."""
+
+        _original_event, update, access, run = self._load_approved_site_update(event)
+        if (
+            update.processing_status is ProcessingStatus.COMPLETED
+            and run.status is AgentRunStatus.COMPLETED
+        ):
+            return {
+                **_completed_output(_original_event, update, run, replayed=True),
+                "result_ref": f"run:{run.id}",
+            }
+        persisted_session = run.adk_session_id
+        if not persisted_session or not run.adk_invocation_id:
+            raise RuntimeError("approval run is missing its persisted ADK invocation")
+        if run.adk_workflow_id != AdkWorkflowId.DAILY_SITE_UPDATE:
+            raise RuntimeError("approval run does not reference the Daily Site Update workflow")
+
+        stored_app_name, separator, session_id = persisted_session.partition("/")
+        if not separator or not stored_app_name or not session_id:
+            raise RuntimeError("approval run has an invalid persisted ADK session identity")
+
+        workflow_failure: list[Exception] = []
+
+        async def continue_after_approval() -> dict[str, Any]:
+            try:
+                continuation = ApprovalContinuationService(self._store).handle_approval_granted(
+                    event.project_id,
+                    str(event.payload["approval_id"]),
+                    str(event.payload["resolver"]),
+                    source_event_id=event.event_id,
+                    occurred_at=event.occurred_at,
+                )
+                return {
+                    "status": "completed",
+                    "update_id": update.id,
+                    "run_id": continuation.run_id,
+                    "result_ref": f"run:{continuation.run_id}",
+                    "has_safety_stops": False,
+                    "has_clarifications": False,
+                    "has_pending_approvals": False,
+                    "summary": run.result_summary or "Approved material workflow completed.",
+                    "pending_actions": [],
+                    "replayed": False,
+                }
+            except Exception as exc:
+                workflow_failure.append(exc)
+                return {"status": "failed", "_adk_failure": True}
+
+        app = build_site_update_app(
+            stored_app_name,
+            continue_after_approval,
+            timeout_seconds=self._settings.agent_workflow_timeout_seconds,
+        )
+        output: dict[str, Any] | None = None
+        async with (
+            managed_session_service(self._settings) as session_service,
+            sqlite_session_execution_guard(self._settings),
+            asyncio.timeout(self._settings.agent_workflow_timeout_seconds),
+        ):
+            session = await session_service.get_session(
+                app_name=stored_app_name,
+                user_id=access.actor.user_id,
+                session_id=session_id,
+            )
+            if session is None:
+                raise RuntimeError(
+                    "approval ADK session was not found after restart "
+                    f"(app_name={stored_app_name}, session_id={session_id})"
+                )
+            call_id = next(
+                (
+                    part.function_call.id
+                    for history_event in session.events
+                    if history_event.content and history_event.content.parts
+                    for part in history_event.content.parts
+                    if part.function_call and part.function_call.name == "adk_request_input"
+                ),
+                None,
+            )
+            if call_id is None:
+                raise RuntimeError("approval ADK request input was not persisted")
+            output = next(
+                (
+                    getattr(history_event, "output", None)
+                    for history_event in reversed(session.events)
+                    if isinstance(getattr(history_event, "output", None), dict)
+                    and getattr(history_event, "output").get("status") == "completed"
+                    and getattr(history_event, "output").get("run_id") == run.id
+                    and getattr(history_event, "output").get("update_id") == update.id
+                ),
+                None,
+            )
+            if output is None:
+                runner = Runner(app=app, session_service=session_service)
+                async for agent_event in runner.run_async(
+                    user_id=access.actor.user_id,
+                    session_id=session_id,
+                    invocation_id=run.adk_invocation_id,
+                    new_message=types.Content(
+                        role="user",
+                        parts=[
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    id=call_id,
+                                    name="adk_request_input",
+                                    response={
+                                        "approval": "approved",
+                                        "approval_id": str(event.payload["approval_id"]),
+                                    },
+                                )
+                            )
+                        ],
+                    ),
+                ):
+                    if isinstance(agent_event.output, dict):
+                        output = agent_event.output
+        if workflow_failure:
+            raise workflow_failure[0]
+        if output is None:
+            raise RuntimeError("approved Daily Site Update ADK workflow returned no result")
+        if output.get("run_id") != run.id or output.get("update_id") != update.id:
+            raise RuntimeError("approved ADK workflow returned mismatched persisted identity")
+        ApprovalContinuationService(self._store).complete_approved_material_workflow(
+            event.project_id,
+            str(event.payload["approval_id"]),
+            str(event.payload["resolver"]),
+            source_event_id=event.event_id,
+        )
+        return output
+
+    def _load_approved_site_update(
+        self,
+        event: ProjectEvent,
+    ) -> tuple[ProjectEvent, SiteUpdate, ProjectAccessContext, AgentRun]:
+        if event.event_type is not EventType.APPROVAL_GRANTED:
+            raise ValueError("site-update approval resume requires APPROVAL_GRANTED")
+        approval_id = str(event.payload["approval_id"])
+        self._store.repository(Approval).require(event.project_id, approval_id)
+        requests = [
+            request
+            for request in self._store.repository(MaterialRequest).list(event.project_id)
+            if request.approval_id == approval_id
+        ]
+        if len(requests) != 1:
+            raise RuntimeError("approval must be linked to exactly one material request")
+        run = self._store.repository(AgentRun).require(
+            event.project_id,
+            run_id_for_event(requests[0].source_event_id),
+        )
+        source_messages = [
+            message
+            for message in self._store.repository(OutboxMessage).list(event.project_id)
+            if message.message_type == EventType.SITE_UPDATE_RECEIVED.value
+            and message.payload.get("event_id") == run.trigger_event_id
+        ]
+        if len(source_messages) != 1:
+            raise RuntimeError("original site-update event was not persisted exactly once")
+        original_event = ProjectEvent.model_validate(source_messages[0].payload)
+        update, access, authorized_run = self._load_authorized_state(original_event)
+        if authorized_run.id != run.id:
+            raise RuntimeError("approval does not reference the original site-update run")
+        valid_state_pairs = {
+            (ProcessingStatus.WAITING_FOR_APPROVAL, AgentRunStatus.WAITING_FOR_APPROVAL),
+            (ProcessingStatus.PROCESSING, AgentRunStatus.RUNNING),
+            (ProcessingStatus.COMPLETED, AgentRunStatus.COMPLETED),
+        }
+        if (update.processing_status, run.status) not in valid_state_pairs:
+            raise RuntimeError("site-update workflow is not paused for approval")
+        return original_event, update, access, run
 
     async def _prepare_media(
         self,

@@ -228,17 +228,55 @@ invocation, survives worker/container restart, and resumes that invocation
 exactly once. `AgentRun` remains an authorized, durable product projection;
 it is never an execution cursor or checkpoint store.
 
+P0 release stop, added 2026-08-23: the live Golden operational evaluation is
+the active release gate ahead of every new conversational feature and ahead of
+demo recording. The legacy live artifact passed only 3/8 because its evaluator
+incorrectly asked Gemini for canonical IDs and mutation tokens. The replacement
+gate must run the production `GeminiSiteInterpreter` once and pass all eight
+downstream checks through deterministic services: blockwork completion,
+electrical blocker, cement inventory, 100-bag cement requirement, 90-bag
+shortage, material request, pending approval with no premature external action,
+and the later delivery-delay event. Canonical entity resolution accuracy and
+case pass rate must both equal 1.0. Project-import eval results do not satisfy or
+offset this operational gate.
+
+Deployment provenance is a parallel P0 release stop. The stale tracked Cloud
+Run evidence for `0aa4a2c` was removed because it cannot prove current source.
+Deployment now derives immutable build identity, exposes `/api/v1/version`,
+stamps the API, worker, and web revisions, and verifies repository `HEAD`, their
+deployment timestamps, and resolved image digests after traffic migration. This
+stays open until these changes are committed and that clean commit produces a
+passing ignored deployment artifact.
+
 Implementation slices:
 
 1. P0 — persist the ADK session/invocation identity for a site update and resume
-   it with `Runner.run_async` after an approval decision; keep supplier actions
-   guarded by their existing outbox/idempotency claims.
-2. P1 — move each non-site V1 event into a native ADK workflow and remove
-   `OgaCoordinator`/`RoutedEventExecutor` as production execution authorities.
-3. P2 — route conversational queries and actions through an ADK Runner with
-   typed deterministic tools; retain the existing CRUD services underneath.
-4. P3 — either invoke registered `LlmAgent`s from those paths or remove the
-   unused agent facades and all stale architecture references.
+   it with `Runner.run_async` after an approval decision; complete the approved
+   request continuation once without fabricating supplier state. Implemented locally on
+   2026-08-23: Daily Site Update approval now rebuilds the same native graph and
+   responds to its persisted `adk_request_input`; the generic event graph is no
+   longer the production continuation path. Focused contracts and the in-process
+   production-worker E2E pass. A backed attempt skipped because its emulator
+   endpoints were absent, so P0 stays open until the fail-closed backed gate and
+   a real staging worker restart pass. The experimental ADK dependency is pinned
+   at the tested `google-adk==2.6.2`.
+2. P1 — keep the four-workflow scope locked and correct ADK ownership only for
+   the Taskmaster-critical Daily Site Update and Delivery Delay paths. Daily
+   Site Update must expose real context, interpretation, resolution, parallel
+   progress/blocker/material analysis, merge, policy, tools, interruption, and
+   continuation nodes. Delivery Delay must expose context, impact, risk,
+   follow-up, notification, and completion nodes. Do not migrate unrelated V1
+   capabilities merely for agent count.
+3. P2 — route authenticated project conversation through a conditional ADK
+   graph for classification, authorized context, canonical resolution, Gemini
+   grounding, and typed-tool actions. Deterministic services retain
+   authorization, validation, policy, canonical identity, idempotency, and all
+   persistence authority.
+4. P3 — completed locally on 2026-08-23. Production never passed the registered
+   coordinator or specialist `LlmAgent`s to `Runner`, so the decorative graph,
+   exports, factory, dead prompts, and stale claims were removed. The remaining
+   typed agent labels equal the four actual ADK workflow roots; the manifest is
+   now a prompt-only registry for direct production Gemini consumers.
 5. P4 — delete the legacy route-map, manual `AgentRun` progression, and custom
    approval-resume orchestration after the end-to-end migration gate passes.
 
@@ -459,17 +497,17 @@ prepayment credits (`429 RESOURCE_EXHAUSTED`).
 ### P0.2: Remove the fake browser E2E workflow
 
 Acceptance: browser site-update submissions use the production worker entry point,
-coordinator, structured fact routing, typed mutation services, approval service,
+the real Daily Site Update ADK root, structured fact routing, typed mutation services, approval service,
 outbox continuation, and original-run resume logic against Firestore. The local E2E
 stack may replace Gemini, Cloud Storage, and Pub/Sub delivery at their external
 boundaries, but no adapter may infer domain state, branch on trigger phrases, or
 fabricate run/approval status. Browser tests must observe the persisted approval,
 approve it through the API-backed UI, and prove that the same run completes with one
-guarded supplier submission.
+approved-request continuation.
 
 Verify: API-to-worker integration proves duplicate intake, structured mutations,
 durable approval pause, outbox continuation, same-run completion, and exactly-once
-external action against both repository implementations. Firestore attachment
+approval continuation against both repository implementations. Firestore attachment
 sign/verify proves atomic audit writes. Mobile Chromium covers text approval/resume,
 real MediaRecorder voice intake, signed photo clarification, invalid media, and a
 recoverable persisted worker failure without request interception.
@@ -553,7 +591,7 @@ site update, blocker issue, and blocked task, and atomically emits an activity. 
 same event/idempotency scope replays without another task. Active follow-ups project
 into both Tasks and Needs You. Material risk continues to calculate its shortage from
 persisted stock/requirements, create one request and approval, and pause the original
-run before any supplier action.
+run before the human decision.
 
 Verify: production-worker and API tests assert the assigned source-linked follow-up,
 activity causality, duplicate suppression, 30-bag calculated request, pending approval,
@@ -578,19 +616,19 @@ Firestore clients; the focused mobile production-path journey also passes.
 Acceptance: the voice-only canonical update consumes durable audio while its
 `SiteUpdate` is `PROCESSING` and original `AgentRun` is `RUNNING`, then persists the
 update, request, and run in `WAITING_FOR_APPROVAL` / `AWAITING_APPROVAL` states. An
-approval decision does not execute the supplier action inline. Its claimed
+approval decision does not place an order inline. Its claimed
 continuation reloads and validates the persisted decision, resolver, linked request,
 and exact source run, atomically records resume and terminal run activities, and
-executes the guarded supplier action once. Rejection preserves decision notes,
-cancels the request, terminalizes the same run, and can never enter the supplier
-branch. Both branches survive fresh Firestore and Storage clients while waiting.
+records the approved request once without fabricating supplier state. Rejection
+preserves decision notes, cancels the request, and terminalizes the same run. Both
+branches survive fresh Firestore and Storage clients while waiting.
 
 Verify: a parameterized backing-service test uploads actual voice bytes, captures the
 typed processing states inside interpretation, reconstructs clients before decision
 and continuation, and separately approves and rejects. Approval asserts the same
-daily-site-update run completes with one submission/outbox claim and one each of
-`agent_run.resumed`, `material_request.submitted`, and `agent_run.completed`.
-Rejection asserts persisted notes, no supplier outbox/activity, and one
+daily-site-update run completes with one approved-request continuation and one each
+of `agent_run.resumed` and `agent_run.completed`.
+Rejection asserts persisted notes, no external commitment, and one
 `agent_run.rejected`. Duplicate intake and continuation delivery are suppressed.
 
 Dependencies: P0.1 through P0.5, K-01, K-02, K-06, W-01, W-02, M-02 through M-04.
@@ -641,7 +679,7 @@ configuration/tooling
   -> domain schemas and policies
     -> repository interfaces and Firestore
       -> auth, idempotency, activity, typed tools
-        -> coordinator and structured interpreter
+        -> worker-selected ADK workflow and structured interpreter
           -> Daily Site Update vertical slice
             -> Materials + approvals
             -> Blockers + safety
@@ -836,29 +874,36 @@ Files: `app/api/errors.py`, `app/api/limits.py`, `app/api/dependencies.py`, `tes
 
 Scope: M.
 
-### K-06: Add outbox claims for notifications and external actions
+### K-06: Add outbox claims for external notifications
 
-Acceptance: notifications and supplier actions have persisted claims, retry status, and deduplication keys; a retry cannot repeat a completed side effect.
+Acceptance: external notifications have persisted claims, retry status, provider
+message IDs, and deduplication keys; a retry cannot repeat a completed side effect.
 
 Verify: outbox contract tests for success, crash-before-ack, retry, and duplicate delivery.
 
 Dependencies: K-01, K-02.
 
-Files: `app/services/outbox.py`, `app/repositories/outbox.py`, `app/services/notifications.py`, `tests/integration/test_outbox.py`.
+Files: `app/services/outbox.py`, `app/repositories/outbox.py`,
+`app/services/delivery_notifications.py`, `tests/integration/test_outbox.py`.
 
 Scope: M.
 
 ## Phase 3: Agent Kernel
 
-### A-01: Create typed agent registry
+### A-01: Create typed runtime and prompt registries
 
-Acceptance: coordinator and four specialists have one canonical name/description/prompt version/tool allowlist; startup validates references.
+Acceptance: every actual ADK workflow root, node, and tool has a typed runtime
+identifier; every production Gemini prompt has one typed versioned profile; no
+manifest entry or exported agent exists without a production consumer.
 
-Verify: registry completeness and duplicate-name tests.
+Verify: runtime identifier equality, exact prompt-profile completeness,
+duplicate-name, missing-file, and agent-shaped manifest rejection tests.
 
 Dependencies: F-02, K-03, K-04.
 
-Files: `app/agents/registry.py`, `app/agents/factory.py`, `app/prompts/manifest.yaml`, `tests/unit/test_agent_registry.py`.
+Files: `app/agents/identifiers.py`, `app/prompts/registry.py`,
+`app/prompts/manifest.yaml`, `tests/unit/test_prompt_registry.py`,
+`docs/submission/AGENT_INVENTORY.md`.
 
 Scope: M.
 
@@ -898,15 +943,20 @@ Files: `app/domain/policies.py`, `app/services/fact_router.py`, `tests/unit/test
 
 Scope: M.
 
-### A-05: Route every production event through OgaCoordinator
+### A-05: Route every production event through the worker's ADK entrypoint
 
-Acceptance: API and worker entrypoints invoke one coordinator service; direct workflow calls are limited to tests/demo adapters; coordinator route names resolve through the registry.
+Acceptance: APIs persist/publish events; the worker claims each event and invokes
+the appropriate real ADK workflow root. No unused coordinator facade is
+constructed or treated as execution authority.
 
-Verify: API-to-coordinator and Pub/Sub-to-coordinator integration tests assert one run and one route decision.
+Verify: API-to-worker and Pub/Sub-to-worker integration tests assert one run and
+one workflow decision; static inventory matches every production `Runner` root.
 
 Dependencies: A-01, A-04, K-01.
 
-Files: `app/agents/coordinator.py`, `app/services/event_router.py`, `app/api/events.py`, `tests/integration/test_coordinator_routing.py`.
+Files: `app/worker.py`, `app/agents/site_update_execution.py`,
+`app/agents/event_execution.py`, `app/api/events.py`,
+`tests/integration/test_worker.py`.
 
 Scope: M.
 
@@ -926,13 +976,15 @@ Scope: M.
 
 ### W-02: Implement Daily Site Update orchestration
 
-Acceptance: API/event path invokes `OgaCoordinator`, fans out branches, joins results, updates report, and emits response/activity.
+Acceptance: API/event path invokes `daily_site_update_workflow`, fans out branches,
+joins results, updates the report, and emits response/activity.
 
-Verify: canonical mixed update workflow test and API-to-coordinator integration test.
+Verify: canonical mixed-update workflow test and API-to-worker integration test.
 
 Dependencies: A-04, W-01, K-03, K-04.
 
-Files: `app/workflows/site_update.py`, `app/agents/coordinator.py`, `app/services/site_updates.py`, `tests/workflows/test_site_update.py`.
+Files: `app/agents/adk_runtime.py`, `app/agents/site_update_execution.py`,
+`app/services/site_updates.py`, `tests/workflows/test_adk_runtime.py`.
 
 Scope: M.
 
@@ -1016,15 +1068,24 @@ Files: `app/workflows/resume.py`, `app/services/approvals.py`, `app/repositories
 
 Scope: M.
 
-### M-04: Add simulated supplier and delivery-delay adapter
+### M-04: Historical supplier simulator (removed by PR-15)
 
-Acceptance: approved requests produce one claimed simulated action; status events include delayed delivery and preserve request history.
+Superseded by PR-15: approval never fabricates supplier status. Authenticated
+operator intake persists a real delivery event, and the dedicated ADK workflow
+sends one claimed Google Chat notification.
 
-Verify: outbox claim and delayed delivery replay tests.
+Provider selection is explicit: `NotificationService` accepts the shared
+provider contract, local/test may select `logging`, and every deployed
+environment requires the sole real provider `google_chat`.
+
+Verify: authenticated intake, outbox crash/retry, permanent failure, worker
+replay, and gated live Google Chat tests.
 
 Dependencies: M-03, K-01, K-06.
 
-Files: `app/infrastructure/supplier_simulator.py`, `app/services/external_actions.py`, `tests/integration/test_supplier_simulator.py`.
+Files: `app/services/delivery_delay_intake.py`,
+`app/services/delivery_notifications.py`, `app/infrastructure/google_chat.py`,
+`tests/integration/test_delivery_notifications.py`.
 
 Scope: M.
 
@@ -1068,7 +1129,8 @@ Scope: M.
 
 ### E-01: Connect Pub/Sub/Eventarc worker entrypoint
 
-Acceptance: API publishes normalized events; worker claims and routes them through coordinator; dead-letter and retry metadata are preserved.
+Acceptance: API publishes normalized events; the worker claims them and selects
+the correct real ADK workflow root; dead-letter and retry metadata are preserved.
 
 Verify: emulator end-to-end event delivery, duplicate, retry, and dead-letter tests.
 

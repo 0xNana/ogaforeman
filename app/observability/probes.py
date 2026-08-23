@@ -7,7 +7,7 @@ from typing import Protocol
 
 from google.api_core.exceptions import NotFound
 
-from app.config.settings import Settings
+from app.config.settings import NotificationProviderName, RuntimeEnvironment, Settings
 
 
 Probe = Callable[[], tuple[bool, str]]
@@ -36,6 +36,23 @@ class StorageClient(Protocol):
 def configuration_probe(settings: Settings) -> Probe:
     def check() -> tuple[bool, str]:
         return True, settings.oga_env.value
+
+    return check
+
+
+def external_notification_configuration_probe(settings: Settings) -> Probe:
+    def check() -> tuple[bool, str]:
+        if settings.notification_provider is NotificationProviderName.GOOGLE_CHAT:
+            if settings.google_chat_webhook_url is not None:
+                return True, "google_chat_configured"
+            return False, "google_chat_missing"
+        if settings.oga_env in {
+            RuntimeEnvironment.PREVIEW,
+            RuntimeEnvironment.STAGING,
+            RuntimeEnvironment.PRODUCTION,
+        }:
+            return False, "external_provider_required"
+        return True, "logging_development_only"
 
     return check
 
@@ -78,6 +95,7 @@ def storage_probe(
 __all__ = [
     "Probe",
     "configuration_probe",
+    "external_notification_configuration_probe",
     "firestore_probe",
     "storage_probe",
 ]

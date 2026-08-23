@@ -19,6 +19,7 @@ from app.domain.enums import (
     MemberRole,
     MemberStatus,
     TaskStatus,
+    TaskSource,
     WorkflowName,
 )
 from app.domain.events import EventActor, EventActorType, EventSource, EventType, ProjectEvent
@@ -32,6 +33,7 @@ from app.domain.models import (
     MaterialRequest,
     OutboxMessage,
     ProcessedEvent,
+    Project,
     ProjectMember,
     Task,
 )
@@ -40,6 +42,7 @@ from app.repositories.firestore import FirestoreRepositoryStore
 from app.services.approvals import ApprovalService, ResolutionCommand
 from app.worker import process_event
 from app.repositories.runs import run_id_for_event
+from tests.fakes import FakeProjectNotificationGateway
 
 
 NOW = datetime(2026, 8, 8, 10, 0, tzinfo=UTC)
@@ -88,9 +91,22 @@ def _event(
     )
 
 
-def _deliver(store: InMemoryRepositoryStore, event: ProjectEvent) -> tuple[str, str]:
-    first = process_event(event.model_dump_json().encode(), store=store)
-    replay = process_event(event.model_dump_json().encode(), store=store)
+def _deliver(
+    store: InMemoryRepositoryStore,
+    event: ProjectEvent,
+    *,
+    notification_gateway: FakeProjectNotificationGateway | None = None,
+) -> tuple[str, str]:
+    first = process_event(
+        event.model_dump_json().encode(),
+        store=store,
+        notification_gateway=notification_gateway,
+    )
+    replay = process_event(
+        event.model_dump_json().encode(),
+        store=store,
+        notification_gateway=notification_gateway,
+    )
     assert replay.status == "duplicate"
     assert replay.result_ref == first.result_ref
     return first.status, first.result_ref or ""
@@ -271,6 +287,38 @@ def test_blocked_and_overdue_events_persist_issues_and_task_impact() -> None:
 
 def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
     store = _store(with_member=False)
+    store.repository(Project).create(
+        Project(
+            id=PROJECT_ID,
+            name="Ridge Site",
+            location="Accra",
+            timezone="Africa/Accra",
+            created_by=FOREMAN_ID,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+    store.repository(Task).create(
+        Task(
+            id="tsk_slab123",
+            project_id=PROJECT_ID,
+            title="Cast ground-floor slab",
+            status=TaskStatus.PLANNED,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
+    store.repository(Task).create(
+        Task(
+            id="tsk_blockwork123",
+            project_id=PROJECT_ID,
+            title="Start blockwork",
+            status=TaskStatus.PLANNED,
+            dependency_ids=["tsk_slab123"],
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
     store.repository(Material).create(
         Material(
             id="mat_cement123",
@@ -287,7 +335,10 @@ def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
             id="app_cement123",
             project_id=PROJECT_ID,
             action_type=ApprovalActionType.PURCHASE,
-            proposed_action={"material_id": "mat_cement123"},
+            proposed_action={
+                "material_id": "mat_cement123",
+                "affected_task_ids": ["tsk_slab123"],
+            },
             reason="Cement required.",
             requested_by="system",
             status="approved",
@@ -305,7 +356,7 @@ def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
             unit="bags",
             reason="Cement required.",
             source_event_id="evt_materiallow123",
-            status=MaterialRequestStatus.SUBMITTED,
+            status=MaterialRequestStatus.APPROVED,
             approval_id="app_cement123",
             created_at=NOW,
             updated_at=NOW,
@@ -319,12 +370,13 @@ def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
             "new_date": "2026-08-13",
             "reason": "Supplier inventory is delayed.",
         },
-        source=EventSource.SUPPLIER,
-        actor_type=EventActorType.INTEGRATION,
-        actor_id="int_supplier123",
+        source=EventSource.WEB,
+        actor_type=EventActorType.USER,
+        actor_id=FOREMAN_ID,
     )
 
-    status, result_ref = _deliver(store, event)
+    gateway = FakeProjectNotificationGateway()
+    status, result_ref = _deliver(store, event, notification_gateway=gateway)
 
     request = store.repository(MaterialRequest).require(PROJECT_ID, "mrq_cement123")
     issue = next(
@@ -332,11 +384,37 @@ def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
         for issue in store.repository(Issue).list(PROJECT_ID)
         if event.event_id in issue.evidence_refs
     )
+    follow_up = next(
+        task
+        for task in store.repository(Task).list(PROJECT_ID)
+        if event.event_id in task.source_refs
+    )
+    notification = next(
+        message
+        for message in store.repository(OutboxMessage).list(PROJECT_ID)
+        if message.message_type == "external_notification:delivery_delay"
+    )
     assert status == "completed"
     assert result_ref == f"issue:{issue.id}"
     assert request.status is MaterialRequestStatus.DELAYED
     assert issue.detected_by is IssueDetectedBy.DELIVERY_EVENT
-    assert issue.task_ids == []
+    assert issue.task_ids == ["tsk_blockwork123", "tsk_slab123"]
+    assert follow_up.source is TaskSource.WORKFLOW
+    assert notification.payload["follow_up_task_id"] == follow_up.id
+    assert notification.provider == "google_chat"
+    assert notification.provider_message_id is not None
+    assert len(gateway.logical_sends) == 1
+    assert (
+        sum(event.event_id in task.source_refs for task in store.repository(Task).list(PROJECT_ID))
+        == 1
+    )
+    assert (
+        sum(
+            message.message_type == "external_notification:delivery_delay"
+            for message in store.repository(OutboxMessage).list(PROJECT_ID)
+        )
+        == 1
+    )
     assert any(
         activity.action == "material_request.delayed"
         for activity in store.repository(ActivityEvent).list(PROJECT_ID)

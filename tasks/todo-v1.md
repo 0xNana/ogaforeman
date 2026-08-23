@@ -125,14 +125,46 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
   smoke tooling are complete locally. A real staging execution and preservation
   artifact are still required before release closure.
 
-- [ ] P0 Approval continuation resumes the same durable ADK session and
-  invocation after worker/container restart and completes the original run once.
-- [ ] P1 Every non-site agentic event executes through ADK rather than
-  `OgaCoordinator` or `RoutedEventExecutor`.
-- [ ] P2 Conversational queries and actions execute through ADK Runner plus
-  typed deterministic tools.
-- [ ] P3 Registered `LlmAgent`s are wired to production use or removed, with no
-  unused agents in architecture documents.
+- [~] P0 Daily Site Update approval continuation now re-enters the original ADK
+  app/session/invocation/workflow, finalizes the approved request without
+  fabricating supplier state, and atomically completes the same run/site update. The fast
+  continuation contract and in-process production-worker E2E pass. The 2026-08-23
+  backed attempt produced two skips because both emulator endpoints were absent;
+  the new fail-closed gate, `.venv/bin/python scripts/run_adk_resume_gate.py`, and
+  a real staging worker revision/process restart remain mandatory before this is
+  `[x]`. Experimental ADK resumability is pinned at `google-adk==2.6.2`.
+- [~] P0 deployment provenance now derives and stamps the full Git SHA, UTC
+  build time, version, and dirty-tree state; exposes `/api/v1/version`; and
+  verifies repository `HEAD`, the latest API/worker/web revisions, their
+  deployment timestamps, and resolved image digests. The stale tracked
+  `0aa4a2c` artifact is removed. Commit these changes and produce a passing
+  ignored `staging-deployment-current.json` artifact from the clean final commit
+  before changing this item to `[x]`.
+- [~] P1 Taskmaster-critical orchestration is explicit: Daily Site Update owns
+  context, Gemini interpretation, canonical resolution, parallel branch
+  analysis, merge, policy, tools, and interruption in ADK; Delivery Delay owns
+  canonical request/material/task retrieval, dependency impact, risk, follow-up,
+  and a real Google Chat notification in a dedicated ADK graph that cannot fall back to the legacy
+  route map. `TASK_OVERDUE` remains on the generic adapter;
+  `MATERIAL_RECEIVED` is not a registered V1 event. Focused Ruff/compile pass;
+  runtime, once-only replay, and backed evidence are pending.
+- [~] P1 external coordination no longer uses the supplier simulator or a
+  logging provider in staging/production. `NotificationService` supports the
+  explicit local/test `LoggingNotificationProvider` and the sole real
+  `GoogleChatNotificationProvider`; authenticated operator intake persists one
+  normalized delay event, and durable claims, provider-side deterministic IDs,
+  bounded retry, terminal failure, and recorded outcomes protect delivery.
+  Focused runtime tests and the separately gated live Chat send remain owner-run gates.
+- [~] P2 Project queries and actions enter the conditional
+  `agentic_project_conversation` ADK graph. Live project answers use the Gemini
+  conversation agent over authorized context; mutations retain existing typed
+  tools and confirmation/approval policy. Runtime and live Vertex proof remain
+  pending.
+- [x] P3 removed the import-time coordinator and specialist `LlmAgent` graph,
+  unused exports/factory/prompts, and stale architecture claims. Four actual ADK
+  workflow roots remain; typed telemetry names match those roots, and the
+  prompt-only registry contains only profiles consumed by production Gemini
+  adapters. `docs/submission/AGENT_INVENTORY.md` records the full classification.
 - [ ] P4 Legacy route-map authority, manual `AgentRun` workflow progression,
   and custom resume orchestration are removed; `AgentRun` is observable only.
 
@@ -182,16 +214,16 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
 
 ## Audit findings requiring implementation
 
-- [x] G-01 Every coordinator event route executes a deterministic persisted
+- [x] G-01 Every worker-selected ADK event workflow executes a deterministic persisted
   workflow mutation set before its claim is completed; replay and Firestore
   restart coverage includes task, material, blocker, overdue, delivery-delay,
   and daily-brief events.
-- [x] G-02 The registered ADK manifest exposes no compatibility/demo tools;
+- [x] G-02 The prompt-only manifest exposes no agents or compatibility/demo tools;
   blocker and daily-brief entry points now require repository-backed typed event
   execution, and prototype adapters were removed from production modules.
-- [x] G-03 Approval continuation reloads the exact persisted run, claims a
-  replay-safe supplier action, processes any delivery-delay event, and completes
-  the original material run only after the continuation reaches a terminal result.
+- [x] G-03 Approval continuation reloads the exact persisted run, records the
+  approved request once without placing an order, and completes the original
+  material run only after the continuation reaches a terminal result.
 - [x] G-04 Daily Brief scheduling produces one repository-backed report,
   activity, notification outbox message, and completed run per reporting event.
 - [x] G-05 Mobile Playwright covers text, real browser voice capture, signed photo
@@ -210,8 +242,8 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
   clarification; Firestore restart and replay coverage passes.
 - [x] P0.2 The browser site-update backend no longer branches on literal phrases or
   writes run state itself. Text, voice, photo, approval, and continuation requests
-  execute the production worker, coordinator, fact routing, typed mutations,
-  approval service, outbox claim, original-run resume, and guarded supplier action
+  execute the production worker, selected ADK workflow, fact routing, typed mutations,
+  approval service, outbox claim, and original-run approved-request continuation
   against the Firestore emulator. Deterministic substitutes are confined to Gemini,
   object storage, and in-process event delivery boundaries.
 - [x] P0.3 CI starts Firestore and Storage emulators and executes every registered
@@ -226,16 +258,16 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
   through the typed task service and atomically logs it. It is API-backed in Tasks
   and Needs You, survives Firestore restart, and duplicate event delivery cannot
   create another action. The same mixed workflow still calculates a 30-bag shortage,
-  creates one request/approval, and pauses the original run before supplier action.
+  creates one request/approval, and pauses the original run before human decision.
 - [x] P0.6 The voice-only canonical workflow now proves its real processing and
   waiting states, reloads the same run after fresh Firestore/Storage clients, and
   atomically logs resume/reject/complete transitions. Approval submits once and
   completes that run; rejection preserves notes, cancels the request, and produces
-  no supplier action. Both continuation events suppress duplicate delivery.
+  no external commitment. Both continuation events suppress duplicate delivery.
 - [x] P0.7 Existing mutation activities are preserved and the production workflow
   now emits a typed, replay-safe semantic timeline for media, context, interpretation,
   blocker/material/schedule decisions, report update, approval pause, continuation,
-  external execution, and terminal outcome. Metadata is allowlisted and excludes
+  external notification, and terminal outcome. Metadata is allowlisted and excludes
   raw model/media data; the authorized AgentRun API exposes the complete lifecycle
   identity, attempt, trace, timestamp, checkpoint, and error contract.
 
@@ -283,20 +315,22 @@ Kernel gate:
 
 ## Agent kernel
 
-- [x] A-01 Typed registry and prompt/sub-agent startup validation pass.
+- [x] A-01 Typed ADK runtime identifiers and prompt-only registry replace the
+  unused coordinator/sub-agent registry; duplicate, missing, and agent-shaped
+  prompt declarations are rejected.
 - [x] A-02 Fakeable structured interpretation covers normal, mixed, ambiguous,
   negated, material, approval, safety, and delivery fixtures.
 - [x] A-03 Authorized bounded context and entity resolution cover aliases,
   ambiguity, unknown entities, and cross-project isolation.
 - [x] A-04 Confidence, clarification, approval, and safety routing pass.
-- [x] A-05 Every supported event reaches the coordinator and a persisted,
-  replay-safe execution path; model interpretation remains isolated to the
-  site-update ADK bridge.
+- [x] A-05 Every supported event reaches the worker's appropriate persisted,
+  replay-safe ADK workflow root; no unused coordinator facade exists, and model
+  interpretation remains isolated to explicit model-boundary nodes.
 
 Agent gate:
 
 - [x] PR-07, PR-08, PR-09, and PR-10 pass their current local controls.
-- [x] The coordinator executes rather than merely labels every V1 event route.
+- [x] Worker route projections name the real ADK workflow selected for each V1 event.
 
 ## Daily Site Update workflow
 
@@ -336,10 +370,11 @@ ADK migration Phase 16–19 release gates:
 - [x] M-01 Shortage calculation and request deduplication pass service/workflow tests.
 - [x] M-02 Rejection atomically closes the linked request and emits continuation.
 - [x] M-03 Approval/rejection reload the exact persisted run after restart;
-  approved purchase continuation executes supplier and delay steps to completion.
-- [x] M-04 Supplier submission is an audited guarded transition; one delayed
-  event updates the request, creates downstream risk, queues notification, and
-  suppresses replay.
+  approval finalizes the request workflow without placing an order or fabricating
+  supplier state.
+- [x] M-04 An authenticated operator delay is an audited guarded transition; one
+  event updates the request, creates downstream risk and follow-up, delivers one
+  external Google Chat notification, and suppresses replay.
 - [x] B-01 Dependency impact calculation passes focused tests.
 - [x] B-02 Safety stops persist inside site-update processing, and standalone
   blocker, overdue, and delivery-delay events execute repository-backed workflows.
@@ -405,10 +440,18 @@ ADK migration Phase 16–19 release gates:
 
 - [x] R-01 `tests/production_readiness` maps PR-01 through PR-13 and reports
   13 passing controls with no xfails.
-- [!] R-02 Fixture eval passes 8/8 thresholds and records per-case mutation
-  diffs. The billed Vertex Gemini eval is configured and ran live, but passed
-  only 3/8 because model-generated canonical mutation tokens diverge from the
-  deterministic resolver contract; the gate correctly remains closed.
+- [!] R-02 The legacy billed Vertex artifact remains a hard failure at 3/8 and
+  is not accepted as a production-quality signal. Its evaluator incorrectly
+  asked Gemini to generate canonical IDs and mutation tokens. The replacement
+  Golden operational evaluator now sends the canonical mixed site update
+  through the production `GeminiSiteInterpreter`, then scores eight outcomes
+  produced by deterministic services: blockwork completion, electrical
+  blocker, cement inventory, 100-bag requirement, 90-bag shortage, material
+  request, approval boundary, and delivery delay. A 2026-08-23 Vertex attempt
+  passed all 8 checks with 100% canonical resolution, but remains non-qualifying
+  because it correctly reported `source_tree_dirty=true`. Rerun after committing
+  the evaluated source. The seven-case project-import eval is a separate system
+  and cannot compensate for this gate.
 - [!] R-03 Post-redeploy liveness, readiness, metrics, exact log correlation,
   sampled Cloud Trace metadata, and five deployed alert policies pass. Alert
   delivery is blocked because the project has no notification channels.
@@ -476,8 +519,8 @@ ADK migration Phase 16–19 release gates:
 - [x] P0.6 pause/resume proof: actual stored voice bytes produce the complete
   canonical scenario; fresh clients observe `PROCESSING/RUNNING`, the durable wait,
   decision-without-execution, and separate approve/reject continuations. Approval
-  resumes and completes the exact run with one supplier submission; rejection keeps
-  its reason, terminalizes the run, and has zero supplier actions.
+  resumes and completes the exact run with one approved-request continuation;
+  rejection keeps its reason, terminalizes the run, and has zero external commitments.
 - [x] P0.7 audit proof: the same restart matrix persists the required semantic
   activities with the original run/source causality, rejects non-allowlisted workflow
   metadata, suppresses replay duplicates, and exposes stable `updated_at` plus the
@@ -491,7 +534,8 @@ ADK migration Phase 16–19 release gates:
 - [x] Clean-checkout matrix: the complete documented command set passes from an
   isolated tracked/non-ignored source copy with no cloud credentials.
 - [x] Staging deployment: `ogaforeman-cloud-2026` runs API and private worker
-  revisions in `europe-west1` from image tag `0aa4a2c8dc7e`.
+  revisions in `europe-west1` from historical image tag `0aa4a2c8dc7e`; this no
+  longer satisfies current-source provenance.
 - [x] Staging operations: health/metrics/log correlation, duplicate-safe
   Scheduler delivery, rollback traffic restoration, isolated Firestore restore,
   and Storage generation recovery are recorded under `artifacts/operations/`.
@@ -505,6 +549,10 @@ ADK migration Phase 16–19 release gates:
 - [!] Staging deploy, rollback, Scheduler, IAM, log correlation, isolated restore,
   and Storage recovery evidence pass. Firebase browser auth, authenticated API
   smoke, first managed-backup visibility, Cloud Trace, and alert delivery remain.
-- [!] A configured live Gemini eval requires a valid model credential and
-  working billing/quota route.
+- [!] Run `.venv/bin/python scripts/run_golden_evals.py --adapter gemini
+  --backend vertex --output artifacts/evals/golden-live-gemini.json` with a
+  valid billed Vertex route. Recording remains blocked unless the artifact is
+  from the submitted commit and reports `passed=true`, 8/8 checks, and 100%
+  canonical entity resolution, identifies its Vertex project/location, and
+  reports `source_tree_dirty=false`.
 - [!] Human security, safety, scope, and launch review remains required.

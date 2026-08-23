@@ -49,12 +49,10 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "identitytoolkit.googleapis.com" in source
     assert "secretmanager.googleapis.com" in source
     assert source.count("roles/secretmanager.secretAccessor") == 1
-    assert (
-        source.count(
-            '--set-secrets "CONVERSATION_PROPOSAL_SIGNING_KEY=${CONVERSATION_PROPOSAL_SIGNING_SECRET}:latest"'
-        )
-        == 2
-    )
+    assert source.count("GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_SECRET}:latest") == 2
+    assert "NOTIFICATION_PROVIDER: '${NOTIFICATION_PROVIDER}'" in source
+    assert ': "${NOTIFICATION_PROVIDER:?Set NOTIFICATION_PROVIDER=google_chat}"' in source
+    assert "Staging and production require NOTIFICATION_PROVIDER=google_chat" in source
     assert "CONVERSATION_PROPOSAL_SIGNING_KEY:" not in source
     assert "firebaserules.googleapis.com" in source
     assert "gcloud firestore databases update" in source
@@ -71,6 +69,15 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert 'export GOOGLE_CLOUD_QUOTA_PROJECT="${GOOGLE_CLOUD_PROJECT}"' in source
     assert ': "${ADK_AGENT_ENGINE_ID:?Set ADK_AGENT_ENGINE_ID}"' in source
     assert "ADK_AGENT_ENGINE_ID: '${ADK_AGENT_ENGINE_ID}'" in source
+    assert 'APP_GIT_SHA="$(git rev-parse HEAD)"' in source
+    assert "APP_BUILD_TIME:" in source
+    assert "APP_VERSION:" in source
+    assert "APP_SOURCE_TREE_DIRTY:" in source
+    assert "scripts/verify_deployment_provenance.py" in source
+    assert "--expected-git-sha" not in source
+    assert "--expected-build-time" in source
+    assert "--expected-app-version" in source
+    assert "deployment-current.json" in source
 
 
 def test_api_and_worker_can_invoke_vertex_ai() -> None:
@@ -109,6 +116,8 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
                 "GEMINI_MODEL_ID=gemini-3.6-flash",
                 "GEMINI_LOCATION=global",
                 "ADK_AGENT_ENGINE_ID=agent-engine-dotenv",
+                "NOTIFICATION_PROVIDER=google_chat",
+                "PUBLIC_APP_BASE_URL=https://dotenv.example",
                 "AUTH_ISSUER=https://securetoken.google.com/dotenv-project",
                 "AUTH_AUDIENCE=dotenv-project",
                 'CORS_ALLOWED_ORIGINS=["https://dotenv.example"]',
@@ -135,6 +144,8 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
         "GEMINI_MODEL_ID",
         "GEMINI_LOCATION",
         "ADK_AGENT_ENGINE_ID",
+        "NOTIFICATION_PROVIDER",
+        "PUBLIC_APP_BASE_URL",
         "AUTH_ISSUER",
         "AUTH_AUDIENCE",
         "CORS_ALLOWED_ORIGINS",
@@ -366,4 +377,31 @@ def test_cloud_build_uses_cloud_logging_without_bucket_write_access() -> None:
 
     assert config["options"]["logging"] == "CLOUD_LOGGING_ONLY"
     assert config["images"] == ["${_IMAGE_URI}"]
-    assert config["steps"][0]["args"] == ["build", "-t", "${_IMAGE_URI}", "."]
+    assert config["steps"][0]["args"] == [
+        "build",
+        "--build-arg",
+        "APP_GIT_SHA=${_APP_GIT_SHA}",
+        "--build-arg",
+        "APP_BUILD_TIME=${_APP_BUILD_TIME}",
+        "--build-arg",
+        "APP_VERSION=${_APP_VERSION}",
+        "-t",
+        "${_IMAGE_URI}",
+        ".",
+    ]
+
+
+def test_backend_and_frontend_images_are_labeled_with_source_identity() -> None:
+    backend = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    frontend = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    frontend_build = yaml.safe_load(
+        (ROOT / "frontend" / "cloudbuild.yaml").read_text(encoding="utf-8")
+    )
+
+    for dockerfile in (backend, frontend):
+        assert "org.opencontainers.image.revision=${APP_GIT_SHA}" in dockerfile
+        assert "org.opencontainers.image.created=${APP_BUILD_TIME}" in dockerfile
+        assert "org.opencontainers.image.version=${APP_VERSION}" in dockerfile
+    assert "APP_GIT_SHA=${_APP_GIT_SHA}" in frontend_build["steps"][0]["args"]
+    assert "APP_BUILD_TIME=${_APP_BUILD_TIME}" in frontend_build["steps"][0]["args"]
+    assert "APP_VERSION=${_APP_VERSION}" in frontend_build["steps"][0]["args"]

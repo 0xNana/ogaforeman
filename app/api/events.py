@@ -2,20 +2,31 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from collections.abc import Callable
 
-from app.domain.events import ProjectEvent
+from fastapi import APIRouter, HTTPException, Request, status
+
+from app.domain.events import EventType, ProjectEvent
 from app.infrastructure.pubsub import PubSubClient, PubSubError
 
 
-def create_event_router(publisher: PubSubClient | None = None) -> APIRouter:
+def create_event_router(
+    publisher: PubSubClient,
+    *,
+    authorize: Callable[[Request], None],
+) -> APIRouter:
     router = APIRouter(prefix="/events", tags=["events"])
-    client = publisher or PubSubClient()
 
     @router.post("/", status_code=status.HTTP_202_ACCEPTED)
-    async def receive_event(event: ProjectEvent) -> dict[str, str]:
+    async def receive_event(event: ProjectEvent, request: Request) -> dict[str, str]:
+        authorize(request)
+        if event.event_type is EventType.DELIVERY_DELAYED:
+            raise HTTPException(
+                status_code=400,
+                detail="delivery delays require the authenticated project intake",
+            )
         try:
-            message_id = client.publish(
+            message_id = publisher.publish(
                 None,
                 event.model_dump_json().encode("utf-8"),
                 attributes={
@@ -33,6 +44,4 @@ def create_event_router(publisher: PubSubClient | None = None) -> APIRouter:
     return router
 
 
-router = create_event_router()
-
-__all__ = ["create_event_router", "router"]
+__all__ = ["create_event_router"]

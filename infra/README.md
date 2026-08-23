@@ -46,6 +46,9 @@ export GEMINI_MODEL_ID=gemini-3.6-flash
 export GEMINI_LOCATION=global
 export ADK_AGENT_ENGINE_ID=your-agent-engine-id
 export CONVERSATION_PROPOSAL_SIGNING_SECRET=oga-conversation-proposal-signing-key-staging
+export NOTIFICATION_PROVIDER=google_chat
+export GOOGLE_CHAT_WEBHOOK_SECRET=oga-google-chat-webhook-staging
+export PUBLIC_APP_BASE_URL=https://oga-staging.web.app
 export AUTH_ISSUER=https://securetoken.google.com/oga-staging
 export AUTH_AUDIENCE=oga-staging
 export CORS_ALLOWED_ORIGINS='["https://oga-staging.web.app","https://oga-staging.firebaseapp.com"]'
@@ -56,6 +59,12 @@ version containing at least 32 cryptographically random bytes. The deployment
 grants only the API and worker service accounts access and mounts it as
 `CONVERSATION_PROPOSAL_SIGNING_KEY`; the secret value must never be placed in
 the deploy `.env` file.
+
+Create the Google Chat secret separately with the complete incoming webhook URL
+as its current value. The URL contains credentials and must never appear in the
+repository, deploy environment file, logs, screenshots, or submission video.
+`NOTIFICATION_PROVIDER=google_chat` is explicit and mandatory for the reviewed
+staging/production deployment; `logging` is restricted to local development and tests.
 
 `FIRESTORE_LOCATION` is mandatory because the database location cannot be
 changed after creation. Choose it explicitly before the first real deployment;
@@ -93,6 +102,13 @@ DEPLOY_ENVIRONMENT=staging ./infra/deploy.sh
 A real deployment refuses a dirty Git worktree so the image tag identifies the
 reviewed source revision. `ALLOW_DIRTY_DEPLOY=true` exists only for controlled
 incident recovery and must not be used for a normal release.
+
+The deploy also stamps the full Git SHA, UTC build time, application version,
+and dirty-tree state into every Cloud Run revision and both OCI images. After
+traffic migration it verifies `GET /api/v1/version`, Cloud Run's latest ready
+revisions, and resolved image digests, then writes passing evidence to the
+ignored `artifacts/operations/staging-deployment-current.json`. Any mismatch
+returns nonzero. A dirty emergency build cannot produce passing provenance.
 
 After deployment, run `scripts/smoke_observability.py`, the authenticated
 workflow smoke, backup verification, and the demo rehearsal. Preserve their JSON

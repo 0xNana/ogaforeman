@@ -81,7 +81,14 @@ RETRYABLE_DEPENDENCY_FAILURE
 
 ## External Side Effects
 
-Supplier submission and external notifications use persisted outbox/action claims. A retry checks the claim before doing anything external. The simulated supplier is deterministic and records status transitions; it is not a hidden purchase integration.
+Delivery-delay notifications use a persisted outbox claim and the typed
+`NotificationService` depends on the narrow `NotificationProvider` contract.
+`LoggingNotificationProvider` is development/test only.
+`GoogleChatNotificationProvider` is the sole production
+`RealExternalNotificationProvider`; `ProjectNotificationGateway` remains a
+compatibility alias for existing workflow injection points.
+Deterministic provider request/message IDs make retries replay-safe; test fakes
+exist only under `tests/`. Missing deployed configuration fails closed.
 
 ## Contract Test Matrix
 

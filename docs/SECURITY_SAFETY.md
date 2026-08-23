@@ -62,7 +62,7 @@ limits run before source persistence and Gemini invocation.
 - Purchases, external commitments, financial actions, task cancellation, major schedule changes, and high-impact changes always require a human decision in V1.
 - Approval resolution is role-checked, version-checked, idempotent, and audit logged.
 - The UI must show evidence and impact before the decision button.
-- A rejection must close the linked request branch and cannot trigger a supplier action.
+- A rejection must close the linked request branch and cannot trigger an external commitment.
 
 ## Construction Safety Boundary
 

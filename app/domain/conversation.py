@@ -410,6 +410,18 @@ class AdviceReply(BaseModel):
     mutation_performed: bool = False
 
 
+class AgenticConversationAnswer(BaseModel):
+    """Gemini-generated answer constrained to authorized project records."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    text: str = Field(min_length=1, max_length=1_000)
+    cited_record_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=20)
+    recommendation: str | None = Field(
+        default=None, pattern=r"^(proceed|hold|review)$"
+    )
+
+
 class EntityCandidate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 

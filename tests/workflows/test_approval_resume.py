@@ -215,27 +215,19 @@ def test_approved_supplier_action_completes_the_same_run_once(
         ),
     )
     workflow = ResumeWorkflow(store)
-    continuation = workflow.handle_approval_granted(
+    workflow.handle_approval_granted(
         project_id="prj_123",
         approval_id="app_123",
         resolver_id=access.actor.user_id,
         source_event_id="evt_complete_continuation123",
     )
-    request = store.repository(MaterialRequest).require("prj_123", continuation.request_id)
-    store.repository(MaterialRequest).save(
-        request.model_copy(update={"status": MaterialRequestStatus.SUBMITTED}),
-        expected_version=store.repository(MaterialRequest).version_of(
-            "prj_123", continuation.request_id
-        ),
-    )
-
-    first = workflow.complete_approved_purchase(
+    first = workflow.complete_approved_material_workflow(
         project_id="prj_123",
         approval_id="app_123",
         resolver_id=access.actor.user_id,
         source_event_id="evt_complete_continuation123",
     )
-    replay = workflow.complete_approved_purchase(
+    replay = workflow.complete_approved_material_workflow(
         project_id="prj_123",
         approval_id="app_123",
         resolver_id=access.actor.user_id,

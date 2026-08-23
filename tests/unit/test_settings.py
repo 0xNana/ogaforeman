@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 from pydantic import SecretStr
 
-from app.config.settings import RuntimeEnvironment, Settings
+from app.config.settings import NotificationProviderName, RuntimeEnvironment, Settings
 
 
 PRODUCTION_CONFIG: Mapping[str, object] = {
@@ -26,10 +26,19 @@ PRODUCTION_CONFIG: Mapping[str, object] = {
     "gemini_model_id": "gemini-production-model",
     "gemini_location": "global",
     "conversation_proposal_signing_key": "a" * 32,
+    "notification_provider": "google_chat",
+    "google_chat_webhook_url": (
+        "https://chat.googleapis.com/v1/spaces/AAAA/messages?key=test-key&token=test-token"
+    ),
+    "public_app_base_url": "https://oga-production.web.app",
     "adk_agent_engine_id": "agent-engine-production",
     "auth_issuer": "https://securetoken.google.com/oga-production",
     "auth_audience": "oga-production",
     "cors_allowed_origins": ["https://oga-production.web.app"],
+    "app_git_sha": "b134039daa3bc1528f9e869678dd6d59a4f9d1f9",
+    "app_build_time": "2026-08-23T14:05:06Z",
+    "app_version": "0.1.0",
+    "app_source_tree_dirty": False,
 }
 
 
@@ -46,6 +55,7 @@ def test_local_defaults_are_explicit_and_safe() -> None:
     assert settings.cors_allowed_origins == ()
     assert settings.agent_workflow_timeout_seconds < settings.event_claim_lease_seconds
     assert settings.project_import_extraction_timeout_seconds == 90
+    assert settings.notification_provider is NotificationProviderName.LOGGING
 
 
 def test_local_remote_firestore_requires_explicit_project_and_no_emulator() -> None:
@@ -81,6 +91,8 @@ def test_complete_production_configuration_is_valid() -> None:
     assert settings.use_fake_model is False
     assert settings.google_cloud_project == "oga-production"
     assert settings.cors_allowed_origins == ("https://oga-production.web.app",)
+    assert settings.google_chat_webhook_url is not None
+    assert settings.notification_provider is NotificationProviderName.GOOGLE_CHAT
 
 
 def test_deployed_environment_rejects_local_adk_database_sessions() -> None:
@@ -89,6 +101,20 @@ def test_deployed_environment_rejects_local_adk_database_sessions() -> None:
 
     with pytest.raises(ValidationError, match="Vertex AI ADK sessions"):
         Settings(_env_file=None, firestore_emulator_host=None, **config)
+
+
+@pytest.mark.parametrize("field_name", ["app_git_sha", "app_build_time"])
+def test_deployed_environment_requires_build_provenance(field_name: str) -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config.pop(field_name)
+
+    with pytest.raises(ValidationError, match=field_name):
+        Settings(_env_file=None, firestore_emulator_host=None, **config)
+
+
+def test_git_sha_must_be_a_full_canonical_hash() -> None:
+    with pytest.raises(ValidationError, match="APP_GIT_SHA"):
+        Settings(_env_file=None, app_git_sha="b134039")
 
 
 @pytest.mark.parametrize(
@@ -147,6 +173,8 @@ def test_production_rejects_missing_cloud_model_and_auth_configuration() -> None
         "gemini_model_id",
         "gemini_location",
         "conversation_proposal_signing_key",
+        "google_chat_webhook_url",
+        "public_app_base_url",
         "adk_agent_engine_id",
         "auth_issuer",
         "auth_audience",
@@ -188,6 +216,33 @@ def test_production_rejects_demo_or_fake_model_mode(
     config["firestore_emulator_host"] = None
 
     with pytest.raises(ValidationError, match=field_name):
+        Settings(_env_file=None, **config)
+
+
+@pytest.mark.parametrize("field_name", ["google_chat_webhook_url", "public_app_base_url"])
+def test_production_requires_real_external_notification_configuration(
+    field_name: str,
+) -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config.pop(field_name)
+
+    with pytest.raises(ValidationError, match=field_name):
+        Settings(_env_file=None, **config)
+
+
+def test_production_rejects_non_google_chat_notification_destination() -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config["google_chat_webhook_url"] = "https://example.com/logger?key=x&token=y"
+
+    with pytest.raises(ValidationError, match="GOOGLE_CHAT_WEBHOOK_URL"):
+        Settings(_env_file=None, **config)
+
+
+def test_deployed_environment_rejects_logging_notification_provider() -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config["notification_provider"] = "logging"
+
+    with pytest.raises(ValidationError, match="NOTIFICATION_PROVIDER=google_chat"):
         Settings(_env_file=None, **config)
 
 

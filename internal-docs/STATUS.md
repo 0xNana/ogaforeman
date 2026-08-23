@@ -2,7 +2,63 @@
 
 ## Status date
 
-2026-08-21
+2026-08-23
+
+## P0 release stop - live Golden operational eval
+
+As of 2026-08-23, live operational quality is the active release gate. The
+existing billed Vertex artifact passed 3/8 with 0.4286 canonical entity
+resolution and remains a hard failure. Its boundary was architecturally wrong:
+it asked Gemini to emit canonical IDs and mutation tokens even though production
+assigns that authority to deterministic resolvers and typed services.
+
+`scripts/run_golden_evals.py` now evaluates the actual production split. Gemini
+extracts the canonical mixed site update once; deterministic services resolve
+blockwork, electrical work, cement, and plastering, update 10 bags on hand
+against a persisted 100-bag requirement, compute the 90-bag shortage, create the
+request and pending approval, guard supplier submission until approval, and
+apply the later delivery-delay event. A billed Vertex run on 2026-08-23 passed
+all 8 checks with 100% canonical resolution using `gemini-3.5-flash`, but it was
+correctly marked non-qualifying because the source tree was dirty. No new
+conversational feature work and no recording should proceed until the same gate
+passes from the submitted clean commit, identifies its Vertex project/location,
+and reports `source_tree_dirty=false`. The seven passing project-import cases
+are separate extraction evidence and do not offset this gate.
+
+## P0 release stop - real ADK approval resume
+
+As of 2026-08-23, purchase approval for a Daily Site Update no longer rebuilds
+the generic project-event workflow. The worker routes the decision back to
+`SiteUpdateEventExecutor`, reconstructs the same native Daily Site Update app,
+loads the persisted ADK session, responds to its stored `adk_request_input` with
+the original invocation ID, and executes the guarded supplier action inside the
+resumed node. The linked `SiteUpdate` and original `AgentRun` transition together
+through replay-safe resumed and terminal activities. The fast continuation
+contract and focused approval suite pass.
+
+Production durability is not yet claimed. The Firestore/Storage restart test was
+attempted without the required emulator endpoints on 2026-08-23 and produced two
+skips; that is **not run**, not passing evidence. The in-process production-worker
+E2E path did pass (`1 passed`, 24.33 seconds), proving the local routing and
+same-run contract but not process-loss durability. `scripts/run_adk_resume_gate.py`
+now fails closed when either backing endpoint is absent and selects only the
+approved continuation case. Staging still must prove a real worker
+revision/process restart between pause and approval with unchanged ADK identity,
+one supplier submission, and terminal original state. Recording remains blocked
+until both the backed and staging gates pass. ADK `ResumabilityConfig` is
+experimental; `google-adk==2.6.2` is pinned and any upgrade reopens both gates.
+
+## P0 release stop - deployed source provenance
+
+The stale checked-in staging artifact for commit `0aa4a2c` was removed because
+it could not prove the submitted runtime. Deployment now derives full Git/build
+identity, stamps all three Cloud Run revisions and both images, exposes the safe
+identity at `/api/v1/version`, and fails provenance unless repository `HEAD`, the
+endpoint, latest ready revisions, stamped fields, revision deployment
+timestamps, and resolved image digests agree. The implementation is local only.
+After these changes are committed, deploy that clean commit and preserve the
+generated ignored `staging-deployment-current.json` outside Git as release
+evidence.
 
 ## Summary
 
@@ -32,11 +88,38 @@ Setup/readiness answers remain persisted and authorized, unknown intent recovers
 and the API exposes an explicit `OG` assistant identity. Internal routing labels are no longer rendered as authors in the
 conversation transcript. The locked conversational evaluation now includes the HELP category.
 
-The ADK execution-authority migration is active. Resumable ADK applications now
-persist session/invocation identity, non-site events enter ADK Runner workflows,
-and conversational project actions use an ADK Runner around the existing typed
-services. Approval continuation wiring is in progress; legacy projections and
-deterministic services remain during the migration gate.
+The Taskmaster-scoped ADK ownership correction is implemented locally and still
+awaits the owner-run runtime gates. Daily Site Update now uses explicit ADK
+nodes for authorized context, Gemini interpretation, canonical resolution,
+parallel progress/blocker/material analysis, merge, policy, typed tools,
+approval interruption, continuation, reporting, and completion. Delivery delay
+has a dedicated replay-safe ADK graph that loads the canonical material and
+affected tasks, expands dependency impact, and creates the delayed-request
+activity, risk, source-linked follow-up task, and one externally delivered
+Google Chat notification. `NotificationService` selects logging only for
+local/test and requires explicit `google_chat` configuration when deployed.
+Delivery delay enters through authenticated operator
+intake; the production supplier simulator and logging notifier have been removed.
+The external send persists queue, claim, attempt, terminal state, provider
+message ID, and atomic activities, and uses deterministic provider idempotency.
+Deployed configuration requires the Secret Manager-backed webhook. The generic
+routed-event map no longer accepts `DELIVERY_DELAYED`. `TASK_OVERDUE` remains on
+the generic adapter, and `MATERIAL_RECEIVED` is not currently a registered V1
+`ProjectEvent`; neither is part of the recorded Taskmaster path. Authenticated project
+conversation uses a conditional ADK graph for classification, authorized live
+context, canonical resolution, Gemini-grounded answers, and existing typed-tool
+safety boundaries. Shared allowlisted telemetry records workflow, agent, node,
+tool, status, and duration without raw input or private reasoning. Focused Ruff
+and Python compilation pass; runtime, backed restart, live Gemini, and staging
+proof remain unrun and must stay open.
+
+The P3 architecture-truthfulness audit removed the import-time `oga_coordinator`
+and four specialist `LlmAgent` objects because no production `Runner` executed
+them. Production now declares only four actual ADK workflow roots. The manifest
+is prompt-only and contains the four profiles consumed by production Gemini
+adapters. Telemetry agent names equal the real workflow root names. The complete
+classification, including the single-node compatibility workflow and every
+removed declaration, is in `docs/submission/AGENT_INVENTORY.md`.
 
 Project Initialization is **partially implemented**, not production-complete.
 The earlier phase-level completion language is superseded by the audited gaps and
@@ -190,8 +273,8 @@ controls, and recovery utilities.
 
 The browser E2E backend now invokes the canonical event worker instead of a
 phrase-matching state simulator. Its deterministic interpreter replaces Gemini only
-at the model boundary; Firestore holds workflow state, and production coordinator,
-fact routing, mutation, approval, outbox, continuation, and supplier-action code
+at the model boundary; Firestore holds workflow state, and the production ADK workflow,
+fact routing, mutation, approval, outbox, and continuation code
 drives the journey from submission through the original run's completion.
 
 Durability is now an enforced CI gate rather than optional local evidence. The
@@ -235,7 +318,7 @@ the semantic metadata. `AgentRun.updated_at` advances with every transition and 
 authorized API exposes the full lifecycle/trace/error contract.
 
 This is still a **release candidate under construction**, not a deployable
-public beta. Every coordinator event route now executes deterministic persisted
+public beta. Every worker-selected ADK event workflow now executes deterministic persisted
 behavior before its claim is completed, including terminal approved-material
 continuation. All currently identified non-cloud implementation blockers are
 resolved; remaining gates require deployed auth/operations evidence, a
@@ -550,11 +633,11 @@ attempted and reached Gemini, but the configured AI Studio project returned
 `429 RESOURCE_EXHAUSTED` because its prepayment credits are depleted.
 
 P0.2 removes the former browser-only workflow state machine. Local event delivery
-calls the same worker entry point as production, then the same coordinator,
+calls the same worker entry point as production, then the same Daily Site Update ADK root,
 interpreter contract, fact router, mutation services, approval service, outbox
-claim, continuation workflow, and external-action guard. The main mobile journey
+claim, and continuation workflow. The main mobile journey
 observes a real purchase approval in Firestore, approves it through the product,
-and verifies that the original run completes after exactly one supplier submission.
+and verifies that the original run completes after exactly one approved-request continuation.
 Voice and photo use the signed attachment contract and durable bytes; photo-only
 completion evidence reaches the real clarification policy. A PDF-only submission
 proves a recoverable failed run without a magic input phrase. During this migration,

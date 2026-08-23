@@ -28,7 +28,8 @@ Work top to bottom. This plan builds upon the production-ready foundation establ
   - Create integration adapters to push daily briefs to external systems.
 
 ### I-02: Real Supplier Webhooks
-- **Acceptance**: Replace `supplier_simulator.py` with real webhook dispatches to actual procurement APIs or automated email generation for purchase orders.
+- **Acceptance**: Add a real procurement integration behind explicit approval;
+  V1 has no supplier-order integration and no synthetic supplier runtime.
 - **Tasks**:
   - Build a generic Webhook/Email Outbox worker.
   - Allow administrators to configure external webhook endpoints per project.

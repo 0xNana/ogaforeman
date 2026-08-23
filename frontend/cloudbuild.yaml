@@ -5,6 +5,12 @@ steps:
       - --file
       - frontend/Dockerfile
       - --build-arg
+      - APP_GIT_SHA=${_APP_GIT_SHA}
+      - --build-arg
+      - APP_BUILD_TIME=${_APP_BUILD_TIME}
+      - --build-arg
+      - APP_VERSION=${_APP_VERSION}
+      - --build-arg
       - NEXT_PUBLIC_API_BASE_URL=${_NEXT_PUBLIC_API_BASE_URL}
       - --build-arg
       - NEXT_PUBLIC_FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY}

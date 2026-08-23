@@ -33,7 +33,15 @@ from app.domain.enums import (
     TaskSource,
     TaskStatus,
 )
-from app.domain.models import ActivityEvent, CanonicalId, Issue, ProjectMember, SiteUpdate, Task
+from app.domain.models import (
+    ActivityEvent,
+    CanonicalId,
+    Issue,
+    MaterialRequest,
+    ProjectMember,
+    SiteUpdate,
+    Task,
+)
 from app.domain.policies import InvalidTransitionError, ensure_task_transition
 from app.repositories.interfaces import RepositorySession, RepositoryStore
 from app.repositories.tasks import TaskRepository
@@ -94,6 +102,19 @@ class CreateBlockerFollowUpCommand(BaseModel):
     blocked_task_id: CanonicalId
     source_issue_id: CanonicalId
     source_site_update_id: CanonicalId
+    occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class CreateDeliveryFollowUpCommand(BaseModel):
+    """Create one source-linked task for a delayed approved delivery."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    project_id: CanonicalId
+    material_request_id: CanonicalId
+    source_issue_id: CanonicalId
+    source_event_id: CanonicalId
+    affected_task_ids: tuple[CanonicalId, ...] = Field(default=(), max_length=100)
     occurred_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -292,6 +313,41 @@ class TaskService:
             duplicate=result.duplicate,
         )
 
+    def create_delivery_follow_up(
+        self,
+        access: ProjectAccessContext,
+        command: CreateDeliveryFollowUpCommand,
+        context: MutationContext,
+    ) -> TaskChange:
+        self._authorize_delivery_follow_up(access, command, context)
+        task_id = _created_task_id(context)
+        result = self._activities.mutate(
+            context,
+            ActivitySpec(
+                action="task.delivery_follow_up_created",
+                entity_type="task",
+                entity_id=task_id,
+                summary="Created a delayed-delivery follow-up task.",
+                metadata={
+                    "material_request_id": command.material_request_id,
+                    "source_issue_id": command.source_issue_id,
+                    "affected_task_ids": list(command.affected_task_ids),
+                },
+            ),
+            lambda session: self._create_delivery_follow_up(
+                session,
+                access,
+                command,
+                task_id,
+            ),
+            replay=lambda session, activity: TaskRepository.for_session(session, access).require(
+                command.project_id, activity.entity_id
+            ),
+        )
+        if result.value is None:
+            raise RuntimeError("delivery follow-up replay did not resolve persisted state")
+        return TaskChange(result.value, result.activity, result.duplicate)
+
     def update_task(
         self,
         access: ProjectAccessContext,
@@ -398,6 +454,58 @@ class TaskService:
         ensure_permission(access, ProjectPermission.OPERATE)
         if context.actor_type is ActorType.USER and context.actor_id != access.actor.user_id:
             raise PermissionError("mutation actor does not match the authorized user")
+
+    @staticmethod
+    def _authorize_delivery_follow_up(
+        access: ProjectAccessContext,
+        command: CreateDeliveryFollowUpCommand,
+        context: MutationContext,
+    ) -> None:
+        ensure_project_scope(access, command.project_id)
+        ensure_project_scope(access, context.project_id)
+        ensure_permission(access, ProjectPermission.OPERATE)
+        if context.actor_type is ActorType.USER and context.actor_id != access.actor.user_id:
+            raise PermissionError("mutation actor does not match the authorized user")
+
+    @staticmethod
+    def _create_delivery_follow_up(
+        session: RepositorySession,
+        access: ProjectAccessContext,
+        command: CreateDeliveryFollowUpCommand,
+        task_id: str,
+    ) -> Task:
+        tasks = TaskRepository.for_session(session, access)
+        request = session.repository(MaterialRequest).require(
+            command.project_id, command.material_request_id
+        )
+        issue = session.repository(Issue).require(command.project_id, command.source_issue_id)
+        if issue.type is not IssueType.DELAY_RISK:
+            raise TaskStateError("delivery follow-up source issue must be a delay risk")
+        if command.source_event_id not in issue.evidence_refs:
+            raise TaskStateError("delivery follow-up issue must reference the delivery event")
+        affected = [tasks.require(command.project_id, task_id) for task_id in command.affected_task_ids]
+        if set(command.affected_task_ids) - set(issue.task_ids):
+            raise TaskStateError("delivery follow-up tasks must be referenced by the risk issue")
+        primary = affected[0] if affected else None
+        return tasks.create(
+            Task(
+                id=task_id,
+                project_id=command.project_id,
+                title=f"Follow up delayed material request {request.id}",
+                description=issue.description,
+                status=TaskStatus.PLANNED,
+                priority=_follow_up_priority(issue.severity),
+                assigned_to=primary.assigned_to if primary else None,
+                trade=primary.trade if primary else None,
+                location=primary.location if primary else None,
+                planned_start=command.occurred_at,
+                planned_end=command.occurred_at,
+                source_refs=[command.source_event_id, issue.id, request.id],
+                source=TaskSource.WORKFLOW,
+                created_at=command.occurred_at,
+                updated_at=command.occurred_at,
+            )
+        )
 
     @staticmethod
     def _create_blocker_follow_up(
@@ -608,6 +716,7 @@ def _follow_up_priority(severity: Severity) -> TaskPriority:
 
 __all__ = [
     "CreateBlockerFollowUpCommand",
+    "CreateDeliveryFollowUpCommand",
     "CreateTaskCommand",
     "TaskApprovalRequiredError",
     "TaskBlockedCompletionError",

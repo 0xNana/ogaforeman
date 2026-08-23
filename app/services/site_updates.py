@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from hashlib import sha256
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from collections.abc import Sequence
 
 from app.agents.interpreter import MediaEvidence, SiteInterpreter
@@ -37,7 +37,7 @@ from app.repositories.context import ProjectContext
 from app.repositories.interfaces import RepositoryStore
 from app.services.context import ContextService
 from app.services.entity_resolution import MatchConfidence, resolve_material, resolve_task
-from app.services.fact_router import route_facts
+from app.services.fact_router import RoutedFacts, route_facts
 from app.services.issues import CreateIssueCommand, IssueService
 from app.services.material_requests import MaterialRequestService, MaterialShortageCommand
 from app.services.reports import ReportService
@@ -70,6 +70,15 @@ class SiteUpdateResult:
 
 
 @dataclass(frozen=True, slots=True)
+class PreparedSiteUpdate:
+    """Authorized, interpreted input handed from ADK to typed mutation tools."""
+
+    project_context: ProjectContext
+    fact_set: ExtractedFactSet
+    routed: RoutedFacts
+
+
+@dataclass(frozen=True, slots=True)
 class _MaterialRequirementSelection:
     required_quantity: Decimal
     affected_task_ids: tuple[str, ...]
@@ -99,6 +108,109 @@ class SiteUpdateService:
         # an AgentRun cursor.
         self._workflow_audit = workflow_audit
 
+    def retrieve_authorized_context(self, access: ProjectAccessContext) -> ProjectContext:
+        """Read the bounded project snapshot used by the ADK context node."""
+
+        return self._context_service.get_context(access)
+
+    async def interpret_evidence(
+        self,
+        site_update: SiteUpdate,
+        project_context: ProjectContext,
+        *,
+        images: Sequence[MediaEvidence] = (),
+    ) -> PreparedSiteUpdate:
+        """Use Gemini for extraction, then apply deterministic fact policy."""
+
+        text_corpus = " ".join(
+            part for part in (site_update.raw_text, site_update.transcript) if part
+        )
+        fact_set = await self._interpreter.extract_facts(
+            text_corpus,
+            images=images,
+            project_context=_project_context_prompt(project_context),
+        )
+        if images:
+            fact_set = _guard_visual_task_completions(fact_set, text_corpus)
+        return PreparedSiteUpdate(
+            project_context=project_context,
+            fact_set=fact_set,
+            routed=route_facts(fact_set),
+        )
+
+    def resolve_canonical_entities(self, prepared: PreparedSiteUpdate) -> dict[str, Any]:
+        """Resolve every actionable reference before branch analysis runs."""
+
+        context = prepared.project_context
+        routed = prepared.routed
+        task_results = [
+            resolve_task(fact.task_name, context.active_tasks)
+            for fact in routed.actionable_tasks
+            if fact.is_completed
+        ]
+        issue_results = [
+            resolve_task(fact.task_name, context.active_tasks) if fact.task_name else None
+            for fact in routed.actionable_issues
+        ]
+        material_results = [
+            resolve_material(fact.material_name, context.materials)
+            for fact in routed.actionable_materials
+        ]
+        focus_results = [
+            resolve_task(fact.task_name, context.active_tasks) if fact.task_name else None
+            for fact in routed.actionable_next_focus
+        ]
+        return {
+            "progress": {
+                "resolved_ids": [
+                    result.resolved_entity.id
+                    for result in task_results
+                    if result.resolved_entity is not None
+                ],
+                "unresolved_count": sum(
+                    result.confidence is not MatchConfidence.HIGH for result in task_results
+                ),
+            },
+            "blockers": {
+                "resolved_task_ids": [
+                    result.resolved_entity.id
+                    for result in issue_results
+                    if result is not None and result.resolved_entity is not None
+                ],
+                "unresolved_count": sum(
+                    result is not None and result.confidence is not MatchConfidence.HIGH
+                    for result in issue_results
+                ),
+                "safety_stop_count": len(routed.safety_stops),
+            },
+            "materials": {
+                "resolved_ids": [
+                    result.resolved_entity.id
+                    for result in material_results
+                    if result.resolved_entity is not None
+                ],
+                "creatable_count": sum(
+                    result.confidence is MatchConfidence.UNKNOWN
+                    for result in material_results
+                ),
+                "ambiguous_count": sum(
+                    result.confidence is MatchConfidence.AMBIGUOUS
+                    for result in material_results
+                ),
+            },
+            "next_focus": {
+                "resolved_task_ids": [
+                    result.resolved_entity.id
+                    for result in focus_results
+                    if result is not None and result.resolved_entity is not None
+                ],
+                "unresolved_count": sum(
+                    result is None or result.confidence is not MatchConfidence.HIGH
+                    for result in focus_results
+                ),
+            },
+        }
+
     async def process_update(
         self,
         access: ProjectAccessContext,
@@ -108,13 +220,18 @@ class SiteUpdateService:
         source_event_id: str | None = None,
         images: Sequence[MediaEvidence] = (),
         attempt: int = 1,
+        prepared: PreparedSiteUpdate | None = None,
     ) -> SiteUpdateResult:
         del trace_id
         causal_event_id = source_event_id or site_update.id
         text_corpus = " ".join(
             part for part in (site_update.raw_text, site_update.transcript) if part
         )
-        project_context = self._context_service.get_context(access)
+        project_context = (
+            prepared.project_context
+            if prepared is not None
+            else self._context_service.get_context(access)
+        )
         self._workflow_audit.record(
             _workflow_audit_context(
                 access,
@@ -141,14 +258,18 @@ class SiteUpdateService:
                 "material_ids": [material.id for material in project_context.materials[:100]],
             },
         )
-        fact_set = await self._interpreter.extract_facts(
-            text_corpus,
-            images=images,
-            project_context=_project_context_prompt(project_context),
-        )
-        if images:
-            fact_set = _guard_visual_task_completions(fact_set, text_corpus)
-        routed = route_facts(fact_set)
+        if prepared is None:
+            fact_set = await self._interpreter.extract_facts(
+                text_corpus,
+                images=images,
+                project_context=_project_context_prompt(project_context),
+            )
+            if images:
+                fact_set = _guard_visual_task_completions(fact_set, text_corpus)
+            routed = route_facts(fact_set)
+        else:
+            fact_set = prepared.fact_set
+            routed = prepared.routed
         self._workflow_audit.record(
             _workflow_audit_context(
                 access,

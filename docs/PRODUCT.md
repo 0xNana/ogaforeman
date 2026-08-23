@@ -14,7 +14,8 @@ These assumptions make the product brief implementable. Change them explicitly i
 4. The Python/FastAPI backend remains the service boundary and Google ADK remains the agent/workflow runtime.
 5. A Next.js TypeScript application replaces the static `web/index.html` dashboard.
 6. Voice transcription and photo understanding use managed Google model capabilities; raw media is stored in Cloud Storage.
-7. Purchases are simulated in V1. OG prepares and tracks a request but does not send money or create a binding supplier order.
+7. OG prepares and tracks approved material requests but does not send money or
+   create a binding supplier order. Supplier status is never fabricated.
 8. Authentication may run in seeded demo mode locally; a deployable environment uses Firebase Authentication or Google Identity Platform.
 9. All dates are stored in UTC and rendered in the project's configured timezone.
 10. English is the initial interface and extraction language. The contracts must not prevent later multilingual input.
@@ -107,7 +108,9 @@ Only these workflows are core V1 scope:
 - Material need is calculated from available quantity and upcoming task requirement.
 - A shortage creates one material request per idempotency scope.
 - The user can approve or reject the request from the command center.
-- A simulated supplier action records `submitted`, `confirmed`, `delayed`, or `delivered` status.
+- An authenticated operator can report a real revised delivery date and reason
+  against an approved canonical request. The resulting event records the delay,
+  dependency impact, risk, follow-up, and external notification.
 
 ### FR-08 Blocker Follow-through
 
@@ -132,7 +135,9 @@ Only these workflows are core V1 scope:
 
 - Routine in-app notifications are generated for assignments, approvals, delay risks, and workflow failures.
 - Duplicate retries do not send duplicate notifications.
-- External SMS/email delivery remains adapter-based and may be simulated in V1.
+- Delivery delays send one replay-safe external notification to a configured
+  Google Chat space. Staging and production explicitly select `google_chat` and
+  cannot start with the local/test logging provider or a missing destination.
 
 ### FR-12 Reporting
 
@@ -167,7 +172,7 @@ Only these workflows are core V1 scope:
 
 ### OG Must Request Approval
 
-- purchases or simulated supplier submission;
+- purchases or supplier submission;
 - major schedule changes;
 - external commitments;
 - financial actions;
@@ -223,4 +228,3 @@ These do not block foundation work but must be resolved before public beta:
 - What monetary currency and approval threshold model applies per project?
 - Is a manager allowed to override an extracted fact, and how is that correction fed into evals?
 - What retention period applies to audio, photos, transcripts, and agent-run details?
-- Which external notification channel is first after in-app notifications?

@@ -3,12 +3,16 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agents.conversation import IntentRoutingService
-from app.agents.conversation_execution import AdkConversationExecutor
+from app.agents.conversation_execution import (
+    AdkConversationExecutor,
+    AgenticConversationHandlers,
+)
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
 from app.domain.authorization import ProjectAccessContext, ProjectPermission
@@ -16,6 +20,7 @@ from app.domain.enums import SiteUpdateInputType
 from app.domain.conversation import (
     ContextQuery,
     ConversationContext,
+    ConversationalProjectContext,
     EntityKind,
     EntityResolutionStatus,
     IntentDecision,
@@ -363,6 +368,7 @@ async def send_message(
     memory = memory_service.load(access)
 
     clarification_interpretation: ActionInterpretation | None = None
+    route: IntentRoute | None = None
     if (
         memory.active_clarification is not None
         and memory.active_clarification.status == ClarificationStatus.PENDING
@@ -487,121 +493,222 @@ async def send_message(
                 "OG conversation is temporarily unavailable.",
                 status_code=503,
             )
-        route = await IntentRoutingService(classifier).route(
-            payload.message,
-            context=ConversationContext(
-                has_active_project=True,
-                has_pending_clarification=memory.pending_clarification is not None,
-                # Legacy raw confirmation text is never executable server state.
-                has_pending_confirmation=False,
-            ),
-        )
-    if (
-        route.destination is IntentDestination.CASUAL_RESPONSE
-        or route.destination is IntentDestination.PRODUCT_HELP
-        or route.destination is IntentDestination.CLARIFICATION
-    ):
-        reply = (
-            ConversationResponseService().help(payload.message)
-            if route.destination is IntentDestination.PRODUCT_HELP
-            else ConversationResponseService().respond(route)
-        )
-        return ConversationMessageResponse(
-            kind=reply.kind.value, text=reply.text, intent=route.decision.intent.value
-        )
 
     context_service = ProjectContextService(
         runtime.store,
         runtime.projects,
         member_names=getattr(runtime, "project_member_names", None),
     )
-    if route.destination is IntentDestination.PROJECT_CONTEXT:
-        if is_project_setup_question(payload.message):
-            reply = ConversationResponseService().project_setup(
-                ProjectSetupService(runtime.store, runtime.projects).retrieve(access)
+    snapshot: ConversationalProjectContext | None = None
+
+    async def classify_intent() -> str:
+        nonlocal route
+        if route is None:
+            route = await IntentRoutingService(classifier).route(
+                payload.message,
+                context=ConversationContext(
+                    has_active_project=True,
+                    has_pending_clarification=memory.pending_clarification is not None,
+                    has_pending_confirmation=False,
+                ),
             )
-            return ConversationMessageResponse(
+        return route.destination.value
+
+    async def retrieve_authorized_context() -> dict[str, object]:
+        nonlocal snapshot
+        if route is None:
+            raise RuntimeError("conversation classification did not complete")
+        if route.destination is IntentDestination.PROJECT_ADVICE:
+            query = plan_advice_query(payload.message)
+        elif route.destination is IntentDestination.PROJECT_ACTION:
+            query = plan_context_query(payload.message)
+        else:
+            query = _query_with_recent_reference(payload.message, memory_service, access)
+        snapshot = context_service.retrieve(access, query)
+        return {
+            "project_id": snapshot.project_id,
+            "task_count": len(snapshot.tasks),
+            "issue_count": len(snapshot.issues),
+            "material_count": len(snapshot.materials),
+        }
+
+    async def resolve_entities() -> dict[str, object]:
+        if snapshot is None:
+            raise RuntimeError("conversation context retrieval did not complete")
+        canonical_resolutions: list[dict[str, object]] = []
+        reference = " ".join(snapshot.query.search_terms).strip()
+        if reference:
+            resolver = ConversationEntityResolver(runtime.store)
+            for kind in (EntityKind.TASK, EntityKind.MATERIAL, EntityKind.ISSUE):
+                resolution = resolver.resolve(access, kind, reference)
+                if resolution.status is EntityResolutionStatus.RESOLVED:
+                    canonical_resolutions.append(
+                        {
+                            "kind": kind.value,
+                            "entity_id": resolution.entity_id,
+                            "match_method": resolution.match_method,
+                        }
+                    )
+        resolved_ids = tuple(
+            dict.fromkeys(
+                item.id
+                for collection in (
+                    snapshot.tasks,
+                    snapshot.issues,
+                    snapshot.materials,
+                    snapshot.material_requests,
+                )
+                for item in collection
+            )
+        )
+        return {
+            "canonical_resolutions": canonical_resolutions,
+            "candidate_record_ids": list(resolved_ids[:20]),
+        }
+
+    async def reason_over_context() -> dict[str, object]:
+        if route is None:
+            raise RuntimeError("conversation classification did not complete")
+        if route.destination is IntentDestination.CLARIFICATION:
+            reply = ConversationResponseService().respond(route)
+            response = ConversationMessageResponse(
                 kind=reply.kind.value,
                 text=reply.text,
-                cited_record_ids=reply.cited_record_ids,
                 intent=route.decision.intent.value,
             )
-        snapshot = context_service.retrieve(
-            access, _query_with_recent_reference(payload.message, memory_service, access)
-        )
-        reply = ConversationResponseService().project(snapshot)
-        _remember_citations(memory_service, access, reply.cited_record_ids)
-        return ConversationMessageResponse(
-            kind=reply.kind.value,
-            text=reply.text,
-            cited_record_ids=reply.cited_record_ids,
-            intent=route.decision.intent.value,
-        )
-    if route.destination is IntentDestination.PROJECT_ADVICE:
-        snapshot = context_service.retrieve(access, plan_advice_query(payload.message))
-        advice_reply = ConversationAdviceService().advise(payload.message, snapshot)
-        _remember_citations(memory_service, access, advice_reply.cited_record_ids)
-        return ConversationMessageResponse(
-            kind="advice",
-            text=advice_reply.text,
-            cited_record_ids=advice_reply.cited_record_ids,
-            recommendation=advice_reply.recommendation,
-        )
-    if route.destination is IntentDestination.GOLDEN_SITE_UPDATE:
-        intake = getattr(request.app.state, "site_update_intake", None)
-        if intake is None:
-            raise ApiError(
-                "DEPENDENCY_UNAVAILABLE",
-                "Site updates are temporarily unavailable.",
-                status_code=503,
+        elif route.destination in {
+            IntentDestination.CASUAL_RESPONSE,
+            IntentDestination.PRODUCT_HELP,
+        }:
+            reply = (
+                ConversationResponseService().help(payload.message)
+                if route.destination is IntentDestination.PRODUCT_HELP
+                else ConversationResponseService().respond(route)
             )
-        result = ConversationSiteUpdateRouter(intake).submit(
-            access,
-            SiteUpdateRouteCommand(
-                project_id=project_id,
-                text=payload.message,
-                idempotency_key=require_idempotency_key(request),
-            ),
-        )
-        return ConversationMessageResponse(
-            kind="workflow",
-            text="Got it. I saved the update and started the site workflow.",
-            workflow_run_id=result.agent_run_id,
-            site_update_id=result.site_update_id,
-            event_id=result.event_id,
-        )
-    if route.destination is IntentDestination.PROJECT_ACTION:
+            response = ConversationMessageResponse(
+                kind=reply.kind.value,
+                text=reply.text,
+                intent=route.decision.intent.value,
+            )
+        else:
+            if snapshot is None:
+                raise RuntimeError("conversation context retrieval did not complete")
+            conversation_agent = getattr(request.app.state, "conversation_agent", None)
+            settings = getattr(request.app.state, "settings", None) or get_settings()
+            if conversation_agent is None or not hasattr(conversation_agent, "respond"):
+                if not settings.use_fake_model:
+                    raise ApiError(
+                        "DEPENDENCY_UNAVAILABLE",
+                        "OG project conversation is temporarily unavailable.",
+                        status_code=503,
+                    )
+                if is_project_setup_question(payload.message):
+                    fallback = ConversationResponseService().project_setup(
+                        ProjectSetupService(runtime.store, runtime.projects).retrieve(access)
+                    )
+                elif route.destination is IntentDestination.PROJECT_ADVICE:
+                    fallback = ConversationAdviceService().advise(payload.message, snapshot)
+                else:
+                    fallback = ConversationResponseService().project(snapshot)
+                response = ConversationMessageResponse(
+                    kind=(
+                        "advice"
+                        if route.destination is IntentDestination.PROJECT_ADVICE
+                        else "project"
+                    ),
+                    text=fallback.text,
+                    cited_record_ids=fallback.cited_record_ids,
+                    recommendation=getattr(fallback, "recommendation", None),
+                    intent=route.decision.intent.value,
+                )
+            else:
+                answer = await conversation_agent.respond(
+                    payload.message,
+                    intent=route.decision.intent,
+                    context=snapshot,
+                )
+                response = ConversationMessageResponse(
+                    kind=(
+                        "advice"
+                        if route.destination is IntentDestination.PROJECT_ADVICE
+                        else "project"
+                    ),
+                    text=answer.text,
+                    cited_record_ids=answer.cited_record_ids,
+                    recommendation=answer.recommendation,
+                    intent=route.decision.intent.value,
+                )
+            _remember_citations(memory_service, access, response.cited_record_ids)
+        return {"_conversation_result": True, **response.model_dump(mode="json")}
+
+    async def invoke_typed_tools() -> dict[str, object]:
+        if route is None:
+            raise RuntimeError("conversation classification did not complete")
+        if route.destination is IntentDestination.GOLDEN_SITE_UPDATE:
+            intake = getattr(request.app.state, "site_update_intake", None)
+            if intake is None:
+                raise ApiError(
+                    "DEPENDENCY_UNAVAILABLE",
+                    "Site updates are temporarily unavailable.",
+                    status_code=503,
+                )
+            result = ConversationSiteUpdateRouter(intake).submit(
+                access,
+                SiteUpdateRouteCommand(
+                    project_id=project_id,
+                    text=payload.message,
+                    idempotency_key=require_idempotency_key(request),
+                ),
+            )
+            response = ConversationMessageResponse(
+                kind="workflow",
+                text="Got it. I saved the update and started the site workflow.",
+                workflow_run_id=result.agent_run_id,
+                site_update_id=result.site_update_id,
+                event_id=result.event_id,
+            )
+            return {"_conversation_result": True, **response.model_dump(mode="json")}
+        if route.destination is not IntentDestination.PROJECT_ACTION:
+            response = ConversationMessageResponse(
+                kind="clarification",
+                text="Please clarify the project change you want OG to make.",
+            )
+            return {"_conversation_result": True, **response.model_dump(mode="json")}
+
         if clarification_interpretation is None:
             quantity_unit_material = ambiguous_material_quantity_phrase(payload.message)
             if quantity_unit_material is not None:
                 parsed_quantity, parsed_unit, material = quantity_unit_material
                 clarification_text = (
-                    f"Do you mean {parsed_quantity} {parsed_unit} arrived on site, or you want me to prepare a "
-                    f"request for {parsed_quantity} {parsed_unit}?"
-                )
-                pending_clarif = PendingClarification(
-                    kind=ClarificationKind.MATERIAL_OPERATION,
-                    entity_reference=material,
-                    quantity=Decimal(parsed_quantity),
-                    unit=parsed_unit,
-                    allowed_resolutions=(
-                        ClarificationResolutionType.INVENTORY_INCREMENT,
-                        ClarificationResolutionType.MATERIAL_REQUEST,
-                    ),
-                    created_at=datetime.now(UTC),
-                    expires_at=datetime.now(UTC) + timedelta(minutes=15),
+                    f"Do you mean {parsed_quantity} {parsed_unit} arrived on site, or you want me "
+                    f"to prepare a request for {parsed_quantity} {parsed_unit}?"
                 )
                 memory_service.remember_pending(
                     access,
-                    active_clarification=pending_clarif,
+                    active_clarification=PendingClarification(
+                        kind=ClarificationKind.MATERIAL_OPERATION,
+                        entity_reference=material,
+                        quantity=Decimal(parsed_quantity),
+                        unit=parsed_unit,
+                        allowed_resolutions=(
+                            ClarificationResolutionType.INVENTORY_INCREMENT,
+                            ClarificationResolutionType.MATERIAL_REQUEST,
+                        ),
+                        created_at=datetime.now(UTC),
+                        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+                    ),
                     clarification=clarification_text,
                 )
-                return ConversationMessageResponse(
+                response = ConversationMessageResponse(
                     kind="clarification",
                     text=clarification_text,
                     intent=route.decision.intent.value,
                 )
-        access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
+                return {"_conversation_result": True, **response.model_dump(mode="json")}
+
+        operate_access = configured_project_access(
+            request, project_id, ProjectPermission.OPERATE
+        )
         key = require_idempotency_key(request)
         interpreter = getattr(request.app.state, "action_interpreter", None)
         if interpreter is None or not hasattr(interpreter, "interpret"):
@@ -610,27 +717,20 @@ async def send_message(
                 "OG project actions are temporarily unavailable.",
                 status_code=503,
             )
-        action_service = ConversationActionExecutionService(
+        outcome = await ConversationActionExecutionService(
             runtime.store,
             runtime.projects,
             interpreter,
             member_names=getattr(runtime, "project_member_names", None),
             schedules=getattr(request.app.state, "conversation_schedule_service", None),
             proposal_signing_key=_proposal_signing_key(request),
+        ).execute(
+            operate_access,
+            payload.message,
+            idempotency_key=key,
+            clarification_interpretation=clarification_interpretation,
         )
-        settings = getattr(request.app.state, "settings", None) or get_settings()
-        outcome = await AdkConversationExecutor(runtime.store, settings).execute(
-            session_id=f"conversation-{access.actor.user_id}",
-            invocation_id=key,
-            message=payload.message,
-            action=lambda: action_service.execute(
-                access,
-                payload.message,
-                idempotency_key=key,
-                clarification_interpretation=clarification_interpretation,
-            ),
-        )
-        return ConversationMessageResponse(
+        response = ConversationMessageResponse(
             kind=outcome.kind,
             text=outcome.text,
             mutation_performed=outcome.mutation_performed,
@@ -643,9 +743,24 @@ async def send_message(
             workflow_run_id=outcome.agent_run_id,
             proposal=outcome.proposal,
         )
-    return ConversationMessageResponse(
-        kind="clarification", text="Please clarify the project change you want OG to make."
+        return {"_conversation_result": True, **response.model_dump(mode="json")}
+
+    settings = getattr(request.app.state, "settings", None) or get_settings()
+    invocation_id = request.headers.get("Idempotency-Key") or str(uuid4())
+    result = await AdkConversationExecutor(runtime.store, settings).execute_agentic(
+        session_id=f"conversation-{access.actor.user_id}",
+        invocation_id=invocation_id,
+        message=payload.message,
+        handlers=AgenticConversationHandlers(
+            classify_intent=classify_intent,
+            retrieve_authorized_context=retrieve_authorized_context,
+            resolve_entities=resolve_entities,
+            reason_over_context=reason_over_context,
+            invoke_typed_tools=invoke_typed_tools,
+        ),
     )
+    result.pop("_conversation_result", None)
+    return ConversationMessageResponse.model_validate(result)
 
 
 def _query_with_recent_reference(

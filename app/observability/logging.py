@@ -35,6 +35,8 @@ _ALLOWED_FIELDS = {
     "event_id",
     "agent_run_id",
     "workflow",
+    "agent",
+    "node",
     "step",
     "tool",
     "status",
@@ -48,6 +50,9 @@ _ALLOWED_FIELDS = {
     "import_id",
     "model_key",
     "prompt_key",
+    "outbox_item_id",
+    "provider",
+    "delivery_status",
 }
 
 

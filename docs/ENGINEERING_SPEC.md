@@ -69,7 +69,7 @@ The migration should be incremental. Existing modules may move only when a task 
 ```text
 app/
   api/                 FastAPI routers, dependencies, request/response types
-  agents/              ADK coordinator and reasoning specialists
+  agents/              ADK workflow runners, execution bridges, and typed runtime identifiers
   config/              Typed environment and runtime configuration
   domain/              Entity models, enums, policies, and domain errors
   infrastructure/      Firestore, Storage, Pub/Sub, auth, and notification adapters
@@ -210,7 +210,7 @@ Requirements:
   `WAITING_FOR_APPROVAL` states. The different enum labels must not be collapsed
   into an untyped browser status.
 - Resolving an approval persists the decision and linked request transition first.
-  It must not execute the supplier action inside the decision transaction or move
+  It must not execute an external action inside the decision transaction or move
   the original run out of its waiting state before the continuation event is claimed.
 - A continuation reloads the persisted approval, linked request, and run selected by
   the request's source event. It validates the decision status and canonical resolver;
@@ -218,11 +218,36 @@ Requirements:
 - Resume, rejection terminalization, and successful terminal completion each commit
   a system-attributed, idempotent `ActivityEvent` atomically with the corresponding
   `AgentRun` change. The resolver remains the actor on the separate approval-decision
-  activity; the worker must not impersonate that user. Supplier submission retains
-  its separate persisted outbox and activity claim.
-- Rejection persists decision notes, leaves no supplier outbox/action, cancels or
+  activity; the worker must not impersonate that user. Approval does not fabricate
+  supplier acceptance, confirmation, or delay.
+- Rejection persists decision notes, leaves no external action, cancels or
   rejects the request, and terminalizes the same logical run. Approval replay and
   event redelivery cannot execute the external action or terminal transition twice.
+
+### External Delivery Notification Contract
+
+- A real delay enters through the authenticated operator endpoint as one
+  normalized `DELIVERY_DELAYED` event; production code contains no delay generator.
+- The dedicated ADK graph loads the authorized project, canonical material
+  request, material, and affected tasks before calculating dependency impact.
+- Google Chat is the single V1 external destination. Its incoming webhook URL
+  is a Secret Manager value, is never logged, and is mandatory in deployed environments.
+- `NotificationService` owns the durable delivery lifecycle. It accepts the
+  `NotificationProvider` contract: `LoggingNotificationProvider` is restricted
+  to development/tests, while `GoogleChatNotificationProvider` is the sole
+  `RealExternalNotificationProvider`. Staging and production require the
+  explicit `NOTIFICATION_PROVIDER=google_chat` setting.
+- A typed allowlisted payload is persisted to the outbox before network I/O.
+  It contains project/event identity, the canonical material request, affected
+  work, risk severity, OG's completed action summary, and an optional safe link.
+  It contains no authorization object, webhook credential, prompt, or model reasoning.
+  Outbox queue, claim, retry, failure, and completion mutations emit atomic activities.
+- Provider delivery uses deterministic Google Chat `requestId` and `messageId`
+  values derived from the source event and destination. An expired local claim
+  retries the same provider identity instead of creating a second logical message.
+- Transient HTTP/network failures use bounded exponential backoff. Permanent
+  failures are dead-lettered, remain observable, and prevent `AgentRun` success
+  without rolling back or corrupting the already-valid project risk and follow-up.
 
 ### Workflow Audit Contract
 

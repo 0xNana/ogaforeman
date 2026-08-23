@@ -6,6 +6,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
+from app.agents.identifiers import AdkWorkflowId
 from app.domain.enums import (
     AgentRunStatus,
     ApprovalActionType,
@@ -13,9 +14,10 @@ from app.domain.enums import (
     IssueType,
     MaterialRequestStatus,
     OutboxStatus,
+    ProcessingStatus,
     TaskStatus,
 )
-from app.domain.events import EventType
+from app.domain.events import EventType, ProjectEvent
 from app.domain.models import (
     ActivityEvent,
     AgentRun,
@@ -27,6 +29,7 @@ from app.domain.models import (
     SiteUpdate,
     Task,
 )
+from app.agents.event_execution import AdkEventExecutor
 from app.repositories.firestore import FirestoreRepositoryStore
 from app.repositories.memory import InMemoryRepositoryStore
 from scripts.run_e2e_api import ACTOR_ID, PROJECT_ID, create_app
@@ -43,7 +46,24 @@ UPDATE_TEXT = (
 
 
 @pytest.mark.asyncio
-async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None:
+async def test_e2e_api_uses_production_worker_and_resumes_the_same_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy_resume = AdkEventExecutor.resume_approved
+    legacy_resume_calls = 0
+
+    async def record_legacy_resume(
+        executor: AdkEventExecutor,
+        event: ProjectEvent,
+    ) -> object:
+        nonlocal legacy_resume_calls
+        legacy_resume_calls += 1
+        return await legacy_resume(executor, event)
+
+    monkeypatch.setattr(
+        "app.agents.event_execution.AdkEventExecutor.resume_approved",
+        record_legacy_resume,
+    )
     app = create_app()
     runtime = app.state.auth_runtime
     store = runtime.store
@@ -75,6 +95,14 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
         run_id = accepted_body["agent_run_id"]
         run_before_approval = store.repository(AgentRun).require(PROJECT_ID, run_id)
         assert run_before_approval.status is AgentRunStatus.WAITING_FOR_APPROVAL
+        assert run_before_approval.adk_session_id is not None
+        assert run_before_approval.adk_invocation_id == accepted_body["event_id"]
+        assert run_before_approval.adk_workflow_id == "daily_site_update_workflow"
+        paused_adk_identity = (
+            run_before_approval.adk_session_id,
+            run_before_approval.adk_invocation_id,
+            run_before_approval.adk_workflow_id,
+        )
         assert run_before_approval.step == "approval_required"
         assert run_before_approval.result_summary is not None
         assert "Electrical rough-in is blocked" in run_before_approval.result_summary
@@ -131,6 +159,17 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
     resumed_run = store.repository(AgentRun).require(PROJECT_ID, run_id)
     assert resumed_run.status is AgentRunStatus.COMPLETED
     assert resumed_run.id == run_before_approval.id
+    assert (
+        resumed_run.adk_session_id,
+        resumed_run.adk_invocation_id,
+        resumed_run.adk_workflow_id,
+    ) == paused_adk_identity
+    assert (
+        store.repository(SiteUpdate)
+        .require(PROJECT_ID, accepted_body["site_update_id"])
+        .processing_status
+        is ProcessingStatus.COMPLETED
+    )
     submitted_request = store.repository(MaterialRequest).require(
         PROJECT_ID,
         material_request.id,
@@ -162,6 +201,8 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
         "site_update.approval_requested",
         "workflow.paused",
         "approval.approved",
+        "site_update.processing_resumed",
+        "site_update.processing_completed",
         "workflow.resumed",
         "external_action.executed",
         "workflow.completed",
@@ -180,6 +221,8 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
         "report.updated",
         "workflow.paused",
         "approval.approved",
+        "site_update.processing_resumed",
+        "site_update.processing_completed",
         "workflow.resumed",
         "external_action.executed",
         "workflow.completed",
@@ -221,8 +264,9 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run() -> None
     assert continuation_messages[0].attempts == 1
     assert store.repository(Approval).require(PROJECT_ID, approval.id).resolved_by == ACTOR_ID
     assert [result.route for result in runtime.event_transport.worker_results] == [
-        "site_report",
+        AdkWorkflowId.DAILY_SITE_UPDATE,
         "approval_continuation",
     ]
+    assert legacy_resume_calls == 0
     assert len(runtime.interpreter.fact_calls) == 1
     assert '"id":"tsk_electrical123"' in runtime.interpreter.fact_calls[0][2]

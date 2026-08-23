@@ -33,6 +33,13 @@ startup probe and `/health/live` for liveness; startup therefore verifies deploy
 configuration and required Firestore/Storage access before the revision receives
 traffic.
 
+The deployment derives `APP_GIT_SHA`, `APP_BUILD_TIME`, `APP_VERSION`, and
+`APP_SOURCE_TREE_DIRTY`; operators do not supply these values. Preview, staging,
+and production settings reject missing source SHA or build time. Cloud Run
+supplies `K_SERVICE` and `K_REVISION`, which the public
+`GET /api/v1/version` response exposes alongside `git_sha`, `build_timestamp`,
+`app_version`, `environment`, and clean-tree state.
+
 The complete human and workload identity boundary is documented in
 [AUTH.md](AUTH.md).
 
@@ -134,11 +141,25 @@ The V1 script supports the `(default)` Firestore database only and fails before
 cloud mutation for a named database. Real deploys also require a clean Git
 worktree so the image tag corresponds to reviewed source.
 
+After all three services receive traffic, the deploy runs
+`scripts/verify_deployment_provenance.py`. The verifier derives the expected Git
+SHA directly from repository `HEAD`; there is no operator-supplied SHA option.
+It compares `/api/v1/version` with each service's latest ready revision, stamped
+build fields, revision creation timestamp, and resolved `sha256` image digest.
+Passing evidence records `repo_git_sha`, `build_timestamp`, the API revision's
+`deployment_timestamp`, the complete safe version response, and per-service
+revision/digest/timestamp data. It is written to
+`artifacts/operations/<environment>-deployment-current.json`. That path is
+ignored deliberately: committing post-deployment evidence would create a new
+commit and invalidate the equality it records.
+
 ## Staging verification
 
 After a real deploy:
 
 ```bash
+curl "$OGA_STAGING_API_URL/api/v1/version"
+
 .venv/bin/python scripts/smoke_observability.py \
   --base-url "$OGA_STAGING_API_URL" \
   --output artifacts/operations/staging-observability.json
@@ -154,7 +175,9 @@ After a real deploy:
   --output artifacts/operations/staging-backups.json
 ```
 
-Also execute the authenticated site-update/approval/duplicate/delivery-delay
+Confirm the version response, generated deployment evidence, repository HEAD,
+and submitted commit all contain the same full SHA. Also execute the
+authenticated site-update/approval/duplicate/delivery-delay
 smoke, the emulator or staging demo rehearsal, an isolated Firestore restore,
 projection rebuild timing, and each alert smoke. Preserve commit SHA, Cloud Run
 revisions, trace links, incident links, and command output.

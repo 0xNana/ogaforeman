@@ -596,6 +596,15 @@ class OutboxMessage(DomainModel):
     status: OutboxStatus = OutboxStatus.PENDING
     attempts: int = Field(default=0, ge=0)
     last_error: str | None = Field(default=None, max_length=5_000)
+    provider: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{1,63}$")
+    destination_key: str | None = Field(default=None, pattern=r"^[a-f0-9]{24}$")
+    provider_message_id: str | None = Field(default=None, max_length=500)
+    claim_token: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    claimed_at: AwareDatetime | None = None
+    lease_expires_at: AwareDatetime | None = None
+    last_attempt_at: AwareDatetime | None = None
+    next_attempt_at: AwareDatetime | None = None
+    failure_kind: str | None = Field(default=None, pattern=r"^(transient|permanent)$")
     created_at: AwareDatetime = Field(default_factory=utc_now)
     processed_at: AwareDatetime | None = None
     version: int = Field(default=0, ge=0)
@@ -609,4 +618,13 @@ class OutboxMessage(DomainModel):
             raise ValueError("processed_at is only valid for terminal outbox statuses")
         if self.processed_at is not None and self.processed_at < self.created_at:
             raise ValueError("processed_at cannot be before created_at")
+        if self.status is OutboxStatus.PROCESSING and self.provider is not None:
+            if not self.claim_token or not self.claimed_at or not self.lease_expires_at:
+                raise ValueError("processing outbox messages require an active claim")
+        elif self.status is not OutboxStatus.PROCESSING and (
+            self.claim_token is not None or self.lease_expires_at is not None
+        ):
+            raise ValueError("only processing outbox messages may hold an active claim")
+        if self.provider_message_id is not None and self.status is not OutboxStatus.COMPLETED:
+            raise ValueError("provider_message_id requires completed delivery")
         return self

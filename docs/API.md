@@ -307,7 +307,7 @@ Request:
 ```json
 {
   "decision": "approved",
-  "notes": "Proceed with the simulated supplier request.",
+  "notes": "Approve the material request for external coordination.",
   "expected_version": 0
 }
 ```
@@ -321,11 +321,16 @@ supplier action, or project ID in the decision payload.
 ### Events and Integrations
 
 ```text
-POST /projects/{project_id}/events
-POST /internal/events  # service-to-service, authenticated workload identity only
+POST /projects/{project_id}/delivery-delays
 ```
 
-External events are authenticated per adapter, normalized, persisted, and published. They do not execute arbitrary workflow names from request data.
+`POST /projects/{project_id}/delivery-delays` requires authenticated project
+`OPERATE` permission plus an `Idempotency-Key`. It accepts a canonical material
+request ID, revised delivery date, stated reason, and optional aware occurrence
+time; it persists one normalized `DELIVERY_DELAYED` event before publication.
+Delivery-delay input is authenticated, normalized, persisted, and published.
+The public API does not expose a generic `ProjectEvent` injection route and
+request data cannot select an arbitrary workflow name.
 
 ### Worker delivery endpoints
 

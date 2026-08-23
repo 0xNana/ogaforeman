@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from app.agents.interpreter import MediaEvidence
+from app.prompts import PromptId, prompt_registry
 from app.config.settings import Settings
 from app.domain.conversation import (
     ContextDomain,
@@ -12,9 +13,11 @@ from app.domain.conversation import (
     ConversationalProjectContext,
     IntentType,
     MaterialOperation,
+    ProjectContextItem,
 )
 from app.infrastructure.gemini import (
     GeminiActionInterpreter,
+    GeminiConversationAgent,
     GeminiIntentClassifier,
     GeminiSiteInterpreter,
     create_gemini_client,
@@ -32,6 +35,11 @@ def test_local_api_key_uses_gemini_developer_api(monkeypatch: pytest.MonkeyPatch
         use_fake_model=False,
         gemini_api_key="developer-key",
         conversation_proposal_signing_key="a" * 32,
+        notification_provider="google_chat",
+        google_chat_webhook_url=(
+            "https://chat.googleapis.com/v1/spaces/AAAA/messages?key=test-key&token=test-token"
+        ),
+        public_app_base_url="https://oga-staging.web.app",
         gemini_model_id="configured-model",
     )
 
@@ -86,6 +94,25 @@ def test_vertex_client_can_be_selected_explicitly_when_local_key_exists(
     )
 
 
+def test_site_interpreter_forwards_explicit_vertex_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_factory = Mock(return_value=Mock())
+    monkeypatch.setattr("app.infrastructure.gemini.create_gemini_client", client_factory)
+    settings = Settings(
+        _env_file=None,
+        use_fake_model=False,
+        gemini_api_key="developer-key",
+        google_cloud_project="oga-project",
+        gemini_location="global",
+        gemini_model_id="configured-model",
+    )
+
+    GeminiSiteInterpreter(settings, prefer_vertex=True)
+
+    client_factory.assert_called_once_with(settings, prefer_vertex=True)
+
+
 def test_deployed_runtime_uses_vertex_even_when_api_key_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -94,6 +121,9 @@ def test_deployed_runtime_uses_vertex_even_when_api_key_exists(
     settings = Settings(
         _env_file=None,
         oga_env="staging",
+        app_git_sha="b134039daa3bc1528f9e869678dd6d59a4f9d1f9",
+        app_build_time="2026-08-23T14:05:06Z",
+        app_source_tree_dirty=False,
         demo_mode=False,
         use_fake_model=False,
         google_cloud_project="oga-staging",
@@ -108,6 +138,12 @@ def test_deployed_runtime_uses_vertex_even_when_api_key_exists(
         gemini_location="global",
         gemini_api_key="developer-key",
         conversation_proposal_signing_key="a" * 32,
+        notification_provider="google_chat",
+        google_chat_webhook_url=(
+            "https://chat.googleapis.com/v1/spaces/AAAA/messages?key=test-key&token=test-token"
+        ),
+        public_app_base_url="https://oga-staging.web.app",
+        adk_agent_engine_id="agent-engine-staging",
         auth_issuer="https://securetoken.google.com/oga-staging",
         auth_audience="oga-staging",
         cors_allowed_origins=("https://oga-staging.web.app",),
@@ -182,6 +218,54 @@ async def test_gemini_intent_classifier_uses_typed_non_mutating_response(
     assert call["config"].response_schema is not None
     assert "has_active_project" in call["contents"][0].text
     assert "<user_message>" in call["contents"][0].text
+
+
+@pytest.mark.asyncio
+async def test_gemini_conversation_agent_generates_only_authorized_grounded_citations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generate_content = AsyncMock(
+        return_value=SimpleNamespace(
+            text=(
+                '{"text":"Blockwork is complete.",'
+                '"cited_record_ids":["prj_gemini123"],"recommendation":null}'
+            )
+        )
+    )
+    client = SimpleNamespace(
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    )
+    monkeypatch.setattr("app.infrastructure.gemini.genai.Client", Mock(return_value=client))
+    agent = GeminiConversationAgent(
+        Settings(
+            _env_file=None,
+            use_fake_model=False,
+            gemini_api_key="developer-key",
+            gemini_model_id="configured-model",
+        )
+    )
+    context = ConversationalProjectContext(
+        project_id="prj_gemini123",
+        retrieved_at=datetime(2026, 8, 14, 12, tzinfo=UTC),
+        query=ContextQuery(domains=(ContextDomain.PROJECT,)),
+        project=ProjectContextItem(
+            id="prj_gemini123",
+            name="Ridge House",
+            location="Accra",
+            timezone="Africa/Accra",
+            status="active",
+        ),
+    )
+
+    answer = await agent.respond(
+        "What is our status?", intent=IntentType.PROJECT_QUERY, context=context
+    )
+
+    assert answer.text == "Blockwork is complete."
+    assert answer.cited_record_ids == ("prj_gemini123",)
+    call = generate_content.await_args.kwargs
+    assert call["config"].response_schema is not None
+    assert "Ridge House" in call["contents"][0].text
 
 
 @pytest.mark.asyncio
@@ -427,3 +511,15 @@ async def test_gemini_fact_extraction_receives_image_bytes_and_project_context(
     assert "A photo alone must not prove task completion" in prompt
     assert call["contents"][1].inline_data.data == b"photo-bytes"
     assert call["contents"][1].inline_data.mime_type == "image/png"
+
+
+def test_site_report_prompt_locks_golden_multi_fact_extraction_contract() -> None:
+    prompt = prompt_registry.get_prompt(PromptId.SITE_REPORT)
+
+    assert "Extract every independent fact" in prompt
+    assert "absent expected crew or trade" in prompt
+    assert 'does not need to use the word "blocker"' in prompt
+    assert "absolute on-hand stock" in prompt
+    assert "canonical title" in prompt
+    assert "material name" in prompt
+    assert "canonical IDs" in prompt

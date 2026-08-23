@@ -55,7 +55,7 @@ def create_worker_app(
     clock: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     runtime = settings or get_settings()
-    application = FastAPI(title="OG Foreman Worker", version="0.1.0")
+    application = FastAPI(title="OG Foreman Worker", version=runtime.app_version)
     application.state.settings = runtime
     application.state.store = store
     application.state.publisher = publisher

@@ -60,6 +60,12 @@
 
 Unknown types return `EVENT_TYPE_UNSUPPORTED`; they never fall through to another workflow.
 
+`DELIVERY_DELAYED` enters through `POST
+/api/v1/projects/{project_id}/delivery-delays`. Firebase authentication,
+project `OPERATE` authorization, the `Idempotency-Key` header, canonical request
+lookup, schema validation, an atomic intake activity, and a persisted Pub/Sub
+outbox precede worker execution. No production component synthesizes this event.
+
 ## Extracted Facts
 
 Interpreter output is validated separately from the event envelope:

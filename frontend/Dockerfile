@@ -22,9 +22,18 @@ COPY . .
 RUN npm run build
 
 FROM node:24-alpine AS runner
+ARG APP_GIT_SHA
+ARG APP_BUILD_TIME
+ARG APP_VERSION
+LABEL org.opencontainers.image.revision=${APP_GIT_SHA} \
+    org.opencontainers.image.created=${APP_BUILD_TIME} \
+    org.opencontainers.image.version=${APP_VERSION}
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
-    PORT=8080
+    PORT=8080 \
+    APP_GIT_SHA=${APP_GIT_SHA} \
+    APP_BUILD_TIME=${APP_BUILD_TIME} \
+    APP_VERSION=${APP_VERSION}
 WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs

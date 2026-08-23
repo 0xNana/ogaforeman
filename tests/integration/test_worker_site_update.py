@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 
 from app.agents.interpreter import FakeSiteInterpreter
+from app.agents.identifiers import AdkWorkflowId
 from app.config.settings import Settings
 from app.domain.enums import (
     AgentRunStatus,
@@ -313,7 +314,7 @@ async def test_worker_executes_persisted_site_update_through_adk_once() -> None:
     run = store.repository(AgentRun).require(PROJECT_ID, run_id_for_event(EVENT_ID))
 
     assert first.status == "completed"
-    assert first.route == "site_report"
+    assert first.route == AdkWorkflowId.DAILY_SITE_UPDATE
     assert first.result_ref == f"run:{run.id}"
     assert replay.status == "duplicate"
     assert interpreter.calls == [UPDATE_TEXT]
