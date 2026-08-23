@@ -6,10 +6,11 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
 from secrets import token_hex
 from urllib.parse import quote
+from pydantic import AnyHttpUrl, TypeAdapter
 
 from app.domain.activity import ActivitySpec, MutationContext
 from app.domain.enums import ActorType, OutboxStatus
@@ -144,9 +145,9 @@ class NotificationService:
             DeliveryDelayTaskReference(task_id=task_id, title=tasks_by_id[task_id].title)
             for task_id in assessment.affected_task_ids
         )
-        link = None
+        link: AnyHttpUrl | None = None
         if self._public_app_base_url:
-            link = (
+            link = TypeAdapter(AnyHttpUrl).validate_python(
                 f"{self._public_app_base_url}/projects/{quote(event.project_id, safe='')}"
                 f"/issues/{quote(issue.id, safe='')}"
             )
@@ -156,7 +157,7 @@ class NotificationService:
             event_id=event.event_id,
             material_request_id=context.request.id,
             material_name=context.material.name,
-            revised_delivery_date=str(event.payload["new_date"]),
+            revised_delivery_date=date.fromisoformat(str(event.payload["new_date"])),
             delay_reason=str(event.payload["reason"]),
             affected_tasks=affected,
             risk_severity=assessment.severity,

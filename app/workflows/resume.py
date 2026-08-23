@@ -174,6 +174,18 @@ class ApprovalContinuationService:
                 summary="Completed the approved material workflow.",
                 phase="completed",
             )
+            external_action = self._prepare_run_activity(
+                session,
+                project_id=project_id,
+                run=run,
+                approval=approval,
+                request=request,
+                source_event_id=source_event_id or approval.id,
+                occurred_at=transition_at,
+                action="external_action.executed",
+                summary="Executed the approved supplier/material action.",
+                phase="external-action",
+            )
             workflow_activity = self._prepare_workflow_activity(
                 session,
                 project_id=project_id,
@@ -236,6 +248,7 @@ class ApprovalContinuationService:
             elif run.status is not AgentRunStatus.COMPLETED:
                 raise RuntimeError(f"cannot complete material run in status {run.status.value}")
             self._create_prepared_activity(session, completed_activity)
+            self._create_prepared_activity(session, external_action)
             self._create_prepared_activity(session, workflow_activity)
             self._create_prepared_activity(session, site_update_activity)
             return ApprovalContinuation(run_id=run.id, request_id=request.id)

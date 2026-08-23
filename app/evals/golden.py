@@ -31,6 +31,8 @@ from app.domain.enums import (
     WorkflowName,
 )
 from app.domain.events import EventType, ProjectEvent
+from app.domain.events import EventActor, EventActorType, EventSource
+from app.domain.facts import ConfidenceLevel
 from app.domain.facts import (
     ExtractedFactSet,
     IssueFact,
@@ -143,7 +145,7 @@ def golden_fixture_fact_set() -> ExtractedFactSet:
                 task_name="First-floor blockwork",
                 is_completed=True,
                 evidence="First-floor blockwork is complete",
-                confidence="high",
+                confidence=ConfidenceLevel.HIGH,
             )
         ],
         issues=[
@@ -153,7 +155,7 @@ def golden_fixture_fact_set() -> ExtractedFactSet:
                 description="The electrician did not come today.",
                 severity=Severity.HIGH,
                 evidence="The electrician did not come today",
-                confidence="high",
+                confidence=ConfidenceLevel.HIGH,
             )
         ],
         materials=[
@@ -162,7 +164,7 @@ def golden_fixture_fact_set() -> ExtractedFactSet:
                 quantity=10,
                 unit="bags",
                 evidence="We have 10 bags of cement left",
-                confidence="high",
+                confidence=ConfidenceLevel.HIGH,
             )
         ],
         next_focus=[
@@ -170,7 +172,7 @@ def golden_fixture_fact_set() -> ExtractedFactSet:
                 task_name="First-floor plastering",
                 description="First-floor plastering starts tomorrow.",
                 evidence="Plastering starts tomorrow",
-                confidence="high",
+                confidence=ConfidenceLevel.HIGH,
             )
         ],
     )
@@ -332,10 +334,10 @@ async def run_golden_evaluation(
                 event_id="evt_goldendelivery123",
                 project_id=_PROJECT_ID,
                 event_type=EventType.DELIVERY_DELAYED,
-                source="web",
+                source=EventSource.WEB,
                 occurred_at=decision_at,
                 received_at=decision_at,
-                actor={"type": "user", "id": _MANAGER_ID},
+                actor=EventActor(type=EventActorType.USER, id=_MANAGER_ID),
                 idempotency_key="golden:operator:delivery-delay",
                 correlation_id=_EVENT_ID,
                 payload={
@@ -346,7 +348,7 @@ async def run_golden_evaluation(
             )
             await DeliveryDelayEventExecutor(
                 store,
-                settings or Settings(_env_file=None),
+                settings or Settings(_env_file=None),  # type: ignore[call-arg]
                 notification_gateway,
             ).execute(delay_event)
             delayed_request = store.repository(MaterialRequest).require(_PROJECT_ID, request.id)

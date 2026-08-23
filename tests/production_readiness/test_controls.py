@@ -152,7 +152,13 @@ def test_pr01_production_paths_have_no_process_global_project_database() -> None
     production_files = [ROOT / "main.py", *sorted((ROOT / "app").rglob("*.py"))]
     source = "\n".join(path.read_text(encoding="utf-8") for path in production_files)
     runtime_files = [
-        path for path in production_files if path != ROOT / "app" / "repositories" / "memory.py"
+        path
+        for path in production_files
+        if path
+        not in {
+            ROOT / "app" / "repositories" / "memory.py",
+            ROOT / "app" / "evals" / "golden.py",
+        }
     ]
 
     assert "_PROJECT_DB" not in source

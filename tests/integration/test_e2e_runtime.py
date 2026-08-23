@@ -177,10 +177,7 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run(
     assert submitted_request.status is MaterialRequestStatus.APPROVED
 
     activities = store.repository(ActivityEvent).list(PROJECT_ID)
-    dynamic_actions = {
-        activity.action
-        for activity in activities
-    }
+    dynamic_actions = {activity.action for activity in activities}
     assert {
         "site_update.received",
         "site_update.media_processed",
@@ -246,7 +243,7 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run(
             assert UPDATE_TEXT.casefold() not in serialized_metadata
     assert (
         sum(
-            activity.action == "material_request.submitted"
+            activity.action == "material_request.approved"
             and activity.entity_id == material_request.id
             for activity in activities
         )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, cast
 
 from google.adk.apps import App, ResumabilityConfig
 from google.adk.events import RequestInput
@@ -181,9 +181,7 @@ class DeliveryDelayEventExecutor:
                 public_app_base_url=self._settings.public_app_base_url,
             )
             notification = (
-                service.deliver(
-                    event, run_id, context, assessment, issue, follow_up
-                )
+                service.deliver(event, run_id, context, assessment, issue, follow_up)
                 if self._settings.use_fake_model
                 else await asyncio.to_thread(
                     service.deliver,
@@ -327,8 +325,9 @@ class DeliveryDelayEventExecutor:
         webhook = self._settings.google_chat_webhook_url
         if webhook is None:
             raise RuntimeError("Google Chat delivery notification is not configured")
-        self._notification_provider = GoogleChatNotificationProvider(webhook.get_secret_value())
-        return self._notification_provider
+        provider = GoogleChatNotificationProvider(webhook.get_secret_value())
+        self._notification_provider = cast(NotificationProvider, provider)
+        return cast(NotificationProvider, provider)
 
 
 class AdkEventExecutor:

@@ -4,11 +4,13 @@ import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
+from typing import Any, cast
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agents.conversation import IntentRoutingService
+from app.agents.conversation import IntentClassifier
 from app.agents.conversation_execution import (
     AdkConversationExecutor,
     AgenticConversationHandlers,
@@ -20,6 +22,8 @@ from app.domain.enums import SiteUpdateInputType
 from app.domain.conversation import (
     ContextQuery,
     ConversationContext,
+    ConversationReply,
+    AdviceReply,
     ConversationalProjectContext,
     EntityKind,
     EntityResolutionStatus,
@@ -504,7 +508,7 @@ async def send_message(
     async def classify_intent() -> str:
         nonlocal route
         if route is None:
-            route = await IntentRoutingService(classifier).route(
+            route = await IntentRoutingService(cast(IntentClassifier, classifier)).route(
                 payload.message,
                 context=ConversationContext(
                     has_active_project=True,
@@ -570,24 +574,24 @@ async def send_message(
         if route is None:
             raise RuntimeError("conversation classification did not complete")
         if route.destination is IntentDestination.CLARIFICATION:
-            reply = ConversationResponseService().respond(route)
+            clarification_reply = ConversationResponseService().respond(route)
             response = ConversationMessageResponse(
-                kind=reply.kind.value,
-                text=reply.text,
+                kind=clarification_reply.kind.value,
+                text=clarification_reply.text,
                 intent=route.decision.intent.value,
             )
         elif route.destination in {
             IntentDestination.CASUAL_RESPONSE,
             IntentDestination.PRODUCT_HELP,
         }:
-            reply = (
+            response_reply: ConversationReply = (
                 ConversationResponseService().help(payload.message)
                 if route.destination is IntentDestination.PRODUCT_HELP
                 else ConversationResponseService().respond(route)
             )
             response = ConversationMessageResponse(
-                kind=reply.kind.value,
-                text=reply.text,
+                kind=response_reply.kind.value,
+                text=response_reply.text,
                 intent=route.decision.intent.value,
             )
         else:
@@ -602,6 +606,7 @@ async def send_message(
                         "OG project conversation is temporarily unavailable.",
                         status_code=503,
                     )
+                fallback: ConversationReply | AdviceReply
                 if is_project_setup_question(payload.message):
                     fallback = ConversationResponseService().project_setup(
                         ProjectSetupService(runtime.store, runtime.projects).retrieve(access)
@@ -706,9 +711,7 @@ async def send_message(
                 )
                 return {"_conversation_result": True, **response.model_dump(mode="json")}
 
-        operate_access = configured_project_access(
-            request, project_id, ProjectPermission.OPERATE
-        )
+        operate_access = configured_project_access(request, project_id, ProjectPermission.OPERATE)
         key = require_idempotency_key(request)
         interpreter = getattr(request.app.state, "action_interpreter", None)
         if interpreter is None or not hasattr(interpreter, "interpret"):
@@ -766,21 +769,21 @@ async def send_message(
         }:
             await handlers.retrieve_authorized_context()
             await handlers.resolve_entities()
-        result = (
+        agentic_result: dict[str, Any] = (
             await handlers.invoke_typed_tools()
             if destination
             in {IntentDestination.GOLDEN_SITE_UPDATE, IntentDestination.PROJECT_ACTION}
             else await handlers.reason_over_context()
         )
     else:
-        result = await AdkConversationExecutor(runtime.store, settings).execute_agentic(
+        agentic_result = await AdkConversationExecutor(runtime.store, settings).execute_agentic(
             session_id=f"conversation-{access.actor.user_id}",
             invocation_id=invocation_id,
             message=payload.message,
             handlers=handlers,
         )
-    result.pop("_conversation_result", None)
-    return ConversationMessageResponse.model_validate(result)
+    agentic_result.pop("_conversation_result", None)
+    return ConversationMessageResponse.model_validate(agentic_result)
 
 
 def _query_with_recent_reference(
