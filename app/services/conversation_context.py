@@ -366,12 +366,15 @@ class ProjectContextService:
                 in {IssueStatus.OPEN, IssueStatus.ACKNOWLEDGED, IssueStatus.MITIGATED}
             ]
         if query.search_terms:
-            issues = [
+            matched_issues = [
                 (issue, version)
                 for issue, version in issues
                 if _matches(query.search_terms, issue.id, issue.description)
                 or bool(matched_task_ids.intersection(issue.task_ids))
             ]
+            # A blocker query should still surface the project's active blockers
+            # when wording does not match the issue description or task title.
+            issues = matched_issues or issues
         issues.sort(key=lambda item: (item[0].severity.value, item[0].updated_at), reverse=True)
         return tuple(
             IssueContextItem(

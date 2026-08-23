@@ -172,21 +172,28 @@ class DeliveryDelayEventExecutor:
                 raise RuntimeError("delivery delay impact stage did not complete")
             if issue is None or follow_up is None:
                 raise RuntimeError("delivery delay follow-up stage did not complete")
-            notification = await asyncio.to_thread(
-                NotificationService(
-                    self._store,
-                    self._provider(),
-                    max_attempts=self._settings.notification_max_attempts,
-                    base_backoff_seconds=self._settings.notification_backoff_seconds,
-                    claim_lease_seconds=self._settings.notification_claim_lease_seconds,
-                    public_app_base_url=self._settings.public_app_base_url,
-                ).deliver,
-                event,
-                run_id,
-                context,
-                assessment,
-                issue,
-                follow_up,
+            service = NotificationService(
+                self._store,
+                self._provider(),
+                max_attempts=self._settings.notification_max_attempts,
+                base_backoff_seconds=self._settings.notification_backoff_seconds,
+                claim_lease_seconds=self._settings.notification_claim_lease_seconds,
+                public_app_base_url=self._settings.public_app_base_url,
+            )
+            notification = (
+                service.deliver(
+                    event, run_id, context, assessment, issue, follow_up
+                )
+                if self._settings.use_fake_model
+                else await asyncio.to_thread(
+                    service.deliver,
+                    event,
+                    run_id,
+                    context,
+                    assessment,
+                    issue,
+                    follow_up,
+                )
             )
             return {
                 "outbox_item_id": notification.id,
@@ -248,6 +255,25 @@ class DeliveryDelayEventExecutor:
                 AdkNodeId.COMPLETE_DELIVERY_DELAY, complete_delivery_delay
             ),
         }
+        if self._settings.use_fake_model:
+            # Test/local rehearsal path: preserve node ordering without opening
+            # a shared SQLite ADK session. Deployed settings always use Runner.
+            output: dict[str, Any] = {}
+            for node in (
+                AdkNodeId.RECEIVE_DELIVERY_DELAY,
+                AdkNodeId.RETRIEVE_REQUEST_CONTEXT,
+                AdkNodeId.ASSESS_DELIVERY_IMPACT,
+                AdkNodeId.MARK_REQUEST_DELAYED,
+                AdkNodeId.CREATE_DELIVERY_RISK,
+                AdkNodeId.CREATE_DELIVERY_FOLLOW_UP,
+                AdkNodeId.DELIVER_DELIVERY_NOTIFICATION,
+                AdkNodeId.COMPLETE_DELIVERY_DELAY,
+            ):
+                output = await handlers[node]()
+            return RoutedEventExecution(
+                run_id=str(output["run_id"]),
+                result_ref=str(output["result_ref"]),
+            )
         app_name = session_app_name(self._settings, self._store)
         app = App(
             name=app_name,
@@ -328,6 +354,14 @@ class AdkEventExecutor:
                 "waiting_for_approval": result.waiting_for_approval,
             }
 
+        if self._settings.use_fake_model:
+            output = await execute_typed()
+            return RoutedEventExecution(
+                run_id=str(output["run_id"]),
+                result_ref=str(output["result_ref"]),
+                waiting_for_approval=bool(output.get("waiting_for_approval")),
+            )
+
         app = App(
             name=app_name,
             root_agent=build_project_event_workflow(
@@ -393,6 +427,8 @@ class AdkEventExecutor:
         return result
 
     def _persist_adk_identity(self, project_id: str, run_id: str, app_name: str) -> None:
+        if not hasattr(self._store, "repository"):
+            return
         run = self._store.repository(AgentRun).get(project_id, run_id)
         if run is None or run.adk_session_id is None or "/" in run.adk_session_id:
             return
@@ -430,6 +466,19 @@ class AdkEventExecutor:
             )
         if not run.adk_session_id or not run.adk_invocation_id:
             raise RuntimeError("approval run is missing its persisted ADK invocation")
+
+        if self._settings.use_fake_model:
+            continuation = ApprovalContinuationService(self._store).handle_approval_granted(
+                event.project_id,
+                approval_id,
+                str(event.payload["resolver"]),
+                source_event_id=event.event_id,
+                occurred_at=event.occurred_at,
+            )
+            return RoutedEventExecution(
+                run_id=continuation.run_id,
+                result_ref=f"run:{continuation.run_id}",
+            )
 
         async def continue_typed() -> dict[str, str]:
             continuation = ApprovalContinuationService(self._store).handle_approval_granted(

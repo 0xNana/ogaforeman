@@ -747,18 +747,38 @@ async def send_message(
 
     settings = getattr(request.app.state, "settings", None) or get_settings()
     invocation_id = request.headers.get("Idempotency-Key") or str(uuid4())
-    result = await AdkConversationExecutor(runtime.store, settings).execute_agentic(
-        session_id=f"conversation-{access.actor.user_id}",
-        invocation_id=invocation_id,
-        message=payload.message,
-        handlers=AgenticConversationHandlers(
-            classify_intent=classify_intent,
-            retrieve_authorized_context=retrieve_authorized_context,
-            resolve_entities=resolve_entities,
-            reason_over_context=reason_over_context,
-            invoke_typed_tools=invoke_typed_tools,
-        ),
+    handlers = AgenticConversationHandlers(
+        classify_intent=classify_intent,
+        retrieve_authorized_context=retrieve_authorized_context,
+        resolve_entities=resolve_entities,
+        reason_over_context=reason_over_context,
+        invoke_typed_tools=invoke_typed_tools,
     )
+    if settings.use_fake_model:
+        # Local/test fake-model runs avoid opening a shared ADK SQLite session.
+        # Deployed environments disable this flag and always use the durable Runner.
+        await handlers.classify_intent()
+        destination = route.destination if route is not None else None
+        if destination in {
+            IntentDestination.PROJECT_CONTEXT,
+            IntentDestination.PROJECT_ADVICE,
+            IntentDestination.PROJECT_ACTION,
+        }:
+            await handlers.retrieve_authorized_context()
+            await handlers.resolve_entities()
+        result = (
+            await handlers.invoke_typed_tools()
+            if destination
+            in {IntentDestination.GOLDEN_SITE_UPDATE, IntentDestination.PROJECT_ACTION}
+            else await handlers.reason_over_context()
+        )
+    else:
+        result = await AdkConversationExecutor(runtime.store, settings).execute_agentic(
+            session_id=f"conversation-{access.actor.user_id}",
+            invocation_id=invocation_id,
+            message=payload.message,
+            handlers=handlers,
+        )
     result.pop("_conversation_result", None)
     return ConversationMessageResponse.model_validate(result)
 

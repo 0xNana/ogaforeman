@@ -174,7 +174,7 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run(
         PROJECT_ID,
         material_request.id,
     )
-    assert submitted_request.status is MaterialRequestStatus.SUBMITTED
+    assert submitted_request.status is MaterialRequestStatus.APPROVED
 
     activities = store.repository(ActivityEvent).list(PROJECT_ID)
     dynamic_actions = {

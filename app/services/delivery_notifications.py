@@ -205,6 +205,7 @@ class NotificationService:
                     payload=payload.model_dump(mode="json"),
                     provider=self._provider.provider,
                     destination_key=self._provider.destination_key,
+                    created_at=self._clock(),
                 )
             )
             self._record_activity(

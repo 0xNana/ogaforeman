@@ -40,6 +40,7 @@ from app.domain.models import (
     MaterialRequest,
     OutboxMessage,
     ProcessedEvent,
+    Project,
     Task,
 )
 from app.infrastructure.firestore import create_firestore_client
@@ -103,7 +104,9 @@ def run_local_demo(
     for run_number in range(1, repetitions + 1):
         decision: Literal["approve", "reject"] = "reject" if run_number == 2 else "approve"
         store = _reset_and_compose(mode, settings, client)
-        evidence.append(_run_one(store, run_number=run_number, decision=decision))
+        evidence.append(
+            _run_one(store, settings=settings, run_number=run_number, decision=decision)
+        )
 
     return DemoEvidence(
         mode=mode,
@@ -182,6 +185,7 @@ def _reset_and_compose(
 
 def _seed_in_memory(store: InMemoryRepositoryStore) -> None:
     _project, _users, entities = seed_entities()
+    store.repository(Project).create(_project)
     for entity in entities:
         store.repository(type(entity)).create(entity)
 
@@ -189,6 +193,7 @@ def _seed_in_memory(store: InMemoryRepositoryStore) -> None:
 def _run_one(
     store: RepositoryStore,
     *,
+    settings: Settings,
     run_number: int,
     decision: Literal["approve", "reject"],
 ) -> DemoRunEvidence:
@@ -242,7 +247,9 @@ def _run_one(
             "reason": "Ten bags may not cover tomorrow's plastering.",
         },
     )
-    shortage_delivery = process_event(shortage_event.model_dump_json().encode(), store=store)
+    shortage_delivery = process_event(
+        shortage_event.model_dump_json().encode(), store=store, settings=settings
+    )
     requests = store.repository(MaterialRequest).list(DEMO_PROJECT_ID)
     if shortage_delivery.status != "completed" or len(requests) != 1:
         raise RuntimeError("demo shortage fixture did not create a request and approval")
@@ -297,9 +304,31 @@ def _run_one(
         )
     )
     continuation_event = ProjectEvent.model_validate(continuation.payload)
-    first_delivery = process_event(continuation_event.model_dump_json().encode(), store=store)
-    replay_delivery = process_event(continuation_event.model_dump_json().encode(), store=store)
+    first_delivery = process_event(
+        continuation_event.model_dump_json().encode(), store=store, settings=settings
+    )
+    replay_delivery = process_event(
+        continuation_event.model_dump_json().encode(), store=store, settings=settings
+    )
     if decision == "approve":
+        delay_event = ProjectEvent(
+            event_id=f"evt_demo_delay_{run_number}",
+            project_id=DEMO_PROJECT_ID,
+            event_type=EventType.DELIVERY_DELAYED,
+            source=EventSource.WEB,
+            occurred_at=DEMO_NOW,
+            received_at=DEMO_NOW,
+            actor=EventActor(type=EventActorType.USER, id=DEMO_MANAGER_ID),
+            idempotency_key=f"demo:delivery-delay:{run_number}",
+            correlation_id=f"cor_demo_delay_{run_number}",
+            payload={
+                "request_id": request.id,
+                "new_date": "2026-08-15",
+                "reason": "Supplier vehicle breakdown delayed delivery.",
+            },
+        )
+        process_event(delay_event.model_dump_json().encode(), store=store, settings=settings)
+        process_event(delay_event.model_dump_json().encode(), store=store, settings=settings)
         resumed_run = store.repository(AgentRun).require(DEMO_PROJECT_ID, run_id)
         if resumed_run.status is not AgentRunStatus.COMPLETED:
             raise RuntimeError("approval continuation did not complete the demo run")

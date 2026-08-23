@@ -9,6 +9,7 @@ import pytest
 from google.cloud import firestore
 
 from app.domain.activity import MutationContext
+from app.config.settings import Settings
 from app.domain.authorization import AuthenticatedUser, ProjectAccessContext
 from app.domain.enums import (
     ActorType,
@@ -97,14 +98,17 @@ def _deliver(
     *,
     notification_gateway: FakeProjectNotificationGateway | None = None,
 ) -> tuple[str, str]:
+    settings = Settings(_env_file=None, oga_env="test", use_fake_model=True)
     first = process_event(
         event.model_dump_json().encode(),
         store=store,
+        settings=settings,
         notification_gateway=notification_gateway,
     )
     replay = process_event(
         event.model_dump_json().encode(),
         store=store,
+        settings=settings,
         notification_gateway=notification_gateway,
     )
     assert replay.status == "duplicate"
@@ -147,7 +151,11 @@ def test_task_completed_event_mutates_task_and_completes_a_durable_run() -> None
     assert task.completion_percent == Decimal("100")
     assert run.workflow is WorkflowName.DAILY_SITE_UPDATE
     assert run.status is AgentRunStatus.COMPLETED
-    assert [activity.action for activity in activities] == ["task.completed"]
+    assert [activity.action for activity in activities] == [
+        "task.completed",
+        "agent_run.completed",
+        "agent_run.started",
+    ]
 
 
 def test_material_events_create_and_observe_one_approval_gated_request() -> None:
@@ -286,7 +294,7 @@ def test_blocked_and_overdue_events_persist_issues_and_task_impact() -> None:
 
 
 def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
-    store = _store(with_member=False)
+    store = _store()
     store.repository(Project).create(
         Project(
             id=PROJECT_ID,

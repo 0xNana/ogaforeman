@@ -2,6 +2,7 @@ from decimal import Decimal
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from types import SimpleNamespace
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -63,6 +64,7 @@ from app.services.approvals import ApprovalService, ResolutionCommand
 from app.services.conversation_mutation_policy import MutationPolicyService
 from app.services.conversation_schedule_operations import ConversationScheduleService
 from app.services.conversation_entity_resolution import ConversationEntityResolver
+from app.config.settings import Settings
 from app.services.conversation_memory import ConversationMemoryService
 from app.services.site_update_intake import SiteUpdateIntakeService
 from app.workflows.resume import ResumeWorkflow
@@ -204,7 +206,7 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
             project_id=PROJECT_ID,
             type=IssueType.BLOCKER,
             severity=Severity.HIGH,
-            description="Electrical rough-in remains blocked",
+            description="electrical rough-in remains blocked",
             status=IssueStatus.OPEN,
             detected_by=IssueDetectedBy.USER,
             task_ids=["tsk_plaster123"],
@@ -363,6 +365,13 @@ def make_app() -> tuple[FastAPI, InMemoryRepositoryStore]:
     )
     app.state.intent_classifier = classifier
     app.state.action_interpreter = FakeActionInterpreter()
+    app.state.settings = Settings(
+        oga_env="test",
+        use_fake_model=True,
+        adk_session_backend="database",
+        adk_session_database_url=f"sqlite+aiosqlite:////tmp/ogaforeman-conversation-{uuid4().hex}.db",
+        conversation_proposal_signing_key=PROPOSAL_SIGNING_KEY.decode(),
+    )
     app.state.conversation_proposal_signing_key = PROPOSAL_SIGNING_KEY
     app.state.conversation_schedule_service = ConversationScheduleService(
         store,
