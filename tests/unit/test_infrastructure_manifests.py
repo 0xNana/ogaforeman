@@ -48,7 +48,8 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "monitoring/apply.sh" in source
     assert "identitytoolkit.googleapis.com" in source
     assert "secretmanager.googleapis.com" in source
-    assert source.count("roles/secretmanager.secretAccessor") == 1
+    # Both API and worker identities need access to both deployed secrets.
+    assert source.count("roles/secretmanager.secretAccessor") == 2
     assert source.count("GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_SECRET}:latest") == 2
     assert "NOTIFICATION_PROVIDER: '${NOTIFICATION_PROVIDER}'" in source
     assert ': "${NOTIFICATION_PROVIDER:?Set NOTIFICATION_PROVIDER=google_chat}"' in source
