@@ -24,15 +24,15 @@ current submitted commit and deployed revision have direct evidence.
   Firestore, Cloud Storage, and Pub/Sub.
 - [ ] Current submitted commit is deployed with `USE_FAKE_MODEL=false`,
   `DEMO_MODE=false`, Vertex AI model access, and durable Vertex AI ADK sessions.
-- [ ] Public hosted URL works in a signed-out browser and the judge account can
-  complete the authenticated workflow for free.
-- [ ] Private judge credentials and the synthetic project ID are present in the
-  Devpost testing instructions, not in the repository.
+- [ ] Public hosted URL works in a signed-out browser, and a judge can create a
+  free account, initialize a synthetic project, and complete the authenticated
+  workflow without owner-provided credentials.
+- [ ] Self-service signup and project creation are verified from a fresh
+  signed-out browser profile.
 - [x] English is supported by the application and submission documents.
 - [x] Repository URL is documented as
   https://github.com/0xNana/ogaforeman.
-- [ ] Repository is publicly accessible, or Devpost and Google testing accounts
-  have access if it remains private.
+- [x] Repository is publicly accessible without a testing account.
 - [x] README contains clone, pinned install, configuration, run, test, and cloud
   deployment instructions.
 - [x] Text description covers features, functionality, technologies, data
@@ -149,7 +149,7 @@ current submitted commit and deployed revision have direct evidence.
 - [ ] Final video lands between 3:30 and 3:55 and keeps the complete proof inside
   the first four minutes.
 
-## Required URLs and private fields
+## Required URLs and entrant-provided fields
 
 | Field | Required value | Status |
 | --- | --- | --- |
@@ -157,10 +157,8 @@ current submitted commit and deployed revision have direct evidence.
 | Repository | https://github.com/0xNana/ogaforeman | Verify judge access |
 | Architecture | `docs/submission/architecture-diagram.svg` | Ready |
 | Agent inventory | `docs/submission/AGENT_INVENTORY.md` | Ready |
-| Testing instructions | `docs/submission/TESTING.md` | Credentials pending |
+| Testing instructions | `docs/submission/TESTING.md` | Self-service access documented |
 | Public video | YouTube or Vimeo URL | **Blocked** |
-| Judge account | Dedicated synthetic-data user | **Blocked** |
-| Judge project | Seeded project name and ID | **Blocked** |
 | Support contact | Monitored email in Devpost | **Blocked** |
 | Personal BYOF story | Truthful entrant-written paragraph | **Blocked** |
 | Pre-existing work disclosure | Entrant-reviewed statement | **Blocked** |

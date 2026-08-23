@@ -74,6 +74,39 @@ Optional resource names have safe environment-specific defaults. Set
 `SCHEDULE_PROJECT_ID=prj_ridge` to create the deterministic demo daily-brief
 job.
 
+## Verify Agent Engine configuration
+
+Before deployment, verify that the configured numeric Agent Engine ID resolves
+to a Vertex AI Reasoning Engine in the configured project and region:
+
+```bash
+./infra/check-config.sh
+```
+
+The checker safely loads only `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_REGION`, and
+`ADK_AGENT_ENGINE_ID` from `DEPLOY_ENV_FILE` (default `.env`), honors existing
+shell overrides, and performs one read-only Vertex AI lookup. A successful check
+ends with `AGENT_ENGINE_VERIFIED=true`; it does not print credentials or secret
+configuration. Set `CHECK_CONFIG_TIMEOUT_SECONDS` to change the 60-second bound.
+
+Exercise native ADK interruption and continuation against that session backend:
+
+```bash
+./infra/check-runtime.sh
+```
+
+The runtime checker executes the production site-update ADK graph to an approval
+interrupt, replaces the Python process and session-service instance, resumes the
+same session and invocation exactly once, verifies persisted completion, and
+deletes its temporary Vertex session. Vertex requires a 24-hour minimum session
+TTL, which bounds orphan lifetime if best-effort cleanup is interrupted. Success
+ends with `ADK_RUNTIME_E2E_VERIFIED=true`. Each phase has a 300-second timeout
+configurable through `CHECK_RUNTIME_TIMEOUT_SECONDS`.
+
+This is an ADK runtime and durable-session smoke. It does not exercise Firestore,
+the authenticated approval API, supplier actions, delivery-delay intake, or
+Google Chat; the full staging Golden Scenario remains the proof for those paths.
+
 ## Verify the production container
 
 ```bash

@@ -330,6 +330,20 @@ Staging and production require Vertex model configuration, Firestore, Storage,
 Pub/Sub, Firebase identity, authorized origins, a durable ADK session backend,
 Secret Manager values, and `NOTIFICATION_PROVIDER=google_chat`.
 
+Verify that the configured numeric Agent Engine ID resolves in the selected
+Google Cloud project and region:
+
+```bash
+./infra/check-config.sh
+```
+
+Verify native ADK approval interruption and same-session continuation through
+the configured Vertex Agent Engine session backend:
+
+```bash
+./infra/check-runtime.sh
+```
+
 Review commands without cloud mutation:
 
 ```bash

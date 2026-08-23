@@ -13,21 +13,19 @@ live agent workflow and must not be used to evaluate backend action.
 **API readiness endpoint:**
 https://oga-api-staging-dc62gfsg7a-ew.a.run.app/health/ready
 
-**Judge email:** `SUBMISSION BLOCKER: create a dedicated synthetic-data judge account`
-
-**Judge password:** `SUBMISSION BLOCKER: place the credential only in Devpost's private testing instructions, never in Git`
-
-**Synthetic project:** `SUBMISSION BLOCKER: provide the seeded project name and ID`
-
-The account must be free, enabled, and available through the end of judging on
-October 1, 2026. It must have only the project role needed for the scripted test.
-Do not reuse an owner or personal account.
+No owner-provided credentials are required. Select **Create account** and use a
+judge-controlled email address and password. Signup provisions a canonical OG
+user, after which the judge can create and initialize a private synthetic
+project at no charge. Do not enter real customer, worker, supplier, or site data.
 
 ## Five-minute judge path
 
-1. Open the hosted application and sign in with the private Devpost credential.
-2. Select the named synthetic project. Confirm the dashboard shows tasks,
-   blockers, materials, approvals, reports, and recent activity.
+1. Open the hosted application, select **Create account**, and register a free
+   judge-controlled account.
+2. Create a synthetic project. Initialize or manually add First-floor blockwork,
+   Electrical rough-in, and First-floor plastering with their dependency order,
+   plus Cement Bags and a 100-bag plastering requirement. Confirm the project
+   overview shows the tasks and material ledger before submitting an update.
 3. Open **Site update**, submit this text, and retain the returned run ID:
 
    ```text
@@ -49,10 +47,9 @@ Do not reuse an owner or personal account.
 7. Refresh the browser. The run, approval, mutations, and activity history
    should remain visible because they are backed by Firestore.
 
-The seeded data must be reset between judge runs or use per-run unique event
-IDs so previous state does not obscure results. Submission owners should not
-delete production collections to reset a demo; use the reviewed synthetic-data
-seed/reset path for the dedicated judge project.
+Use a new synthetic project for a clean repeat or use per-run unique event IDs
+so previous state does not obscure results. Never delete production collections
+to reset a test.
 
 ## Multimodal path
 
@@ -67,8 +64,8 @@ To test the user-facing capture flow:
    exposing the private object URL, transcript internals, prompt, or hidden
    reasoning.
 
-Only synthetic, entrant-owned media should be used. Do not upload real worker,
-customer, or site information into the judge project.
+Only synthetic or judge-owned media should be used. Do not upload real worker,
+customer, or site information into the test project.
 
 ## Expected safety behavior
 
@@ -260,7 +257,6 @@ evidence.
 
 **Contact:** `SUBMISSION BLOCKER: add a monitored support email in Devpost`
 
-If a judge cannot sign in or the seeded scenario was already consumed, the
-submission owner should restore only the synthetic judge project and preserve
-the incident and recovery evidence. Keep the application and repository
-available free of charge and without restriction until judging ends.
+If a judge cannot sign up or create a project, contact the monitored support
+address in Devpost. Keep the application and repository available free of
+charge and without restriction until judging ends.

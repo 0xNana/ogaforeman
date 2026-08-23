@@ -22,11 +22,8 @@
 
 **Support contact:** `TODO: add the monitored entrant email in Devpost`
 
-**Private judge email:** `TODO: enter the dedicated synthetic-data account only in Devpost private testing instructions`
-
-**Private judge password:** `TODO: enter the credential only in Devpost private testing instructions; never commit it`
-
-**Synthetic judge project:** `TODO: add the seeded project name and ID to Devpost private testing instructions`
+**Testing access:** No private credentials are required. Judges can create a
+free account and initialize their own synthetic project through the hosted app.
 
 **Architecture diagram:**
 [`docs/submission/architecture-diagram.svg`](architecture-diagram.svg)

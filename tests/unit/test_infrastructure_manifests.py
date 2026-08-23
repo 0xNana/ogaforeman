@@ -182,6 +182,275 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
     assert not marker.exists()
 
 
+def test_check_config_safely_loads_allowlisted_dotenv_values(tmp_path: Path) -> None:
+    marker = tmp_path / "must-not-exist"
+    env_file = tmp_path / "check.env"
+    env_file.write_text(
+        "\n".join(
+            (
+                "GOOGLE_CLOUD_PROJECT=dotenv-project",
+                "GOOGLE_CLOUD_REGION=dotenv-region",
+                "ADK_AGENT_ENGINE_ID=4706041708276613120",
+                f"PATH=$(touch {marker})",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_python = tmp_path / "fake-python"
+    fake_python.write_text(
+        "\n".join(
+            (
+                "#!/usr/bin/env bash",
+                "printf 'project=%s\\n' \"${GOOGLE_CLOUD_PROJECT}\"",
+                "printf 'location=%s\\n' \"${GOOGLE_CLOUD_REGION}\"",
+                "printf 'engine_id=%s\\n' \"${ADK_AGENT_ENGINE_ID}\"",
+                "printf 'AGENT_ENGINE_VERIFIED=true\\n'",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    environment = os.environ.copy()
+    for key in ("GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_REGION", "ADK_AGENT_ENGINE_ID"):
+        environment.pop(key, None)
+    environment.update(
+        {
+            "DEPLOY_ENV_FILE": str(env_file),
+            "GOOGLE_CLOUD_REGION": "override-region",
+            "PYTHON_BIN": str(fake_python),
+        }
+    )
+
+    completed = subprocess.run(
+        ["bash", "infra/check-config.sh"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "project=dotenv-project" in completed.stdout
+    assert "location=override-region" in completed.stdout
+    assert "engine_id=4706041708276613120" in completed.stdout
+    assert "AGENT_ENGINE_VERIFIED=true" in completed.stdout
+    assert not marker.exists()
+
+
+def test_check_config_rejects_non_numeric_engine_id_before_cloud_call(tmp_path: Path) -> None:
+    marker = tmp_path / "python-was-called"
+    env_file = tmp_path / "check.env"
+    env_file.write_text(
+        "\n".join(
+            (
+                "GOOGLE_CLOUD_PROJECT=dotenv-project",
+                "GOOGLE_CLOUD_REGION=europe-west1",
+                "ADK_AGENT_ENGINE_ID=not-a-reasoning-engine",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_python = tmp_path / "fake-python"
+    fake_python.write_text(
+        f"#!/usr/bin/env bash\ntouch {marker}\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    environment = os.environ.copy()
+    for key in ("GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_REGION", "ADK_AGENT_ENGINE_ID"):
+        environment.pop(key, None)
+    environment.update(
+        {
+            "DEPLOY_ENV_FILE": str(env_file),
+            "PYTHON_BIN": str(fake_python),
+        }
+    )
+
+    completed = subprocess.run(
+        ["bash", "infra/check-config.sh"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert "must be the numeric Reasoning Engine resource ID" in completed.stderr
+    assert not marker.exists()
+
+
+def test_check_runtime_rejects_invalid_timeout_before_subprocess(tmp_path: Path) -> None:
+    marker = tmp_path / "subprocess-was-called"
+    fake_config = tmp_path / "fake-check-config"
+    fake_config.write_text(
+        f"#!/usr/bin/env bash\ntouch {marker}\n",
+        encoding="utf-8",
+    )
+    fake_config.chmod(0o755)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CHECK_CONFIG_SCRIPT": str(fake_config),
+            "CHECK_RUNTIME_TIMEOUT_SECONDS": "unbounded",
+            "PYTHON_BIN": "/bin/false",
+        }
+    )
+
+    completed = subprocess.run(
+        ["bash", "infra/check-runtime.sh"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert "CHECK_RUNTIME_TIMEOUT_SECONDS must be a positive integer" in completed.stderr
+    assert not marker.exists()
+
+
+def test_check_runtime_uses_vertex_minimum_session_ttl() -> None:
+    from scripts.check_adk_runtime import RUNTIME_SESSION_TTL
+
+    assert RUNTIME_SESSION_TTL == "86400s"
+
+
+def test_check_runtime_runs_pause_resume_and_cleanup_in_separate_processes(tmp_path: Path) -> None:
+    trace_file = tmp_path / "runtime-phases"
+    fake_config = tmp_path / "fake-check-config"
+    fake_config.write_text(
+        "#!/usr/bin/env bash\nprintf 'AGENT_ENGINE_VERIFIED=true\\n'\n",
+        encoding="utf-8",
+    )
+    fake_config.chmod(0o755)
+    fake_helper = tmp_path / "fake-runtime-helper"
+    fake_helper.write_text(
+        "\n".join(
+            (
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                'phase="$1"',
+                "shift",
+                'state_file=""',
+                'while [[ "$#" -gt 0 ]]; do',
+                '  if [[ "$1" == "--state-file" ]]; then',
+                '    state_file="$2"',
+                "    shift 2",
+                "  else",
+                "    shift",
+                "  fi",
+                "done",
+                'printf "%s\\n" "${phase}" >>"${TRACE_FILE}"',
+                'if [[ "${phase}" == "pause" ]]; then',
+                '  printf "{}\\n" >"${state_file}"',
+                "fi",
+                'printf "ADK_RUNTIME_%s=true\\n" "${phase^^}"',
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_helper.chmod(0o755)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CHECK_CONFIG_SCRIPT": str(fake_config),
+            "CHECK_RUNTIME_TIMEOUT_SECONDS": "10",
+            "PYTHON_BIN": "/bin/bash",
+            "RUNTIME_CHECK_HELPER": str(fake_helper),
+            "TRACE_FILE": str(trace_file),
+        }
+    )
+
+    completed = subprocess.run(
+        ["bash", "infra/check-runtime.sh"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert trace_file.read_text(encoding="utf-8").splitlines() == [
+        "pause",
+        "resume",
+        "cleanup",
+    ]
+    assert "ADK_RUNTIME_E2E_VERIFIED=true" in completed.stdout
+
+
+def test_check_runtime_preserves_state_when_failure_cleanup_fails(tmp_path: Path) -> None:
+    fake_config = tmp_path / "fake-check-config"
+    fake_config.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    fake_config.chmod(0o755)
+    fake_helper = tmp_path / "fake-runtime-helper"
+    fake_helper.write_text(
+        "\n".join(
+            (
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                'phase="$1"',
+                "shift",
+                'state_file=""',
+                'while [[ "$#" -gt 0 ]]; do',
+                '  if [[ "$1" == "--state-file" ]]; then',
+                '    state_file="$2"',
+                "    shift 2",
+                "  else",
+                "    shift",
+                "  fi",
+                "done",
+                'if [[ "${phase}" == "pause" ]]; then',
+                '  printf "{\\"session_id\\":\\"failed-session\\"}\\n" >"${state_file}"',
+                "  exit 124",
+                "fi",
+                "exit 1",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_helper.chmod(0o755)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CHECK_CONFIG_SCRIPT": str(fake_config),
+            "CHECK_RUNTIME_TIMEOUT_SECONDS": "10",
+            "PYTHON_BIN": "/bin/bash",
+            "RUNTIME_CHECK_HELPER": str(fake_helper),
+        }
+    )
+
+    completed = subprocess.run(
+        ["bash", "infra/check-runtime.sh"],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 124
+    assert "ADK runtime phase timed out: pause" in completed.stderr
+    match = re.search(r"Runtime state retained for cleanup: (.+)", completed.stderr)
+    assert match is not None
+    retained_state = Path(match.group(1))
+    assert retained_state.read_text(encoding="utf-8").strip() == ('{"session_id":"failed-session"}')
+    retained_state.unlink()
+
+
 def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes() -> None:
     manifest = json.loads((ROOT / "firebase.json").read_text(encoding="utf-8"))
     rules = (ROOT / "firebase" / "firestore.rules").read_text(encoding="utf-8")
