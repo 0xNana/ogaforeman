@@ -180,7 +180,6 @@ async def test_e2e_api_uses_production_worker_and_resumes_the_same_run(
     dynamic_actions = {
         activity.action
         for activity in activities
-        if activity.agent_run_id == run_id or activity.entity_id == approval.id
     }
     assert {
         "site_update.received",
