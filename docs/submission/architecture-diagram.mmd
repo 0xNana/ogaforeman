@@ -1,0 +1,127 @@
+flowchart TB
+  %% Canonical submission diagram source. Render with Mermaid CLI or any Mermaid-compatible editor.
+
+  subgraph INIT["PROJECT INITIALIZATION - direct extraction, no ADK"]
+    direction LR
+    PI_SOURCE["Project source<br/>schedule, scope, materials"]
+    PI_GEMINI["Direct Gemini<br/>structured extraction"]
+    PI_DRAFT["Import draft"]
+    PI_VALIDATE["Deterministic validation<br/>schema, identity, conflicts"]
+    PI_REVIEW["Human review<br/>confirm or correct"]
+    PI_COMMIT["Deterministic commit<br/>typed services + transaction"]
+
+    PI_SOURCE -->|"1"| PI_GEMINI
+    PI_GEMINI -->|"2 typed output"| PI_DRAFT
+    PI_DRAFT -->|"3"| PI_VALIDATE
+    PI_VALIDATE -->|"4"| PI_REVIEW
+    PI_REVIEW -->|"5 confirmed draft"| PI_COMMIT
+  end
+
+  subgraph OPS["AGENTIC OPERATIONS - Google Cloud production path"]
+    direction TB
+    FIELD["Voice + photo + text<br/>authenticated site team"]
+    STORAGE["Cloud Storage<br/>private verified media"]
+    DELAY_SOURCE["Authenticated operator<br/>supplier delivery-delay report"]
+    INTAKE["FastAPI event intake<br/>auth + validation + stable event ID"]
+    PUBSUB["Pub/Sub ProjectEvent<br/>claim + retry + dead letter"]
+    WORKER["Private Cloud Run worker<br/>authenticated push"]
+    RUNNER["Google ADK Runner<br/>durable session service"]
+
+    SITE_WF["daily_site_update_workflow"]
+    SITE_GEMINI["Gemini reasoning<br/>structured evidence interpretation"]
+    CANONICAL["Canonical entity resolution<br/>explicit IDs + aliases"]
+    BRANCHES["Parallel ADK branches<br/>progress | blockers | materials"]
+    MERGE_POLICY["Merge + deterministic policy"]
+
+    DELAY_WF["delivery_delay_workflow"]
+    IMPACT["Authorized request context<br/>material + task dependency impact"]
+
+    CONVERSATION["agentic_project_conversation"]
+    COMPAT["project_event_workflow<br/>remaining registered events"]
+    TOOLS["Typed tools<br/>auth + policy + idempotency"]
+    SERVICES["Deterministic domain services<br/>validated atomic mutations"]
+
+    FIELD -. "private upload" .-> STORAGE
+    STORAGE -. "verified attachment IDs" .-> INTAKE
+    FIELD ==>|"6 GOLDEN site update"| INTAKE
+    DELAY_SOURCE ==>|"16 GOLDEN later delay"| INTAKE
+    INTAKE ==>|"7 normalized event"| PUBSUB
+    PUBSUB ==>|"8 claimed delivery"| WORKER
+    WORKER ==>|"9"| RUNNER
+    RUNNER ==>|"10"| SITE_WF
+    SITE_WF ==>|"11 where reasoning is needed"| SITE_GEMINI
+    SITE_GEMINI ==>|"12 typed interpretation"| CANONICAL
+    CANONICAL ==>|"13"| BRANCHES
+    BRANCHES ==>|"14"| MERGE_POLICY
+    MERGE_POLICY ==>|"15"| TOOLS
+
+    RUNNER ==>|"17"| DELAY_WF
+    DELAY_WF ==>|"18"| IMPACT
+    IMPACT ==>|"19"| TOOLS
+    RUNNER --> CONVERSATION
+    RUNNER --> COMPAT
+    TOOLS ==>|"20"| SERVICES
+  end
+
+  subgraph HITL["HITL - consequential authority boundary"]
+    direction LR
+    APPROVAL["Approval boundary<br/>purchase / commitment / safety"]
+    PAUSE["Durable pause<br/>approval + ADK identifiers persisted"]
+    HUMAN["Human decision<br/>approve or reject"]
+    DECISION["Authenticated decision intake<br/>version + idempotency check"]
+    CONTINUE["Native ADK continuation<br/>same logical execution"]
+
+    APPROVAL ==>|"21"| PAUSE
+    PAUSE ==>|"22"| HUMAN
+    HUMAN ==>|"23"| DECISION
+    DECISION ==>|"24 approval event"| CONTINUE
+  end
+
+  subgraph TRUTH["DURABLE DOMAIN TRUTH"]
+    FIRESTORE[("Cloud Firestore<br/>projects, tasks, dependencies, materials,<br/>approvals, reports, claims, outbox")]
+  end
+
+  subgraph EXTERNAL["EXTERNAL PRODUCTION BOUNDARY"]
+    OUTBOX["Durable notification outbox<br/>dedupe + claim + bounded retry"]
+    CHAT["Google Chat<br/>real external destination"]
+
+    OUTBOX ==>|"27 send once"| CHAT
+    CHAT ==>|"27a provider result"| OUTBOX
+  end
+
+  subgraph OBS["OBSERVABILITY AND AUDIT"]
+    LOGS["Cloud Logging + Trace<br/>request / event / run / node / tool"]
+    ACTIVITY["ActivityEvent<br/>atomic mutation audit"]
+    RUN["AgentRun projection<br/>status + trace + ADK identifiers"]
+  end
+
+  PI_COMMIT -->|"5a"| FIRESTORE
+  SERVICES ==>|"20a atomic state + ActivityEvent"| FIRESTORE
+  SITE_WF ==>|"21 ADK approval interrupt"| APPROVAL
+  PAUSE ==>|"22a durable state"| FIRESTORE
+  DECISION ==>|"24a decision persisted"| FIRESTORE
+  CONTINUE ==>|"25 resume through Runner"| RUNNER
+  CONTINUE ==>|"26 approved action exactly once"| TOOLS
+  SERVICES ==>|"27 delivery notification"| OUTBOX
+  OUTBOX ==>|"27b durable outcome"| FIRESTORE
+
+  RUNNER -. telemetry .-> LOGS
+  TOOLS -. telemetry .-> LOGS
+  SERVICES -. telemetry .-> LOGS
+  FIRESTORE --> ACTIVITY
+  FIRESTORE --> RUN
+
+  classDef init fill:#e8f0fe,stroke:#2563eb,color:#111827,stroke-width:1px;
+  classDef golden fill:#fff7ed,stroke:#dc2626,color:#111827,stroke-width:4px;
+  classDef runtime fill:#ecfeff,stroke:#0f766e,color:#111827,stroke-width:1px;
+  classDef truth fill:#ecfdf5,stroke:#047857,color:#111827,stroke-width:2px;
+  classDef control fill:#fff7ed,stroke:#c2410c,color:#111827,stroke-width:2px;
+  classDef observe fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-width:1px;
+
+  class PI_SOURCE,PI_GEMINI,PI_DRAFT,PI_VALIDATE,PI_REVIEW,PI_COMMIT init;
+  class FIELD,INTAKE,PUBSUB,WORKER,RUNNER,SITE_WF,SITE_GEMINI,CANONICAL,BRANCHES,MERGE_POLICY,DELAY_SOURCE,DELAY_WF,IMPACT,TOOLS,SERVICES,APPROVAL,PAUSE,HUMAN,DECISION,CONTINUE,OUTBOX,CHAT golden;
+  class STORAGE,CONVERSATION,COMPAT runtime;
+  class FIRESTORE truth;
+  class LOGS,ACTIVITY,RUN observe;
+  %% Supplier simulators, in-memory gateways, and logging-only providers are test/development
+  %% fakes and are intentionally omitted from this production system graph.

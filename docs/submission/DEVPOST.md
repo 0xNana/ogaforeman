@@ -1,8 +1,8 @@
 # Devpost Submission Copy
 
-> Submission owner: replace every `SUBMISSION BLOCKER` before pasting this into
-> Devpost. Do not describe a deterministic demo, fake-model run, or stale cloud
-> revision as live proof.
+> Paste only after every `TODO` is resolved or deliberately omitted. A fake
+> model, deterministic `/demo`, logging notifier, dirty-source artifact, or old
+> Cloud Run revision is not live submission evidence.
 
 ## Project details
 
@@ -10,183 +10,275 @@
 
 **Category:** Taskmaster
 
-**Tagline:** Construction updates in. Verified operational follow-through out.
+**Tagline:** Construction updates in. Authorized operational follow-through out.
 
 **Hosted application:** https://ogaforeman-cloud-2026.web.app/
 
 **Source repository:** https://github.com/0xNana/ogaforeman
 
-**Demo video:** `SUBMISSION BLOCKER: add the public YouTube or Vimeo URL`
+**Devpost project URL:** `TODO: add the public Devpost project URL after publishing`
+
+**Public demo video:** `TODO: add the public YouTube or Vimeo URL; maximum four minutes`
+
+**Support contact:** `TODO: add the monitored entrant email in Devpost`
+
+**Private judge email:** `TODO: enter the dedicated synthetic-data account only in Devpost private testing instructions`
+
+**Private judge password:** `TODO: enter the credential only in Devpost private testing instructions; never commit it`
+
+**Synthetic judge project:** `TODO: add the seeded project name and ID to Devpost private testing instructions`
 
 **Architecture diagram:**
 [`docs/submission/architecture-diagram.svg`](architecture-diagram.svg)
 
+**Architecture source:**
+[`docs/submission/architecture-diagram.mmd`](architecture-diagram.mmd)
+
 **Production agent inventory:**
 [`docs/submission/AGENT_INVENTORY.md`](AGENT_INVENTORY.md)
 
-**Testing instructions:** [`docs/submission/TESTING.md`](TESTING.md)
+**Judge testing instructions:** [`docs/submission/TESTING.md`](TESTING.md)
 
-## Inspiration
+## Operational Utility - 40%
 
-Construction work does not fail because teams lack another chat window. It
-fails in the gap between a messy field update and the many small actions needed
-to keep a project truthful: resolve which task was mentioned, record progress,
-surface a delay, calculate a material shortage, assign follow-up, request a
-decision, refresh the daily report, and notify the right people.
+### Inspiration
 
-OG Foreman is built for that gap. A foreman should be able to report what
-happened in the natural media available on site, then trust the system to carry
-out the safe operational work and ask a human only when authority or safety
-requires it.
+Construction work rarely arrives as clean software input. A foreman reports
+what changed in a voice note, photo, or short message, while the operational
+consequences span tasks, dependencies, inventory, material requests, approvals,
+daily reporting, and follow-up. The friction is not producing another summary;
+it is carrying trustworthy state across all those steps without losing human
+authority.
 
-`SUBMISSION BLOCKER: entrant must add 2-4 truthful sentences explaining the
-personal "Bring Your Own Friction" connection. Do not submit a generic market
-story; the Taskmaster rubric explicitly asks why this problem is personal.`
+`TODO: entrant must add two to four truthful sentences explaining the personal
+Bring Your Own Friction connection. Do not replace this with a generic market
+claim.`
 
-## What it does
+### Product
 
-OG Foreman turns text, voice notes, photos, and project files into verified
-project state and multi-step follow-through. It supports four bounded workflows:
+OG Foreman is a production SaaS foundation for that coordination gap. It has a
+multi-tenant authenticated web application, versioned API, durable event
+transport, private background worker, Firestore persistence, human approval,
+audit history, and reviewed Google Cloud deployment path. It is not a scripted
+animation and not a chatbot that only drafts text.
 
-1. **Daily Site Update:** extracts evidence-backed facts, resolves project
-   entities, updates safe state, creates issues or material requests, refreshes
-   the report, and records every action.
-2. **Material Shortage:** computes the shortage from the material ledger,
-   prepares the request, pauses when approval is required, and tracks an
-   authenticated delivery lifecycle without making a purchase.
-3. **Blocker and Delay:** identifies affected work and dependencies, records
-   impact, creates follow-up, and escalates safety-critical conditions.
-4. **Daily Brief:** assembles a scheduled summary of progress, blockers, risks,
-   pending approvals, overdue work, and the next focus.
+OG supports four bounded workflows:
 
-This is not a chatbot that only writes an answer. An input becomes a durable
-event and an observable run. **ADK owns OG's autonomous construction workflows
-and agentic project conversation. Gemini reasons over authorized context,
-typed tools enforce and apply mutations, and Firestore remains the source of
-truth.** Each mutation atomically adds an activity record. The Daily Site
-Update exposes real context, interpretation, entity-resolution, parallel
-progress/blocker/material, merge, policy, tool, approval, and continuation
-nodes. Delivery delay and project conversation use dedicated ADK graphs rather
-than the generic one-callback event adapter. An authenticated operator-generated
-`DELIVERY_DELAYED` event cannot enter the legacy route map: its ADK workflow
-loads the canonical request, material, and affected tasks, expands dependency
-impact, invokes typed tools, and sends one provider-idempotent Google Chat
-notification without a chat prompt. The provider outcome is durable before the
-run completes.
+1. **Daily Site Update:** interpret authorized text, voice, and photo evidence;
+   resolve canonical project entities; update safe task, blocker, inventory,
+   request, and Daily Log state.
+2. **Material Shortage:** compute the exact shortage from persisted requirements
+   and inventory, prepare a request, and pause before a purchase or commitment.
+3. **Blocker and Delay:** assess affected tasks and dependencies, update risk,
+   create follow-up, and coordinate the demonstrated external notification.
+4. **Daily Brief:** assemble persisted progress, blockers, risks, approvals,
+   overdue work, and next focus.
 
-Safe and reversible actions can run without intervention. Purchases, external
-commitments, financial actions, task cancellation, major schedule changes, and
-safety-critical actions cannot be auto-approved. They pause for a canonical
-approver. Same-session ADK continuation is implemented and locally
-contract-tested, but this draft must not claim production restart durability
-until the current deployment passes the documented worker-restart gate.
+### Golden Scenario
+
+The demo project contains First-floor blockwork, Electrical rough-in,
+Plastering, their dependency relationships, a 100-bag cement requirement, and
+10 bags of inventory. The foreman submits:
+
+```text
+First-floor blockwork is complete. The electrician did not come today. We have
+10 bags of cement left. Plastering starts tomorrow.
+```
+
+One authenticated update enters the production event boundary. The Daily Site
+Update ADK workflow interprets the evidence, resolves canonical entities, fans
+out progress/blocker/material analysis, completes blockwork, leaves electrical
+progress unchanged, creates the absence blocker and follow-up, records the 10
+bags, computes the 90-bag shortage, prepares the request, refreshes the Daily
+Log, and pauses at approval. No purchase or supplier commitment is made before
+the human decision.
+
+After approval, the same logical ADK execution continues through the guarded
+typed action. Later, an authenticated operator reports the supplier delay for
+the canonical material request. Nobody prompts OG in chat: the dedicated
+Delivery Delay ADK workflow retrieves the request, material, directly affected
+tasks, and downstream dependencies; marks the request delayed; updates risk;
+creates follow-up; and uses a durable outbox to send one Google Chat
+notification before its notification node completes.
+
+The value shown is operational state change: one field update becomes linked,
+auditable work across the project instead of a message someone must manually
+re-enter in several places.
+
+`TODO: add a measured before/after rehearsal time only if the entrant records a
+repeatable comparison; otherwise make no time-saved metric claim.`
+
+## Architectural Discipline - 30%
+
+### Authority split
+
+**Gemini reasons or extracts. Google ADK coordinates agentic operations. Typed
+tools and deterministic services mutate. Firestore is the source of truth.**
+
+This claim is intentionally scoped. Project initialization calls Gemini
+directly for schema-constrained extraction, then uses deterministic validation,
+human review, and a transactional commit. It is not an ADK workflow, and this
+submission does not claim every Gemini path uses ADK.
+
+Production code passes four real workflow roots to ADK `Runner`:
+
+- `daily_site_update_workflow`;
+- `delivery_delay_workflow`;
+- `agentic_project_conversation`;
+- `project_event_workflow`, a compatibility root for remaining registered
+  events.
+
+There is no decorative specialist `LlmAgent` hierarchy. Gemini receives bounded
+authorized context and typed schemas but no Firestore write tool. Typed tools
+re-check authorization, canonical identity, policy, evidence, optimistic
+versions, and idempotency before deterministic services mutate state.
+
+### Durable workflow boundary
+
+FastAPI authenticates and validates input, persists a source record, and emits a
+stable `ProjectEvent`. Pub/Sub delivers at least once to a private Cloud Run
+worker using authenticated push. The worker claims the event and selects the
+registered ADK workflow. Firestore holds project state, claims, approvals,
+outbox records, ActivityEvents, and AgentRun projections; Cloud Storage holds
+verified private media.
+
+Every domain mutation shares a transaction with its `ActivityEvent`. Stable
+event IDs, idempotency keys, create-if-absent claims, deterministic
+fingerprints, optimistic versions, and bounded leases make replay and
+concurrency explicit rather than relying on process memory.
+
+### Human authority
+
+Purchases, external commitments, financial actions, task cancellation, major
+schedule changes, and safety-critical actions cannot be auto-approved. The
+approval boundary persists the approval and original ADK application, session,
+invocation, workflow, and request identifiers before interruption. An
+authenticated, version-checked decision emits a replay-safe continuation event;
+the implementation responds to the original approval request and guards the
+approved action against duplication.
+
+Same-run continuation has local production-worker test coverage. Production
+process-loss durability is not claimed until the final worker-replacement
+rehearsal passes.
+
+### Real external boundary
+
+The production path contains no supplier simulator and no automatic logging
+fallback. A supplier-reported delay enters through authenticated operator
+intake. The reviewed staging/production configuration accepts only the Google
+Chat incoming-webhook adapter. A deterministic outbox identity, persisted
+claim, bounded retry, terminal status, and provider result protect the send.
+Logging and in-memory providers are development/test fakes and do not count as
+external coordination.
+
+### Observability
+
+Cloud Logging and Cloud Trace carry allowlisted request, event, run, workflow,
+node, tool, outbox, provider, and status identifiers. ActivityEvent provides the
+atomic domain audit trail. AgentRun is an authorized product projection of run
+status and ADK identity, not the ADK execution cursor. Prompts, secrets, raw
+private media, unrestricted model output, and chain-of-thought are excluded.
+
+## Demo and Production Readiness - 30%
+
+### What the repository implements
+
+- Separate Next.js web, FastAPI API, and private worker services.
+- Firebase authentication and layered project authorization.
+- Firestore repositories and transactions rather than a production in-memory
+  project database.
+- Private signed Cloud Storage upload and server-side attachment verification.
+- Pub/Sub claims, retry, dead-letter configuration, and replay-safe consumers.
+- Explicit ADK Daily Site Update, Delivery Delay, conversation, and compatibility
+  workflow roots.
+- Typed mutation services, approval state, ActivityEvents, AgentRun projection,
+  durable notification outbox, and Google Chat adapter.
+- Clean-source build metadata, `/api/v1/version`, Cloud Run revision/digest
+  verification, and machine-readable deployment evidence generation.
+- Unit, contract, workflow, integration, browser, production-readiness, and
+  evaluation suites with fail-closed release wrappers.
+
+### Evidence required before submission
+
+The following items are deliberately not represented as completed until fresh
+artifacts exist for the same final commit:
+
+- `TODO: deploy the final clean Git commit and capture passing API/worker/web provenance`;
+- `TODO: pass the billed Vertex Golden operational evaluation at 8/8 with canonical resolution 1.0`;
+- `TODO: pause the Golden run, replace the worker process/revision, approve, and prove native continuation with unchanged ADK identity`;
+- `TODO: capture one real Google Chat delivery and its persisted outbox/provider outcome`;
+- `TODO: produce artifacts/operations/full-staging-golden.json from the complete authenticated rehearsal`;
+- `TODO: verify refresh plus sign-out/sign-in persistence in the hosted application`;
+- `TODO: capture correlated Cloud Logging/Trace, backup, alert, rollback, and readiness evidence`;
+- `TODO: upload the public four-minute-or-shorter video and verify every link signed out`.
+
+Fixture evaluation, `/demo`, a dirty-source live run, a skipped backing-service
+test, or the separate project-import evaluation cannot satisfy those gates.
+
+### Four-minute proof plan
+
+1. Show the hosted application and `/api/v1/version` for the submitted commit.
+2. Submit the multimodal Golden update and show the live ADK run moving through
+   interpretation, canonical resolution, branches, tools, and approval pause.
+3. Show the human decision and native continuation of the same run after the
+   rehearsed worker replacement.
+4. Submit the later authenticated delivery delay and show the autonomous risk,
+   follow-up, Daily Log/activity, terminal run, and real Google Chat outcome.
+5. Refresh, sign out/in, and show the same Firestore-backed state plus correlated
+   Cloud Logging or Trace identifiers.
+
+`TODO: replace this plan with the final public video URL and exact timestamps.`
 
 ## How we built it
 
-- **AI and agents:** Gemini 3.6 Flash, Google Gen AI SDK, four named Google ADK
-  workflow roots, `Runner`, typed tools, and durable Vertex AI session
-  configuration. No decorative specialist `LlmAgent` graph is constructed.
+- **AI and workflows:** Gemini 3.6 Flash through the Google Gen AI SDK; Google
+  ADK 2.6.2 `Runner`, workflow nodes, tools, interruption, and continuation.
 - **Application:** Python 3.12, FastAPI, Pydantic, Next.js 16, React 19, and
   TypeScript.
-- **Google Cloud:** Cloud Run for separate web, API, and private worker
-  services; Firestore for domain truth; Cloud Storage for private evidence;
-  Pub/Sub for asynchronous delivery and dead letters; Cloud Scheduler for the
-  daily brief; Cloud Build and Artifact Registry for immutable images; Secret
-  Manager, Firebase Authentication and Hosting, Cloud Logging, Cloud Trace,
-  Cloud Monitoring, and managed backups.
-- **Reliability controls:** stable event IDs, persisted delivery claims,
-  optimistic version checks, idempotent tools, transactional activity events,
-  persisted approval identity, guarded continuation, bounded retries, and
-  correlated telemetry. Production restart durability remains a release gate.
-- **Safety controls:** authorization at API, repository, and tool boundaries;
-  confidence and evidence gates; fail-closed handling of ambiguous or negated
-  completion claims; and explicit human control for consequential actions.
+- **Google Cloud:** Cloud Run, Firestore, Cloud Storage, Pub/Sub, Cloud
+  Scheduler, Cloud Build, Artifact Registry, Secret Manager, Firebase
+  Authentication and Hosting, Cloud Logging, Cloud Trace, and Cloud Monitoring.
+- **External destination:** one Google Chat incoming webhook, configured through
+  Secret Manager in deployed environments.
 
-## Data sources
+No proprietary external dataset is required. The authorized project team
+provides site text, voice, photos, project documents, task/dependency data,
+material requirements, inventory, and subsequent delivery information. The
+submission scenario must use synthetic entrant-owned data and media.
 
-OG Foreman does not depend on a proprietary external dataset. It processes data
-that an authorized project team supplies:
+## Challenges and learnings
 
-- text and voice site updates;
-- project photos and documents;
-- imported task schedules and material records;
-- canonical project membership, aliases, tasks, dependencies, material ledger,
-  approvals, and prior activity stored in Firestore.
+The hardest boundary was model authority. Construction language is ambiguous,
+negation matters, and a fluent interpretation is not permission to mutate.
+Typed model output, deterministic canonical resolution, and typed tools made
+the boundary testable.
 
-The submission scenario uses synthetic construction data and media with no
-private customer or worker information. Third-party packages are used under
-their repository licenses.
+Approval was a distributed-systems problem rather than a UI button. The decision
+must be versioned and auditable, survive process replacement, target the exact
+interrupted request, and avoid replaying prior side effects. The repository
+therefore persists both domain approval state and ADK execution identity, while
+keeping production restart proof as an explicit release gate.
 
-## Challenges we ran into
-
-The difficult part was not calling a model. It was defining exactly where model
-authority ends. Field language is ambiguous, construction actions can be
-consequential, and Pub/Sub can redeliver. We therefore made Gemini output typed
-interpretations and proposals, while deterministic services own authorization,
-evidence checks, idempotency, and mutation.
-
-Approval was another systems problem rather than a UI button. A decision must
-be versioned, auditable, tied to a canonical identity, and able to resume the
-original workflow after a process restart without repeating earlier work.
-
-Multimodal ingestion also required a durable boundary. The browser transcript
-or preview cannot be processing truth; the worker must retrieve the verified
-private object and enforce media and model-input limits.
-
-## Accomplishments we are proud of
-
-- One site update can produce coordinated task, blocker, material, report,
-  approval, notification, and activity changes rather than a prose response.
-- Every mutation is designed to be authorized, replay-safe, and paired with an
-  atomic audit event.
-- The approval policy allows useful autonomy without silently crossing a human
-  authority or safety boundary.
-- API, worker, storage, event delivery, session state, and domain state have
-  explicit ownership instead of sharing process memory.
-- The four-workflow boundary keeps the V1 demonstrable and testable.
-
-## What we learned
-
-Agent reliability comes from narrowing authority, not from writing a larger
-prompt. Durable event identity and typed mutation contracts matter as much as
-model quality. Human-in-the-loop design works best when the human is a precise
-policy boundary, not a fallback for every step. Finally, a credible agent demo
-must make state change and cloud execution visible; fluent text is not proof of
-action.
-
-## What's next
-
-Before the contest submission, the release gate is to deploy the current commit
-and capture one authenticated, live Gemini-backed workflow end to end with
-correlated Cloud Run, Firestore, and logging evidence. The public
-`/api/v1/version` response and generated provenance artifact must match that
-submitted commit, the latest ready revisions, and their resolved image digests.
-The remaining V1 work is
-tracked openly in `tasks/todo-v1.md`; unfinished gates are not represented as
-completed functionality.
-
-After V1, likely extensions are real supplier integrations behind the same
-approval contract, more project-file formats, additional language support, and
-longer operational evaluations. Billing, payments, and unrelated project
-management scope are intentionally outside this build.
+At-least-once event and notification delivery also changed the design. Stable
+identities, transactions, persisted claims, and outbox state matter as much as
+the prompt. A credible agent demo must show those state transitions and cloud
+execution, not only polished prose.
 
 ## Submission compliance
 
-- The repository history begins during the August 3-31, 2026 submission
-  period. `SUBMISSION BLOCKER: entrant must disclose any pre-existing code,
-  templates, assets, or other work incorporated into the project.`
-- The product and all submission materials support English.
-- Judge access must remain free and available through October 1, 2026.
-- The public video must be no longer than four minutes and visibly prove Google
-  Cloud execution.
+- English is supported by the product and submission materials.
+- Judge access must remain free through October 1, 2026.
+- The public video must be on YouTube or Vimeo, no longer than four minutes, and
+  visibly prove the submitted Google Cloud execution.
+- `TODO: entrant must confirm every eligible team member is listed in Devpost`.
+- `TODO: entrant must confirm eligibility, employer consent, ownership, and conflict rules`.
+- `TODO: entrant must provide a truthful pre-existing-work and third-party asset disclosure`.
 - Official rules: https://allthingsagentichackathon.devpost.com/rules
 
 ## Optional bonus links
 
-**Public build article or podcast:** `Optional: add URL. It must explicitly say
-it was created for entry into this hackathon.`
+**Public build article or podcast:** `TODO (optional): add a public URL and state that it was created for this hackathon`
 
-**Social post:** `Optional: add URL using #AllThingsAgenticHackathon.`
+**Social post:** `TODO (optional): add the public URL using #AllThingsAgenticHackathon`
 
-**Additional Google AI models:** `None claimed. Do not claim a model that is
-not integrated and visibly demonstrated.`
+**Additional Google AI models:** None claimed.
