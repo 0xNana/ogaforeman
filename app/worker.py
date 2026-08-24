@@ -199,10 +199,9 @@ async def process_event_async(
                         raise RuntimeError("material request must reference exactly one agent run")
                     source_run = source_runs[0]
                     if source_run.workflow is WorkflowName.DAILY_SITE_UPDATE:
-                        interpreter = site_interpreter or GeminiSiteInterpreter(runtime)
                         await SiteUpdateEventExecutor(
                             store,
-                            interpreter,
+                            site_interpreter,
                             runtime,
                             storage_adapter,
                         ).resume_approved(event)

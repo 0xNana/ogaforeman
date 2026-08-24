@@ -565,8 +565,11 @@ def test_routed_material_and_brief_state_survives_firestore_client_restart() -> 
     assert len(reports) == 1
     assert len(reports[0].material_risks) == 1
     activities = second_restart.repository(ActivityEvent).list(project_id)
-    assert len(activities) == 4
+    assert len(activities) == 8
     assert sum(activity.action == "material.risk_detected" for activity in activities) == 1
+    assert sum(activity.action == "agent_run.started" for activity in activities) == 2
+    assert sum(activity.action == "agent_run.paused" for activity in activities) == 1
+    assert sum(activity.action == "agent_run.completed" for activity in activities) == 1
     assert len(second_restart.repository(OutboxMessage).list(project_id)) == 1
     assert (
         second_restart.repository(AgentRun)
@@ -665,7 +668,17 @@ def test_approved_material_continuation_completes_after_firestore_restart() -> N
     request = final_store.repository(MaterialRequest).list(project_id)[0]
     assert (
         final_store.repository(MaterialRequest).require(project_id, request.id).status
-        is MaterialRequestStatus.DELAYED
+        is MaterialRequestStatus.APPROVED
     )
-    assert len(final_store.repository(Issue).list(project_id)) == 1
-    assert len(final_store.repository(ProcessedEvent).list(project_id)) == 3
+    assert final_store.repository(Issue).list(project_id) == ()
+    assert {
+        processed.event_type
+        for processed in final_store.repository(ProcessedEvent).list(project_id)
+    } == {
+        EventType.APPROVAL_GRANTED.value,
+        EventType.MATERIAL_LOW.value,
+    }
+    assert not any(
+        message.message_type == "supplier:submit_material_request"
+        for message in final_store.repository(OutboxMessage).list(project_id)
+    )

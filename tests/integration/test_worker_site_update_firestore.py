@@ -407,7 +407,7 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
     assert duplicate_resume.status == "duplicate"
     assert final_run.id == accepted["agent_run_id"]
     assert final_run.status is AgentRunStatus.COMPLETED
-    assert final_request.status is MaterialRequestStatus.SUBMITTED
+    assert final_request.status is MaterialRequestStatus.APPROVED
     assert final_approval.status is ApprovalStatus.APPROVED
     assert final_follow_up == follow_ups[0]
     assert (
@@ -426,17 +426,10 @@ async def test_site_update_and_approval_resume_survive_backing_service_restarts(
         )
         == AUDIO_BYTES
     )
-    assert {activity.action for activity in final_activities} >= {
-        "approval.approved",
-        "material_request.submitted",
-    }
-    assert (
-        sum(
-            activity.action == "material_request.submitted"
-            and activity.entity_id == final_request.id
-            for activity in final_activities
-        )
-        == 1
+    assert "approval.approved" in {activity.action for activity in final_activities}
+    assert not any(
+        activity.action == "material_request.submitted" and activity.entity_id == final_request.id
+        for activity in final_activities
     )
 
 
@@ -779,7 +772,7 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
         assert final_update.processed_at is not None
         assert final_run.updated_at >= run.updated_at
         assert final_run.completed_at is not None
-        assert final_request.status is MaterialRequestStatus.SUBMITTED
+        assert final_request.status is MaterialRequestStatus.APPROVED
         assert final_approval.status is ApprovalStatus.APPROVED
         assert sum(activity.action == "agent_run.resumed" for activity in final_activities) == 1
         assert (
@@ -788,13 +781,10 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
             ).actor_type
             is ActorType.SYSTEM
         )
-        assert (
-            sum(
-                activity.action == "material_request.submitted"
-                and activity.entity_id == final_request.id
-                for activity in final_activities
-            )
-            == 1
+        assert not any(
+            activity.action == "material_request.submitted"
+            and activity.entity_id == final_request.id
+            for activity in final_activities
         )
         assert sum(activity.action == "agent_run.completed" for activity in final_activities) == 1
         assert sum(activity.action == "workflow.resumed" for activity in final_activities) == 1
@@ -815,12 +805,8 @@ async def test_voice_approval_continuation_survives_restart_and_executes_once(
             sum(activity.action == "external_action.executed" for activity in final_activities) == 1
         )
         assert sum(activity.action == "workflow.completed" for activity in final_activities) == 1
-        assert (
-            sum(
-                message.message_type == "supplier:submit_material_request"
-                for message in final_outbox
-            )
-            == 1
+        assert not any(
+            message.message_type == "supplier:submit_material_request" for message in final_outbox
         )
     else:
         assert final_run.status is AgentRunStatus.FAILED

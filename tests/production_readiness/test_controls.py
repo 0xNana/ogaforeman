@@ -312,20 +312,18 @@ def test_pr04_approval_event_resumes_persisted_run_after_restart() -> None:
 
     request = final_store.repository(MaterialRequest).list("prj_readiness123")[0]
     processed = final_store.repository(ProcessedEvent).list("prj_readiness123")
-    actions = final_store.repository(OutboxMessage).list("prj_readiness123")
 
     assert replay.status == "duplicate"
     assert run.status is AgentRunStatus.COMPLETED
-    assert request.status is MaterialRequestStatus.DELAYED
-    assert len(final_store.repository(Issue).list("prj_readiness123")) == 1
+    assert request.status is MaterialRequestStatus.APPROVED
+    assert final_store.repository(Issue).list("prj_readiness123") == ()
     assert {item.event_type for item in processed} == {
         EventType.APPROVAL_GRANTED.value,
-        EventType.DELIVERY_DELAYED.value,
         EventType.MATERIAL_LOW.value,
     }
-    assert any(
-        item.message_type == "supplier:submit_material_request" and item.status.value == "completed"
-        for item in actions
+    assert not any(
+        item.message_type == "supplier:submit_material_request"
+        for item in final_store.repository(OutboxMessage).list("prj_readiness123")
     )
 
 

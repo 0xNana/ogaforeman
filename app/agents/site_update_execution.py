@@ -70,7 +70,7 @@ class SiteUpdateEventExecutor:
     def __init__(
         self,
         store: RepositoryStore,
-        interpreter: SiteInterpreter,
+        interpreter: SiteInterpreter | None,
         settings: Settings,
         storage_adapter: StorageAdapter | None = None,
     ) -> None:
@@ -81,6 +81,7 @@ class SiteUpdateEventExecutor:
         self._state = SiteUpdateExecutionStateService(store)
 
     async def execute(self, event: ProjectEvent, *, claim_attempt: int) -> dict[str, Any]:
+        interpreter = self._require_interpreter()
         update, access, run = self._load_authorized_state(event)
         if (
             update.processing_status is ProcessingStatus.COMPLETED
@@ -123,7 +124,7 @@ class SiteUpdateEventExecutor:
         staged_result: SiteUpdateResult | None = None
         staged_output: dict[str, Any] | None = None
         service = SiteUpdateService(
-            interpreter=self._interpreter,
+            interpreter=interpreter,
             context_service=ContextService(ContextRepository(self._store)),
             task_tools=TaskTools(TaskService(self._store), access),
             material_tools=MaterialTools(MaterialService(self._store), access),
@@ -736,7 +737,7 @@ class SiteUpdateEventExecutor:
         if audio_parts:
             transcript_parts = [update.transcript] if update.transcript else []
             for audio in audio_parts:
-                transcript_parts.append(await self._interpreter.transcribe_audio(audio))
+                transcript_parts.append(await self._require_interpreter().transcribe_audio(audio))
             transcript = "\n".join(part.strip() for part in transcript_parts if part.strip())
             if len(transcript) > self._settings.max_event_text_chars:
                 raise ValueError("voice transcription exceeds the model text input limit")
@@ -754,6 +755,11 @@ class SiteUpdateEventExecutor:
                 attachment_ids=transcribed_ids,
             )
         return update, tuple(images)
+
+    def _require_interpreter(self) -> SiteInterpreter:
+        if self._interpreter is None:
+            raise RuntimeError("site update execution requires an interpreter")
+        return self._interpreter
 
     def _record_media_processed(
         self,

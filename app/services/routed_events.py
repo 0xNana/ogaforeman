@@ -314,25 +314,26 @@ class TypedEventService:
             now = datetime.now(UTC)
             run_repo = AgentRunRepository.for_session(session)
             run = run_repo.get(project_id, run_id)
+            should_create = False
+            should_save = False
             activity_phase: str | None = None
             activity_action: str | None = None
             activity_summary: str | None = None
             if run is None:
-                run = run_repo.create(
-                    AgentRun(
-                        id=run_id,
-                        project_id=project_id,
-                        trigger_event_id=trigger_event_id,
-                        workflow=workflow,
-                        trace_id=trace_id,
-                        adk_session_id=f"event-{trigger_event_id}",
-                        adk_invocation_id=trigger_event_id,
-                        adk_workflow_id=workflow.value,
-                        status=AgentRunStatus.RUNNING,
-                        started_at=now,
-                        updated_at=now,
-                    )
+                run = AgentRun(
+                    id=run_id,
+                    project_id=project_id,
+                    trigger_event_id=trigger_event_id,
+                    workflow=workflow,
+                    trace_id=trace_id,
+                    adk_session_id=f"event-{trigger_event_id}",
+                    adk_invocation_id=trigger_event_id,
+                    adk_workflow_id=workflow.value,
+                    status=AgentRunStatus.RUNNING,
+                    started_at=now,
+                    updated_at=now,
                 )
+                should_create = True
                 activity_phase = "started"
                 activity_action = "agent_run.started"
                 activity_summary = "Started an agent workflow run."
@@ -342,7 +343,7 @@ class TypedEventService:
                 AgentRunStatus.WAITING_FOR_CLARIFICATION,
             }:
                 run = run.model_copy(update={"status": AgentRunStatus.RUNNING, "updated_at": now})
-                run = run_repo.save(run, expected_version=run.version)
+                should_save = True
                 activity_phase = "resumed"
                 activity_action = "agent_run.resumed"
                 activity_summary = "Resumed an agent workflow run."
@@ -357,18 +358,30 @@ class TypedEventService:
                         "updated_at": now,
                     }
                 )
-                run = run_repo.save(run, expected_version=run.version)
+                should_save = True
                 activity_phase = "retried"
                 activity_action = "agent_run.retried"
                 activity_summary = "Retried a failed agent workflow run."
+            activity: ActivityEvent | None = None
+            existing_activity: ActivityEvent | None = None
             if activity_phase and activity_action and activity_summary:
-                self._record_run_activity(
-                    session,
+                activity = self._build_run_activity(
                     run,
                     phase=activity_phase,
                     action=activity_action,
                     summary=activity_summary,
                 )
+                existing_activity = session.repository(ActivityEvent).get(
+                    run.project_id, activity.id
+                )
+                if existing_activity is not None:
+                    ActivityRepository.ensure_replay_matches(existing_activity, activity)
+            if should_create:
+                run = run_repo.create(run)
+            elif should_save:
+                run = run_repo.save(run, expected_version=run.version)
+            if activity is not None and existing_activity is None:
+                session.repository(ActivityEvent).create(activity)
             return run
 
         return AgentRunRepository(self._store).run_transaction(_start)
@@ -384,14 +397,18 @@ class TypedEventService:
                     "updated_at": datetime.now(UTC),
                 }
             )
-            saved = run_repo.save(run, expected_version=run.version)
-            self._record_run_activity(
-                session,
-                saved,
+            activity = self._build_run_activity(
+                run,
                 phase="paused",
                 action="agent_run.paused",
                 summary="Paused an agent workflow run for approval.",
             )
+            existing_activity = session.repository(ActivityEvent).get(project_id, activity.id)
+            if existing_activity is not None:
+                ActivityRepository.ensure_replay_matches(existing_activity, activity)
+            saved = run_repo.save(run, expected_version=run.version)
+            if existing_activity is None:
+                session.repository(ActivityEvent).create(activity)
             return saved
 
         return AgentRunRepository(self._store).run_transaction(_pause)
@@ -410,14 +427,18 @@ class TypedEventService:
                     "updated_at": completed_at,
                 }
             )
-            saved = run_repo.save(run, expected_version=run.version)
-            self._record_run_activity(
-                session,
-                saved,
+            activity = self._build_run_activity(
+                run,
                 phase="completed",
                 action="agent_run.completed",
                 summary="Completed an agent workflow run.",
             )
+            existing_activity = session.repository(ActivityEvent).get(project_id, activity.id)
+            if existing_activity is not None:
+                ActivityRepository.ensure_replay_matches(existing_activity, activity)
+            saved = run_repo.save(run, expected_version=run.version)
+            if existing_activity is None:
+                session.repository(ActivityEvent).create(activity)
             return saved
 
         return AgentRunRepository(self._store).run_transaction(_complete)
@@ -440,29 +461,32 @@ class TypedEventService:
                     "updated_at": completed_at,
                 }
             )
-            saved = run_repo.save(run, expected_version=run.version)
-            self._record_run_activity(
-                session,
-                saved,
-                phase=f"failed-{saved.attempt}",
+            activity = self._build_run_activity(
+                run,
+                phase=f"failed-{run.attempt}",
                 action="agent_run.failed",
                 summary="An agent workflow run failed.",
                 error_code=error_code,
             )
+            existing_activity = session.repository(ActivityEvent).get(project_id, activity.id)
+            if existing_activity is not None:
+                ActivityRepository.ensure_replay_matches(existing_activity, activity)
+            saved = run_repo.save(run, expected_version=run.version)
+            if existing_activity is None:
+                session.repository(ActivityEvent).create(activity)
             return saved
 
         return AgentRunRepository(self._store).run_transaction(_fail)
 
     @staticmethod
-    def _record_run_activity(
-        session: RepositorySession,
+    def _build_run_activity(
         run: AgentRun,
         *,
         phase: str,
         action: str,
         summary: str,
         error_code: str | None = None,
-    ) -> None:
+    ) -> ActivityEvent:
         context = MutationContext(
             project_id=run.project_id,
             actor_type=ActorType.SYSTEM,
@@ -478,7 +502,7 @@ class TypedEventService:
         }
         if error_code is not None:
             metadata["error_code"] = error_code
-        activity = ActivityRepository.build_event(
+        return ActivityRepository.build_event(
             context,
             ActivitySpec(
                 action=action,
@@ -488,12 +512,6 @@ class TypedEventService:
                 metadata=metadata,
             ),
         )
-        repository = session.repository(ActivityEvent)
-        existing = repository.get(run.project_id, activity.id)
-        if existing is None:
-            repository.create(activity)
-        else:
-            ActivityRepository.ensure_replay_matches(existing, activity)
 
     def _execute_route(
         self,
