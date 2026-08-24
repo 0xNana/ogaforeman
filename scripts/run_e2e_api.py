@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import os
 from collections.abc import Mapping, Sequence
-from contextvars import ContextVar
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
