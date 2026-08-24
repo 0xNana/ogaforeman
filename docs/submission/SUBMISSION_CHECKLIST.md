@@ -6,9 +6,6 @@ Submission deadline: **August 31, 2026 at 5:00 PM Pacific Time**
 This is a release gate, not a list of aspirations. Check an item only when the
 current submitted commit and deployed revision have direct evidence.
 
-> Prize clarification: the official Taskmaster category prize is **$20,000**,
-> not $30,000. The Individual/Hobbyist prize is $10,000, but a project can win
-> at most one prize; the two cannot be stacked. The Grand Prize is $50,000.
 
 ## Stage One: mandatory pass/fail
 
@@ -26,7 +23,7 @@ current submitted commit and deployed revision have direct evidence.
   `DEMO_MODE=false`, Vertex AI model access, and durable Vertex AI ADK sessions.
 - [ ] Public hosted URL works in a signed-out browser, and a judge can create a
   free account, initialize a synthetic project, and complete the authenticated
-  workflow without owner-provided credentials.
+  workflow without private credentials.
 - [ ] Self-service signup and project creation are verified from a fresh
   signed-out browser profile.
 - [x] English is supported by the application and submission documents.
@@ -50,7 +47,7 @@ current submitted commit and deployed revision have direct evidence.
 - [ ] Hosted app, repository, credentials, media, and dependencies will remain
   available without charge or restriction through October 1, 2026.
 - [ ] Devpost preview is reviewed after saving; every URL opens in a signed-out
-  browser and no placeholder or `SUBMISSION BLOCKER` remains.
+  browser and no placeholder remains.
 
 ## Taskmaster fit: Innovation and Operational Utility, 40%
 
@@ -97,7 +94,7 @@ current submitted commit and deployed revision have direct evidence.
   in competition evidence.
 - [ ] Live Google Chat gate records one real external message plus its persisted
   outbox/provider outcome without exposing the webhook URL.
-- [ ] Final owner-run artifacts prove those nodes executed, delivery outcomes
+- [ ] Final evidence proves those nodes executed, delivery outcomes
   occurred once, and a live project answer came from Gemini over authorized
   context rather than a deterministic response template.
 - [ ] Private media is verified from Cloud Storage; the browser preview or

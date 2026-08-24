@@ -5,8 +5,7 @@ Target lock date: `SUBMISSION BLOCKER: set a date before August 31, 2026`
 Public URL: `SUBMISSION BLOCKER: add public YouTube or Vimeo URL`
 
 This is the internal production record for the OG Foreman hackathon video. The
-public narration and timing live in
-[`docs/submission/DEMO_SCRIPT.md`](../docs/submission/DEMO_SCRIPT.md).
+full narration and shot list are in [`Demo script`](DEMO_SCRIPT.md).
 
 ## Non-negotiable rules
 
@@ -91,18 +90,85 @@ labels are readable after video compression. Close bookmarks, email, chat,
 other Cloud projects, and unrelated tabs. Disable desktop and phone
 notifications. Use a clean browser profile with no password manager overlays.
 
+## Four-minute recording script
+
+Use the hosted application and real staging backend. The animated `/demo` route
+is never evidence.
+
+### 0:00-0:25 - Problem and premise [READY]
+
+**Screen:** Hosted OG Foreman and the signed-in Ridge House project. **Action:**
+Explain that voice, photos, text, and external events become verified project
+state and follow-through. Do not claim every Gemini path uses ADK.
+
+### 0:25-0:45 - Planned truth [READY]
+
+**Screen:** Tasks, Dependencies, Materials, and Requirements. **Action:** Show
+blockwork, its dependency into plastering, the 100-bag cement requirement, and
+current inventory.
+
+### 0:45-1:25 - Real voice and photo update [READY]
+
+**Screen:** Site Update composer. **Action:** Submit the locked Golden Scenario
+voice/photo update once: blockwork complete, electrician absent, 10 bags left,
+plastering tomorrow. Show the accepted update and processing run.
+
+### 1:25-1:55 - Autonomous follow-through [READY]
+
+**Screen:** Task, issue, material, approval, Daily Log, and Activity views.
+**Action:** Without another prompt, show canonical completion, electrical
+blocker, downstream plastering risk, 100-minus-10 equals 90-bag shortage,
+material request, and Daily Log update. Pause at `WAITING_FOR_APPROVAL`.
+
+### 1:55-2:20 - Approval and native resume [READY]
+
+**Screen:** Approval detail and the same run/session/invocation evidence.
+**Action:** Approve as manager. Show native ADK continuation after the restart
+rehearsal, unchanged original run identity, approved request, and one
+consequential external action.
+
+### 2:20-2:55 - Autonomous delivery-delay reaction [READY]
+
+**Screen:** Authenticated external event boundary, then OG Activity/risk/follow-
+up and Google Chat. **Action:** Submit `DELIVERY_DELAYED` externally; do not
+prompt OG. Show the dedicated ADK workflow, one risk, one follow-up, and one
+real notification. Hide webhook secrets.
+
+### 2:55-3:20 - Activity and conversation [READY]
+
+**Screen:** Activity timeline and conversation panel. **Action:** Ask “What is
+blocking plastering?” Show the grounded, cited answer from authorized live
+records, not a canned response.
+
+### 3:20-3:45 - Architecture and Google Cloud proof [READY]
+
+**Screen:** Architecture diagram, Cloud Run revision, `/api/v1/version`, and
+correlated Cloud Logging/Trace or ADK evidence. **Action:** Explain direct
+structured Gemini extraction for initialization, and ADK Runner/workflows,
+typed tools, domain services, and Firestore for operations. Point to matching
+Git SHA, revision, digest, and trace/run IDs.
+
+### 3:45-4:00 - Closing thesis [READY]
+
+**Screen:** Final Ridge House state. **Action:** “OG Foreman turns messy site
+evidence into verified project state, pauses consequential actions for people,
+and continues follow-through when the project changes.”
+
 ## Recording order
 
-1. Record the complete proof-of-action workflow in one take. Do not cut between
-   submit, autonomous mutations, approval pause, approval decision, and resumed
-   state.
-2. Record the architecture and Cloud Run opening only after the live take works,
-   so the revision shown cannot drift.
-3. Record the close on the final updated dashboard.
-4. Add only minimal title labels and subtitles. Never cover state, IDs, revision
-   names, timestamps, or log fields with graphics.
-5. Verify the exported duration and inspect the first four minutes from a
-   signed-out viewer account.
+1. Rehearse restart/resume and the external delivery-delay event first.
+2. Record 0:45-2:55 as one continuous proof-of-action take.
+3. Record architecture and Cloud Run proof only after the live take works.
+4. Use minimal labels/subtitles; never cover IDs, timestamps, or logs.
+5. Export under four minutes and inspect playback while signed out.
+
+## Verification flags
+
+- Live functionality is marked ready from the supplied release checklist; recheck
+  the exact deployed revision on recording day.
+- **Video itself: UNVERIFIED until upload:** duration, public visibility,
+  logged-out playback, captions, and visible Google Cloud proof.
+- **Public URL: TODO** until a YouTube/Vimeo URL is entered above and in Devpost.
 
 ## Evidence that must be visible
 

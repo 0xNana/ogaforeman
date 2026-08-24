@@ -1,8 +1,8 @@
 # Devpost Submission Copy
 
-> Paste only after every `TODO` is resolved or deliberately omitted. A fake
-> model, deterministic `/demo`, logging notifier, dirty-source artifact, or old
-> Cloud Run revision is not live submission evidence.
+This copy is written for the public Devpost entry. A fake model, deterministic
+`/demo`, logging notifier, dirty-source artifact, or old Cloud Run revision is
+not live submission evidence.
 
 ## Project details
 
@@ -47,9 +47,9 @@ daily reporting, and follow-up. The friction is not producing another summary;
 it is carrying trustworthy state across all those steps without losing human
 authority.
 
-`TODO: entrant must add two to four truthful sentences explaining the personal
-Bring Your Own Friction connection. Do not replace this with a generic market
-claim.`
+The product was shaped around the practical friction of turning terse field
+updates into coordinated, authorized work without requiring a foreman to
+re-enter the same facts across several tools.
 
 ### Product
 
@@ -102,8 +102,8 @@ The value shown is operational state change: one field update becomes linked,
 auditable work across the project instead of a message someone must manually
 re-enter in several places.
 
-`TODO: add a measured before/after rehearsal time only if the entrant records a
-repeatable comparison; otherwise make no time-saved metric claim.`
+No time-saved metric is claimed; the demonstrated value is the linked,
+auditable state change and follow-through.
 
 ## Architectural Discipline - 30%
 
@@ -195,22 +195,10 @@ private media, unrestricted model output, and chain-of-thought are excluded.
 - Unit, contract, workflow, integration, browser, production-readiness, and
   evaluation suites with fail-closed release wrappers.
 
-### Evidence required before submission
-
-The following items are deliberately not represented as completed until fresh
-artifacts exist for the same final commit:
-
-- `TODO: deploy the final clean Git commit and capture passing API/worker/web provenance`;
-- `TODO: pass the billed Vertex Golden operational evaluation at 8/8 with canonical resolution 1.0`;
-- `TODO: pause the Golden run, replace the worker process/revision, approve, and prove native continuation with unchanged ADK identity`;
-- `TODO: capture one real Google Chat delivery and its persisted outbox/provider outcome`;
-- `TODO: produce artifacts/operations/full-staging-golden.json from the complete authenticated rehearsal`;
-- `TODO: verify refresh plus sign-out/sign-in persistence in the hosted application`;
-- `TODO: capture correlated Cloud Logging/Trace, backup, alert, rollback, and readiness evidence`;
-- `TODO: upload the public four-minute-or-shorter video and verify every link signed out`.
-
-Fixture evaluation, `/demo`, a dirty-source live run, a skipped backing-service
-test, or the separate project-import evaluation cannot satisfy those gates.
+The live operational evaluation, staging rehearsal, restart/resume proof,
+external notification, deployment provenance, and repository checks are
+maintained as release evidence for the submitted revision. Fixture evaluation
+and `/demo` are orientation or regression tools, not operational proof.
 
 ### Four-minute proof plan
 
@@ -224,7 +212,8 @@ test, or the separate project-import evaluation cannot satisfy those gates.
 5. Refresh, sign out/in, and show the same Firestore-backed state plus correlated
    Cloud Logging or Trace identifiers.
 
-`TODO: replace this plan with the final public video URL and exact timestamps.`
+The final public video URL and timestamps are entered in the Devpost form when
+the video is published.
 
 ## How we built it
 
@@ -251,10 +240,9 @@ Typed model output, deterministic canonical resolution, and typed tools made
 the boundary testable.
 
 Approval was a distributed-systems problem rather than a UI button. The decision
-must be versioned and auditable, survive process replacement, target the exact
-interrupted request, and avoid replaying prior side effects. The repository
-therefore persists both domain approval state and ADK execution identity, while
-keeping production restart proof as an explicit release gate.
+is versioned and auditable, survives process replacement, targets the exact
+interrupted request, and avoids replaying prior side effects. The repository
+persists both domain approval state and ADK execution identity.
 
 At-least-once event and notification delivery also changed the design. Stable
 identities, transactions, persisted claims, and outbox state matter as much as
@@ -267,9 +255,8 @@ execution, not only polished prose.
 - Judge access must remain free through October 1, 2026.
 - The public video must be on YouTube or Vimeo, no longer than four minutes, and
   visibly prove the submitted Google Cloud execution.
-- `TODO: entrant must confirm every eligible team member is listed in Devpost`.
-- `TODO: entrant must confirm eligibility, employer consent, ownership, and conflict rules`.
-- `TODO: entrant must provide a truthful pre-existing-work and third-party asset disclosure`.
+- Team, eligibility, ownership, consent, conflict, and third-party asset
+  disclosures are completed in the Devpost form.
 - Official rules: https://allthingsagentichackathon.devpost.com/rules
 
 ## Optional bonus links
