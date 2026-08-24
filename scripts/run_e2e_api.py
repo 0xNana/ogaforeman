@@ -601,7 +601,7 @@ def create_app() -> FastAPI:
                 requires_project_context=True,
                 requires_mutation=True,
                 reason_code="e2e_site_update_voice",
-            )
+            ),
         }
     )
     signing_key = runtime.settings.conversation_proposal_signing_key
