@@ -19,8 +19,7 @@ This directory contains the public product, architecture, contract, operations, 
 13. [DEPLOYMENT.md](DEPLOYMENT.md) - local environments, Google Cloud resources, CI/CD, and rollback.
 14. [OPERATIONS.md](OPERATIONS.md) - observability, alerts, failure recovery, and support procedures.
 15. [Submission package](submission/ARCHITECTURE.md) - hackathon architecture,
-production agent inventory, Devpost copy, demo script, judge testing
-instructions, and final checklist.
+production agent inventory, Devpost copy, and judge testing instructions.
 The executable plan and implementation checklist are maintained separately from this public contract index.
 
 ## Canonical Ownership

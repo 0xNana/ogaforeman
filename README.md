@@ -406,5 +406,5 @@ evals/                     versioned extraction and conversation datasets
 infra/                     Google Cloud deployment, monitoring, rollback
 scripts/                   evaluation, smoke, backup, repair, evidence tooling
 docs/                      product, architecture, API, security, operations
-docs/submission/           Devpost copy, architecture, demo, testing, release gates
+docs/submission/           Devpost copy, architecture, demo, and testing
 ```

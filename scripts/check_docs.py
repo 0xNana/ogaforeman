@@ -27,9 +27,9 @@ REQUIRED_RELEASE_PATHS = (
     "docs/submission/architecture-diagram.svg",
     "docs/submission/AGENT_INVENTORY.md",
     "docs/submission/DEVPOST.md",
-    "docs/submission/DEMO_SCRIPT.md",
+    "internal-docs/DEMO_SCRIPT.md",
     "docs/submission/TESTING.md",
-    "docs/submission/SUBMISSION_CHECKLIST.md",
+    "internal-docs/SUBMISSION_CHECKLIST.md",
     "internal-docs/video.md",
 )
 
