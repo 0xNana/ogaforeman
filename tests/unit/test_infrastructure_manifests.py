@@ -472,6 +472,7 @@ def test_firebase_manifest_deploys_deny_by_default_firestore_rules_and_indexes()
             "fields": [
                 {"fieldPath": "status", "order": "ASCENDING"},
                 {"fieldPath": "user_id", "order": "ASCENDING"},
+                    {"fieldPath": "created_at", "order": "DESCENDING"},
             ],
             "density": "SPARSE_ALL",
         }

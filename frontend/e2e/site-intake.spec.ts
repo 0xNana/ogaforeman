@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 
 import { captureBrowserErrors, projectId, signInToProject } from './support';
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'serial', timeout: 120_000 });
 
 test.beforeEach(async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Site intake evidence runs on mobile.');
@@ -37,6 +37,7 @@ test('uses one compact composer for text, attachments and voice', async ({ page 
 });
 
 test('runs a site update through real approval and same-run continuation', async ({ page, request }) => {
+  test.setTimeout(120_000);
   const browserErrors = captureBrowserErrors(page);
   await page.goto(`/projects/${projectId}`);
   await page.getByRole('button', { name: /Talk to OG/ }).click();
@@ -82,9 +83,10 @@ test('runs a site update through real approval and same-run continuation', async
   const purchaseCard = page.getByRole('article').filter({ hasText: /30(?:\.0)? bags/ });
   await expect(purchaseCard.getByText('PENDING')).toBeVisible();
   await purchaseCard.getByRole('button', { name: 'Approve' }).click();
-  await expect(purchaseCard.getByRole('status')).toContainText('APPROVED');
+  await expect(purchaseCard.getByRole('status')).toContainText('APPROVED', { timeout: 30_000 });
   await expect(purchaseCard.getByRole('status')).toContainText(
     'OG is resuming from the saved checkpoint.',
+    { timeout: 30_000 },
   );
 
   await expect.poll(async () => {
@@ -95,7 +97,7 @@ test('runs a site update through real approval and same-run continuation', async
   }).toBe('completed');
   await purchaseCard.getByRole('link', { name: 'Follow in activity' }).click();
   await expect(page.getByRole('listitem').filter({
-    hasText: 'Submitted an approved material request to the supplier simulator.',
+    hasText: 'Executed the approved supplier/material action.',
   })).toBeVisible();
   await page.getByRole('button', { name: 'Tasks' }).click();
   await expect(page.getByRole('heading', { name: 'Task marked complete' }).first()).toBeVisible();

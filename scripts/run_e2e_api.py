@@ -158,21 +158,16 @@ class LocalE2EStorage:
 class DeterministicE2ESiteInterpreter:
     """Deterministic substitute for Gemini at the external model boundary only."""
 
-    voice_transcript = (
-        "First-floor blockwork is complete. The electrician did not come today. "
-        "We have 10 bags of cement left. Plastering starts tomorrow."
-    )
+    voice_transcript = "Plastering starts tomorrow."
 
     def __init__(self) -> None:
         self.transcription_calls: list[MediaEvidence] = []
         self.fact_calls: list[tuple[str, tuple[MediaEvidence, ...], str]] = []
-        self._audio_input: ContextVar[bool] = ContextVar("e2e_audio_input", default=False)
 
     async def transcribe_audio(self, media: MediaEvidence) -> str:
         if not media.data:
             raise RuntimeError("the deterministic model received empty audio")
         self.transcription_calls.append(media)
-        self._audio_input.set(True)
         return self.voice_transcript
 
     async def extract_facts(
@@ -194,8 +189,7 @@ class DeterministicE2ESiteInterpreter:
                     )
                 ]
             )
-        if self._audio_input.get():
-            self._audio_input.set(False)
+        if text == self.voice_transcript:
             return ExtractedFactSet(
                 next_focus=[
                     NextFocusFact(
@@ -600,6 +594,13 @@ def create_app() -> FastAPI:
                 requires_project_context=True,
                 requires_mutation=True,
                 reason_code="e2e_site_update",
+            ),
+            "Plastering starts tomorrow.": IntentDecision(
+                intent=IntentType.SITE_UPDATE,
+                confidence=1,
+                requires_project_context=True,
+                requires_mutation=True,
+                reason_code="e2e_site_update_voice",
             )
         }
     )

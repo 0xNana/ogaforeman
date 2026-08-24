@@ -24,6 +24,7 @@ class FirestoreProjectService:
             self._client.collection_group("members")
             .where(filter=FieldFilter("user_id", "==", actor.user_id))
             .where(filter=FieldFilter("status", "==", MemberStatus.ACTIVE.value))
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
             .limit(100)
             .stream()
         )

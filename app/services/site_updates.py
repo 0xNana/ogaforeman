@@ -190,12 +190,10 @@ class SiteUpdateService:
                     if result.resolved_entity is not None
                 ],
                 "creatable_count": sum(
-                    result.confidence is MatchConfidence.UNKNOWN
-                    for result in material_results
+                    result.confidence is MatchConfidence.UNKNOWN for result in material_results
                 ),
                 "ambiguous_count": sum(
-                    result.confidence is MatchConfidence.AMBIGUOUS
-                    for result in material_results
+                    result.confidence is MatchConfidence.AMBIGUOUS for result in material_results
                 ),
             },
             "next_focus": {

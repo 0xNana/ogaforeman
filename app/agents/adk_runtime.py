@@ -345,19 +345,11 @@ def build_site_update_workflow(
         name=AdkNodeId.RESOLVE_CANONICAL_ENTITIES,
         timeout=timeout_seconds,
     )
-    progress = FunctionNode(
-        func=progress_node, name=AdkNodeId.PROGRESS, timeout=timeout_seconds
-    )
-    blocker = FunctionNode(
-        func=blocker_node, name=AdkNodeId.BLOCKER, timeout=timeout_seconds
-    )
-    material = FunctionNode(
-        func=material_node, name=AdkNodeId.MATERIAL, timeout=timeout_seconds
-    )
+    progress = FunctionNode(func=progress_node, name=AdkNodeId.PROGRESS, timeout=timeout_seconds)
+    blocker = FunctionNode(func=blocker_node, name=AdkNodeId.BLOCKER, timeout=timeout_seconds)
+    material = FunctionNode(func=material_node, name=AdkNodeId.MATERIAL, timeout=timeout_seconds)
     branch_join = JoinNode(name=AdkNodeId.MERGE_BRANCH_RESULTS)
-    merge = FunctionNode(
-        func=merge_actions, name=AdkNodeId.MERGE_ACTIONS, timeout=timeout_seconds
-    )
+    merge = FunctionNode(func=merge_actions, name=AdkNodeId.MERGE_ACTIONS, timeout=timeout_seconds)
     policy = FunctionNode(
         func=evaluate_policy, name=AdkNodeId.EVALUATE_POLICY, timeout=timeout_seconds
     )

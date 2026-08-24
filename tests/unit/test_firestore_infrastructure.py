@@ -99,19 +99,19 @@ def test_demo_environment_is_local_or_test_only(monkeypatch: pytest.MonkeyPatch)
                 pubsub_site_events_topic="site-events",
                 pubsub_dead_letter_topic="dead-letter",
                 pubsub_worker_subscription="worker",
-                    gemini_model_id="gemini-test",
-                    gemini_location="global",
-                    conversation_proposal_signing_key="a" * 32,
-                    notification_provider="google_chat",
-                    google_chat_webhook_url=(
-                        "https://chat.googleapis.com/v1/spaces/AAAA/messages?"
-                        "key=test-key&token=test-token"
-                    ),
-                    public_app_base_url="https://oga-staging.web.app",
-                    adk_agent_engine_id="4706041708276613120",
-                    app_git_sha="b" * 40,
-                    app_build_time="2026-08-23T14:05:06Z",
-                    auth_issuer="https://issuer.example",
+                gemini_model_id="gemini-test",
+                gemini_location="global",
+                conversation_proposal_signing_key="a" * 32,
+                notification_provider="google_chat",
+                google_chat_webhook_url=(
+                    "https://chat.googleapis.com/v1/spaces/AAAA/messages?"
+                    "key=test-key&token=test-token"
+                ),
+                public_app_base_url="https://oga-staging.web.app",
+                adk_agent_engine_id="4706041708276613120",
+                app_git_sha="b" * 40,
+                app_build_time="2026-08-23T14:05:06Z",
+                auth_issuer="https://issuer.example",
                 auth_audience="oga-staging",
                 cors_allowed_origins=("https://oga-staging.web.app",),
             )

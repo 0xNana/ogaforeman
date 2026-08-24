@@ -483,7 +483,9 @@ class TaskService:
             raise TaskStateError("delivery follow-up source issue must be a delay risk")
         if command.source_event_id not in issue.evidence_refs:
             raise TaskStateError("delivery follow-up issue must reference the delivery event")
-        affected = [tasks.require(command.project_id, task_id) for task_id in command.affected_task_ids]
+        affected = [
+            tasks.require(command.project_id, task_id) for task_id in command.affected_task_ids
+        ]
         if set(command.affected_task_ids) - set(issue.task_ids):
             raise TaskStateError("delivery follow-up tasks must be referenced by the risk issue")
         primary = affected[0] if affected else None
