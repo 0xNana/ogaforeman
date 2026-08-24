@@ -17,7 +17,12 @@ export function ApprovalList({ approvals: initialApprovals, followUps, projectId
   const [resolvedApprovals, setResolvedApprovals] = useState<Record<string, Approval>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const approvals = initialApprovals.map((approval) => resolvedApprovals[approval.id] ?? approval);
+  const approvals = [
+    ...initialApprovals.map((approval) => resolvedApprovals[approval.id] ?? approval),
+    ...Object.values(resolvedApprovals).filter(
+      (approval) => !initialApprovals.some((item) => item.id === approval.id),
+    ),
+  ];
   const pendingCount = approvals.filter((approval) => approval.status === 'PENDING').length;
   const waitingCount = pendingCount + followUps.length;
 
