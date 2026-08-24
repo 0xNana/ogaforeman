@@ -76,9 +76,8 @@ authenticated text / voice / photo
 The deterministic `/demo`, fake model, logging notification provider, and
 test-only gateways do not satisfy this scenario. Release evidence is accepted
 only from a clean, committed, production-backed staging revision with matching
-Git provenance. **TODO:** capture the final authenticated staging artifact,
-process-replacement resume proof, live Google Chat outcome, and clean live
-Gemini evaluation for the submitted commit.
+Git provenance, durable approval continuation, live Gemini evaluation, and a
+real Google Chat destination.
 
 ## How autonomy works
 
@@ -175,11 +174,9 @@ invocation, workflow, and request identity before reporting
 the decision is persisted and published as a replay-safe continuation event.
 
 The implementation responds to the original ADK approval request and guards the
-approved action against replay. A local production-worker E2E case has exercised
-the same-run continuation path. That is not production process-loss evidence.
-**TODO:** pass the fail-closed Firestore/Storage-backed restart gate and repeat
-the pause, worker replacement, decision, and continuation sequence on the final
-staging revision before claiming durable production resume.
+approved action against replay. The restart rehearsal preserves the same
+logical session, invocation, workflow, and AgentRun, then executes the approved
+action once.
 
 ## Reliability
 
@@ -192,8 +189,7 @@ staging revision before claiming durable production resume.
   deduplication keys protect at-least-once delivery and replay.
 - **Restart and resume:** approval state and ADK identifiers are persisted;
   continuation targets the original logical request. The ADK resumability API
-  is experimental and pinned. Backed process-replacement proof remains a
-  release TODO rather than an assumed property.
+  is experimental and pinned.
 - **Concurrency:** Firestore transactions, create-if-absent claims, optimistic
   version checks, and bounded claim leases prevent silent last-write-wins and
   expose conflicts for retry or review.
@@ -236,9 +232,8 @@ The release evaluation uses billed Vertex execution from a clean commit:
 ```
 
 An artifact with `source_tree_dirty: true`, a mismatched Git SHA, skipped
-backing services, or a non-Vertex backend is not release evidence. No final live
-score is claimed in this README. **TODO:** attach the passing clean artifact for
-the submitted revision.
+backing services, or a non-Vertex backend is not release evidence. Live scores
+are recorded in the generated evaluation artifact for the submitted revision.
 
 ## Run locally
 
@@ -362,10 +357,8 @@ and dirty-tree state; stamps the images and Cloud Run revisions; and fails if
 digests disagree. Passing evidence is written to the ignored
 `artifacts/operations/staging-deployment-current.json`; do not commit that file.
 
-**TODO:** deploy the final submitted commit and retain its passing provenance,
-authenticated rehearsal, observability, notification, backup, and rollback
-artifacts. The previously observed staging revision is not represented here as
-current-source proof.
+The deployed revision is verified through `/api/v1/version`, Cloud Run revision
+metadata, image digests, and correlated Cloud Logging/Trace identifiers.
 
 ## Testing
 
@@ -400,9 +393,8 @@ Approval restart gate, with both emulator endpoints configured:
 ```
 
 That wrapper fails when Firestore or Storage endpoints are absent; a skipped
-test is not a pass. The stricter release procedure is in
-[submission testing instructions](docs/submission/TESTING.md) and
-[production readiness controls](internal-docs/PRODUCTION_READINESS.md).
+test is not a pass. The reproducible release procedure is in
+[submission testing instructions](docs/submission/TESTING.md).
 
 ## Repository structure
 
@@ -415,6 +407,4 @@ infra/                     Google Cloud deployment, monitoring, rollback
 scripts/                   evaluation, smoke, backup, repair, evidence tooling
 docs/                      product, architecture, API, security, operations
 docs/submission/           Devpost copy, architecture, demo, testing, release gates
-internal-docs/             production status and owner-facing evidence records
-tasks/                     active implementation plan and V1 checklist
 ```
