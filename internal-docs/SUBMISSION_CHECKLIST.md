@@ -1,10 +1,14 @@
 # All Things Agentic Submission Checklist
 
-Status date: **August 23, 2026**
+Status date: **August 25, 2026**
 Submission deadline: **August 31, 2026 at 5:00 PM Pacific Time**
 
 This is a release gate, not a list of aspirations. Check an item only when the
 current submitted commit and deployed revision have direct evidence.
+
+The only presentation script and recording plan is
+[`PRESENTATION.md`](PRESENTATION.md). The canonical project source is
+[`projects/ridge-house-plan.md`](projects/ridge-house-plan.md).
 
 
 ## Stage One: mandatory pass/fail
@@ -54,6 +58,9 @@ current submitted commit and deployed revision have direct evidence.
 - [ ] The Devpost story explains the entrant's truthful, personal "Bring Your
   Own Friction" connection rather than only a broad industry problem.
 - [ ] Video starts with the messy multi-step chore, not a technology list.
+- [ ] The PM imports the canonical Ridge House source, reviews Gemini's typed
+  draft, and confirms the exact task graph, inventory, and requirement without
+  reconstructing the project by hand.
 - [ ] One live input visibly causes multiple coordinated operational actions.
 - [ ] The agent does more than draft text: it changes tasks, blockers, material
   state, follow-up, reports, approvals, notifications, or audit state.
@@ -63,7 +70,7 @@ current submitted commit and deployed revision have direct evidence.
 - [ ] The video makes the time or coordination saved concrete.
 - [ ] A messy input includes a useful twist, such as multimodal evidence,
   ambiguous entity reference, negation, duplicate delivery, or delayed event.
-- [ ] The output is correct for the seeded ledger and task graph; no narrated
+- [ ] The output is correct for the imported ledger and task graph; no narrated
   result relies on hand-edited UI state.
 
 ## Architectural Discipline, 30%

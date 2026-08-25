@@ -45,6 +45,10 @@ tmp/
 # Local working documentation and task notes
 /internal-docs/*
 !/internal-docs/video.md
+!/internal-docs/PRESENTATION.md
+!/internal-docs/projects/
+/internal-docs/projects/*
+!/internal-docs/projects/ridge-house-plan.md
 /tasks/
 
 # Editors and operating systems

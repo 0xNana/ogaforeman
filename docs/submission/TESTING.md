@@ -16,10 +16,14 @@ site data.
 
 ## Golden Scenario
 
-1. Create a project with First-floor blockwork, Electrical rough-in, and
-   First-floor plastering. Add the dependency order, Cement Bags, and a
-   100-bag plastering requirement.
-2. Confirm the project overview shows the planned tasks and material ledger.
+1. Download
+   [`ridge-house-plan.md`](../../internal-docs/projects/ridge-house-plan.md),
+   select **New Project**, and upload the file.
+2. Review the extracted draft before confirmation. It must contain First-floor
+   blockwork, Electrical rough-in, First-floor plastering, their dependency
+   order, Cement Bags with 25 bags on hand, and a linked 100-bag plastering
+   requirement. Confirm the import and verify those records on the project
+   overview; do not recreate them manually.
 3. Open **Site update** and submit:
 
    ```text

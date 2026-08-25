@@ -201,9 +201,16 @@ Only these workflows are core V1 scope:
 
 ## Product Success Criteria
 
-The seeded demo statement is:
+The Golden demo starts when a project manager imports the canonical Ridge House
+plan through the reviewed project-initialization flow. The confirmed source
+must create First-floor blockwork, Electrical rough-in, First-floor plastering,
+their dependency order, Cement Bags with 25 bags on hand, and a linked 100-bag
+plastering requirement without manual project reconstruction.
 
-> First-floor blockwork is done. Electrician did not come. We have ten bags of cement left. Plastering is tomorrow.
+The field statement against that imported project is:
+
+> First-floor blockwork is complete. The electrician did not come today. We
+> have 10 bags of cement left. Plastering starts tomorrow.
 
 Without further prompting, the system must:
 
@@ -218,7 +225,9 @@ Without further prompting, the system must:
 9. return a concise confirmation describing what happened and what needs the manager;
 10. avoid duplicate mutations if the input event is delivered again.
 
-The end-to-end demo is complete only when approving the request resumes the same workflow and a later `DELIVERY_DELAYED` event updates risk without a chat prompt.
+The end-to-end demo is complete only when the import is reviewable and durable,
+approving the request resumes the same workflow, and a later `DELIVERY_DELAYED`
+event updates risk without a chat prompt.
 
 The demo is not a release-quality exception. The same scenario must pass the production release controls for durable state, duplicate suppression, approval restart/resume, canonical material identity, evidence-based extraction, authorization, auditability, and API-backed UI state.
 

@@ -73,17 +73,21 @@ OG supports four bounded workflows:
 
 ### Golden Scenario
 
-The demo project contains First-floor blockwork, Electrical rough-in,
-Plastering, their dependency relationships, a 100-bag cement requirement, and
-10 bags of inventory. The foreman submits:
+The project manager first uploads the canonical Ridge House plan already used
+by the team. Direct Gemini structured extraction produces a typed draft;
+deterministic validation and human review precede one typed Firestore commit.
+The confirmed project contains First-floor blockwork, Electrical rough-in,
+First-floor plastering, their dependency relationships, Cement Bags with 25 on
+hand, and a linked 100-bag plastering requirement. The foreman then submits:
 
 ```text
 First-floor blockwork is complete. The electrician did not come today. We have
 10 bags of cement left. Plastering starts tomorrow.
 ```
 
-One authenticated update enters the production event boundary. The Daily Site
-Update ADK workflow interprets the evidence, resolves canonical entities, fans
+The update changes stock from 25 to 10 bags. One authenticated update enters
+the production event boundary. The Daily Site Update ADK workflow interprets
+the evidence, resolves canonical entities, fans
 out progress/blocker/material analysis, completes blockwork, leaves electrical
 progress unchanged, creates the absence blocker and follow-up, records the 10
 bags, computes the 90-bag shortage, prepares the request, refreshes the Daily
