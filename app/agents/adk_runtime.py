@@ -11,8 +11,10 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from hashlib import sha256
 import inspect
 from pathlib import Path
+import re
 from threading import Lock
 from typing import Any
 
@@ -29,6 +31,32 @@ from app.agents.identifiers import AdkNodeId, AdkWorkflowId
 
 _SQLITE_SESSION_LOCKS: dict[str, Lock] = {}
 _SQLITE_SESSION_LOCKS_GUARD = Lock()
+_ADK_SESSION_NAMESPACE = re.compile(r"^[a-z](?:[a-z0-9-]{0,20}[a-z0-9])?$")
+
+
+def durable_adk_session_id(namespace: str, *identity_parts: str) -> str:
+    """Build a stable, project-scoped ID accepted by Vertex Agent Engine Sessions.
+
+    Vertex custom session IDs allow at most 63 lower-case letters, digits, and
+    hyphens. Canonical OG IDs contain underscores, so they must never be placed
+    directly in a managed session resource name.
+
+    Contract: https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/sessions/manage-sessions-api
+    """
+
+    if not _ADK_SESSION_NAMESPACE.fullmatch(namespace):
+        raise ValueError(
+            "ADK session namespace must be 1-22 lower-case letters, digits, or hyphens"
+        )
+    if not identity_parts or any(not part for part in identity_parts):
+        raise ValueError("ADK session identity parts must be non-empty")
+
+    digest = sha256()
+    for part in identity_parts:
+        encoded = part.encode("utf-8")
+        digest.update(len(encoded).to_bytes(4, byteorder="big"))
+        digest.update(encoded)
+    return f"{namespace}-{digest.hexdigest()[:40]}"
 
 
 class SiteUpdateWorkflowState(BaseModel):

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from app.agents.interpreter import FakeSiteInterpreter
+from app.agents.adk_runtime import durable_adk_session_id
 from app.agents.site_update_execution import SiteUpdateEventExecutor
 from app.config.settings import Settings
 from app.domain.enums import (
@@ -47,7 +48,7 @@ _RUN_ID = run_id_for_event(_SOURCE_EVENT_ID)
 _APPROVAL_ID = "app_adkresume123"
 _REQUEST_ID = "mrq_adkresume123"
 _APP_NAME = "agents-ogaforeman-cloud-2026"
-_SESSION_ID = f"{_RUN_ID}-attempt-1"
+_SESSION_ID = durable_adk_session_id("site-update", _PROJECT_ID, _RUN_ID, "1")
 
 
 @pytest.mark.asyncio

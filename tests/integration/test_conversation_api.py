@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 
 from app.agents.conversation import FakeIntentClassifier
+from app.agents.errors import AgentDependencyUnavailableError
 from app.domain.activity import MutationContext
 from app.api.errors import install_error_handlers
 from app.api.v1.router import api_router
@@ -409,6 +410,33 @@ async def test_product_help_needs_no_project_data_and_exposes_og_author() -> Non
     assert body["intent"] == "help"
     assert "type an update" in body["text"]
     assert body["mutation_performed"] is False
+
+
+@pytest.mark.asyncio
+async def test_agent_runtime_dependency_failure_returns_retryable_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, _store = make_app()
+    app.state.settings = app.state.settings.model_copy(update={"use_fake_model": False})
+
+    async def unavailable(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise AgentDependencyUnavailableError("Vertex session service rejected the request")
+
+    monkeypatch.setattr(
+        "app.api.v1.conversations.AdkConversationExecutor.execute_agentic",
+        unavailable,
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "what's the immediate schedule?"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "DEPENDENCY_UNAVAILABLE"
+    assert response.json()["error"]["message"] == "OG conversation is temporarily unavailable."
 
 
 @pytest.mark.asyncio

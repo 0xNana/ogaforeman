@@ -2,7 +2,22 @@
 
 ## Status date
 
-2026-08-23
+2026-08-25
+
+## P0 release stop - managed ADK session compatibility
+
+The staging conversation 500 was traced to a managed Vertex session resource
+name built from canonical OG IDs containing underscores. Vertex custom session
+IDs accept only lower-case letters, digits, and hyphens, so the ADK Runner's
+get-before-create path rejected the name before classification or project-context
+retrieval. All production ADK entrypoints now derive stable 63-character-safe
+session IDs from length-delimited SHA-256 identity parts. Conversation sessions
+include both project and canonical user identity; event and site-update sessions
+include project plus their durable event/run identity. Vertex API and timeout
+failures at the conversation boundary now return the safe retryable
+`DEPENDENCY_UNAVAILABLE` 503 envelope instead of a generic 500. Focused workflow,
+resume, API, Ruff, formatting, and app-wide mypy checks pass locally; authenticated
+staging smoke remains required after deployment.
 
 ## P0 release stop - live Golden operational eval
 

@@ -1,18 +1,22 @@
 from datetime import UTC, datetime
+import re
 from typing import Any
 
 import pytest
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
+from google.genai.errors import ClientError
 from google.genai import types
 
 from app.agents.adk_runtime import (
     SiteUpdateWorkflowHandlers,
     build_site_update_app,
     build_site_update_workflow,
+    durable_adk_session_id,
     session_app_name,
 )
 from app.agents.event_execution import AdkEventExecutor, build_delivery_delay_workflow
+from app.agents.errors import AgentDependencyUnavailableError
 from app.agents.conversation_execution import (
     AdkConversationExecutor,
     AgenticConversationHandlers,
@@ -123,6 +127,38 @@ def test_deployed_adk_namespace_survives_repository_reconstruction() -> None:
     settings.oga_env = RuntimeEnvironment.STAGING
     settings.google_cloud_project = "oga-project"
     assert session_app_name(settings, object()) == "agents-oga-project"
+
+
+def test_durable_adk_session_id_is_vertex_safe_stable_and_project_scoped() -> None:
+    first = durable_adk_session_id(
+        "conversation",
+        "prj_aeb99cd6a428d778fb1911e388ae63f4",
+        "usr_0123456789abcdef0123456789abcdef",
+    )
+
+    assert re.fullmatch(r"[a-z][a-z0-9-]{0,62}", first)
+    assert len(first) <= 63
+    assert first == durable_adk_session_id(
+        "conversation",
+        "prj_aeb99cd6a428d778fb1911e388ae63f4",
+        "usr_0123456789abcdef0123456789abcdef",
+    )
+    assert first != durable_adk_session_id(
+        "conversation",
+        "prj_other",
+        "usr_0123456789abcdef0123456789abcdef",
+    )
+    assert first != durable_adk_session_id(
+        "event",
+        "prj_aeb99cd6a428d778fb1911e388ae63f4",
+        "usr_0123456789abcdef0123456789abcdef",
+    )
+
+
+@pytest.mark.parametrize("namespace", ["", "Conversation", "conversation_", "a" * 23])
+def test_durable_adk_session_id_rejects_invalid_namespaces(namespace: str) -> None:
+    with pytest.raises(ValueError, match="namespace"):
+        durable_adk_session_id(namespace, "canonical_id")
 
 
 def test_delivery_delay_graph_exposes_context_impact_and_each_typed_tool() -> None:
@@ -361,7 +397,8 @@ async def test_agentic_conversation_uses_adk_runner_and_typed_tool_route(tmp_pat
         return {"_conversation_result": True, "kind": "done", "text": "done"}
 
     result = await AdkConversationExecutor(object(), settings).execute_agentic(
-        session_id="conversation-user_123",
+        user_id="usr_user123",
+        session_id=durable_adk_session_id("conversation", "prj_test123", "usr_user123"),
         invocation_id="invocation_123",
         message="What is the project status?",
         handlers=AgenticConversationHandlers(
@@ -375,3 +412,58 @@ async def test_agentic_conversation_uses_adk_runner_and_typed_tool_route(tmp_pat
 
     assert result["kind"] == "done"
     assert calls == ["classify", "context", "resolve", "tools"]
+
+
+@pytest.mark.asyncio
+async def test_agentic_conversation_translates_vertex_api_failure_to_dependency_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    class FailingRunner:
+        def __init__(self, **_kwargs: Any) -> None:
+            pass
+
+        async def run_async(self, **_kwargs: Any) -> Any:
+            raise ClientError(
+                400,
+                {
+                    "error": {
+                        "code": 400,
+                        "message": "Invalid Session resource name.",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            )
+            yield
+
+    monkeypatch.setattr("app.agents.conversation_execution.Runner", FailingRunner)
+    settings = Settings(
+        _env_file=None,
+        adk_session_backend="database",
+        adk_session_database_url=f"sqlite+aiosqlite:///{tmp_path / 'vertex-failure.db'}",
+    )
+
+    with pytest.raises(AgentDependencyUnavailableError) as captured:
+        await AdkConversationExecutor(object(), settings).execute_agentic(
+            user_id="usr_user123",
+            session_id=durable_adk_session_id("conversation", "prj_test123", "usr_user123"),
+            invocation_id="invocation_123",
+            message="What is the immediate schedule?",
+            handlers=AgenticConversationHandlers(
+                classify_intent=_unused_string_stage,
+                retrieve_authorized_context=_unused_dict_stage,
+                resolve_entities=_unused_dict_stage,
+                reason_over_context=_unused_dict_stage,
+                invoke_typed_tools=_unused_dict_stage,
+            ),
+        )
+
+    assert isinstance(captured.value.__cause__, ClientError)
+
+
+async def _unused_string_stage() -> str:
+    raise AssertionError("Vertex failed before executing the conversation graph")
+
+
+async def _unused_dict_stage() -> dict[str, object]:
+    raise AssertionError("Vertex failed before executing the conversation graph")

@@ -43,6 +43,7 @@ from app.domain.models import (
     ReportStatus,
     Task,
 )
+from app.agents.adk_runtime import durable_adk_session_id
 from app.domain.policies import ensure_material_request_transition
 from app.repositories.interfaces import EntityNotFoundError, RepositorySession, RepositoryStore
 from app.services.activity import ActivityService
@@ -326,7 +327,7 @@ class TypedEventService:
                     trigger_event_id=trigger_event_id,
                     workflow=workflow,
                     trace_id=trace_id,
-                    adk_session_id=f"event-{trigger_event_id}",
+                    adk_session_id=durable_adk_session_id("event", project_id, trigger_event_id),
                     adk_invocation_id=trigger_event_id,
                     adk_workflow_id=workflow.value,
                     status=AgentRunStatus.RUNNING,

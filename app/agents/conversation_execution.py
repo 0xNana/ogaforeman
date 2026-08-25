@@ -13,6 +13,7 @@ from google.adk.apps import App, ResumabilityConfig
 from google.adk.runners import Runner
 from google.adk.workflow import Edge, FunctionNode, START, Workflow
 from google.adk.agents.context import Context
+from google.genai.errors import APIError
 from google.genai import types
 
 from app.agents.adk_runtime import (
@@ -20,6 +21,7 @@ from app.agents.adk_runtime import (
     session_app_name,
     sqlite_session_execution_guard,
 )
+from app.agents.errors import AgentDependencyUnavailableError
 from app.agents.telemetry import run_adk_stage
 from app.agents.identifiers import AdkAgentId, AdkNodeId, AdkToolId, AdkWorkflowId
 from app.config.settings import Settings
@@ -162,6 +164,7 @@ class AdkConversationExecutor:
     async def execute_agentic(
         self,
         *,
+        user_id: str,
         session_id: str,
         invocation_id: str,
         message: str,
@@ -176,23 +179,35 @@ class AdkConversationExecutor:
             resumability_config=ResumabilityConfig(is_resumable=True),
         )
         result: dict[str, Any] | None = None
-        async with (
-            managed_session_service(self._settings) as session_service,
-            sqlite_session_execution_guard(self._settings),
-            asyncio.timeout(self._settings.agent_workflow_timeout_seconds),
-        ):
-            runner = Runner(app=app, session_service=session_service, auto_create_session=True)
-            async for event in runner.run_async(
-                user_id=session_id,
-                session_id=session_id,
-                invocation_id=execution_invocation_id,
-                new_message=types.Content(role="user", parts=[types.Part(text=message)]),
+        try:
+            async with (
+                managed_session_service(self._settings) as session_service,
+                sqlite_session_execution_guard(self._settings),
+                asyncio.timeout(self._settings.agent_workflow_timeout_seconds),
             ):
-                if (
-                    isinstance(event.output, dict)
-                    and event.output.get("_conversation_result") is True
+                runner = Runner(app=app, session_service=session_service, auto_create_session=True)
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    invocation_id=execution_invocation_id,
+                    new_message=types.Content(role="user", parts=[types.Part(text=message)]),
                 ):
-                    result = event.output
+                    if (
+                        isinstance(event.output, dict)
+                        and event.output.get("_conversation_result") is True
+                    ):
+                        result = event.output
+        except (APIError, TimeoutError) as exc:
+            logger.warning(
+                "managed conversation runtime unavailable",
+                extra={
+                    "dependency_error_type": type(exc).__name__,
+                    "dependency_status_code": getattr(exc, "code", None),
+                },
+            )
+            raise AgentDependencyUnavailableError(
+                "The managed conversation runtime is unavailable"
+            ) from exc
         if result is None:
             raise RuntimeError("ADK agentic conversation completed without a result")
         return result

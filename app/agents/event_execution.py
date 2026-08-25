@@ -13,6 +13,7 @@ from google.adk.workflow import FunctionNode, START, Workflow
 from google.genai import types
 
 from app.agents.adk_runtime import (
+    durable_adk_session_id,
     managed_session_service,
     session_app_name,
     sqlite_session_execution_guard,
@@ -274,6 +275,7 @@ class DeliveryDelayEventExecutor:
                 result_ref=str(output["result_ref"]),
             )
         app_name = session_app_name(self._settings, self._store)
+        session_id = durable_adk_session_id("event", event.project_id, event.event_id)
         app = App(
             name=app_name,
             root_agent=build_delivery_delay_workflow(
@@ -291,7 +293,7 @@ class DeliveryDelayEventExecutor:
                 runner = Runner(app=app, session_service=session_service, auto_create_session=True)
                 async for agent_event in runner.run_async(
                     user_id="event-worker",
-                    session_id=f"event-{event.event_id}",
+                    session_id=session_id,
                     invocation_id=event.event_id,
                     new_message=types.Content(
                         role="user",
@@ -347,7 +349,7 @@ class AdkEventExecutor:
 
     async def execute(self, event: ProjectEvent) -> RoutedEventExecution:
         app_name = session_app_name(self._settings, self._store)
-        session_id = f"event-{event.event_id}"
+        session_id = durable_adk_session_id("event", event.project_id, event.event_id)
 
         async def execute_typed() -> dict[str, Any]:
             result = TypedEventService(self._store).execute(event)

@@ -170,8 +170,11 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
 - [~] P2 Project queries and actions enter the conditional
   `agentic_project_conversation` ADK graph. Live project answers use the Gemini
   conversation agent over authorized context; mutations retain existing typed
-  tools and confirmation/approval policy. Runtime and live Vertex proof remain
-  pending.
+  tools and confirmation/approval policy. Managed ADK sessions now use one
+  deterministic Vertex-compatible ID contract across conversation, site-update,
+  delivery-delay, and generic event paths; conversation identity is isolated by
+  project plus canonical user, and dependency failures return a retryable 503.
+  Focused runtime coverage passes; post-deploy live Vertex proof remains pending.
 - [x] P3 removed the import-time coordinator and specialist `LlmAgent` graph,
   unused exports/factory/prompts, and stale architecture claims. Four actual ADK
   workflow roots remain; typed telemetry names match those roots, and the

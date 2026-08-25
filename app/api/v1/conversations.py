@@ -15,6 +15,8 @@ from app.agents.conversation_execution import (
     AdkConversationExecutor,
     AgenticConversationHandlers,
 )
+from app.agents.adk_runtime import durable_adk_session_id
+from app.agents.errors import AgentDependencyUnavailableError
 from app.api.dependencies import configured_project_access, require_idempotency_key
 from app.api.errors import ApiError
 from app.domain.authorization import ProjectAccessContext, ProjectPermission
@@ -776,12 +778,20 @@ async def send_message(
             else await handlers.reason_over_context()
         )
     else:
-        agentic_result = await AdkConversationExecutor(runtime.store, settings).execute_agentic(
-            session_id=f"conversation-{access.actor.user_id}",
-            invocation_id=invocation_id,
-            message=payload.message,
-            handlers=handlers,
-        )
+        try:
+            agentic_result = await AdkConversationExecutor(runtime.store, settings).execute_agentic(
+                user_id=access.actor.user_id,
+                session_id=durable_adk_session_id("conversation", project_id, access.actor.user_id),
+                invocation_id=invocation_id,
+                message=payload.message,
+                handlers=handlers,
+            )
+        except AgentDependencyUnavailableError as exc:
+            raise ApiError(
+                "DEPENDENCY_UNAVAILABLE",
+                "OG conversation is temporarily unavailable.",
+                status_code=503,
+            ) from exc
     agentic_result.pop("_conversation_result", None)
     return ConversationMessageResponse.model_validate(agentic_result)
 

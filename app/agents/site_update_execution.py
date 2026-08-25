@@ -23,6 +23,7 @@ from app.agents.interpreter import MediaEvidence
 from app.agents.adk_runtime import (
     SiteUpdateWorkflowHandlers,
     build_site_update_app,
+    durable_adk_session_id,
     managed_session_service,
     session_app_name,
     sqlite_session_execution_guard,
@@ -112,7 +113,9 @@ class SiteUpdateEventExecutor:
         run_id = run.id
         trace_id = run.trace_id
         adk_app_name = session_app_name(self._settings, self._store)
-        adk_session_id = f"{run_id}-attempt-{claim_attempt}"
+        adk_session_id = durable_adk_session_id(
+            "site-update", event.project_id, run_id, str(claim_attempt)
+        )
 
         workflow_failure: list[Exception] = []
         staged_update = update
