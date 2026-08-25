@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
+from google.cloud import firestore
 
 from app.domain.enums import (
     IssueDetectedBy,
@@ -29,8 +32,10 @@ from app.infrastructure.notification_gateway import (
     PermanentNotificationGatewayError,
     TransientNotificationGatewayError,
 )
+from app.infrastructure.disabled_notification import DisabledNotificationProvider
 from app.infrastructure.logging_notification import LoggingNotificationProvider
 from app.repositories.memory import InMemoryRepositoryStore
+from app.repositories.firestore import FirestoreRepositoryStore
 from app.services.delivery_notifications import (
     DeliveryNotificationError,
     NotificationService,
@@ -199,6 +204,54 @@ def test_logging_provider_is_explicitly_development_only() -> None:
     actions = [activity.action for activity in store.repository(ActivityEvent).list(PROJECT_ID)]
     assert "development_notification.recorded" in actions
     assert "external_notification.sent" not in actions
+
+
+def test_disabled_provider_persists_one_skipped_external_outcome_without_attempting() -> None:
+    store = InMemoryRepositoryStore()
+    service = NotificationService(
+        store,
+        DisabledNotificationProvider(),
+        base_backoff_seconds=0,
+        clock=lambda: NOW,
+    )
+    scenario = _scenario()
+
+    first = service.deliver(scenario[0], RUN_ID, *scenario[1:])
+    replay = service.deliver(scenario[0], RUN_ID, *scenario[1:])
+
+    assert first.status is OutboxStatus.SKIPPED
+    assert replay == first
+    assert first.provider == "disabled"
+    assert first.message_type == "external_notification:delivery_delay"
+    assert first.attempts == 0
+    assert first.provider_message_id is None
+    assert first.processed_at == NOW
+    actions = [activity.action for activity in store.repository(ActivityEvent).list(PROJECT_ID)]
+    assert actions.count("external_notification.skipped") == 1
+    assert "external_notification.attempted" not in actions
+    assert "external_notification.sent" not in actions
+
+
+@pytest.mark.backing_services
+@pytest.mark.skipif(
+    not os.getenv("FIRESTORE_EMULATOR_HOST"),
+    reason="FIRESTORE_EMULATOR_HOST is required for notification persistence",
+)
+def test_disabled_provider_persists_skipped_outcome_in_firestore_transaction() -> None:
+    store = FirestoreRepositoryStore(firestore.Client(project=f"oga-notify-{uuid4().hex}"))
+    service = NotificationService(
+        store,
+        DisabledNotificationProvider(),
+        base_backoff_seconds=0,
+        clock=lambda: NOW,
+    )
+    scenario = _scenario()
+
+    message = service.deliver(scenario[0], RUN_ID, *scenario[1:])
+
+    assert message.status is OutboxStatus.SKIPPED
+    actions = [activity.action for activity in store.repository(ActivityEvent).list(PROJECT_ID)]
+    assert actions.count("external_notification.skipped") == 1
 
 
 def test_permanent_provider_failure_is_terminal_and_visible() -> None:

@@ -19,6 +19,7 @@ from app.domain.enums import (
     MaterialRequestStatus,
     MemberRole,
     MemberStatus,
+    OutboxStatus,
     TaskStatus,
     TaskSource,
     WorkflowName,
@@ -40,6 +41,7 @@ from app.domain.models import (
 )
 from app.repositories.memory import InMemoryRepositoryStore
 from app.repositories.firestore import FirestoreRepositoryStore
+from app.infrastructure.notification_gateway import NotificationProvider
 from app.services.approvals import ApprovalService, ResolutionCommand
 from app.worker import process_event
 from app.repositories.runs import run_id_for_event
@@ -96,19 +98,20 @@ def _deliver(
     store: InMemoryRepositoryStore,
     event: ProjectEvent,
     *,
-    notification_gateway: FakeProjectNotificationGateway | None = None,
+    notification_gateway: NotificationProvider | None = None,
+    settings: Settings | None = None,
 ) -> tuple[str, str]:
-    settings = Settings(_env_file=None, oga_env="test", use_fake_model=True)
+    runtime = settings or Settings(_env_file=None, oga_env="test", use_fake_model=True)
     first = process_event(
         event.model_dump_json().encode(),
         store=store,
-        settings=settings,
+        settings=runtime,
         notification_gateway=notification_gateway,
     )
     replay = process_event(
         event.model_dump_json().encode(),
         store=store,
-        settings=settings,
+        settings=runtime,
         notification_gateway=notification_gateway,
     )
     assert replay.status == "duplicate"
@@ -293,7 +296,10 @@ def test_blocked_and_overdue_events_persist_issues_and_task_impact() -> None:
     assert overdue_issue.task_ids == ["tsk_foundation123"]
 
 
-def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
+@pytest.mark.parametrize("notifications_disabled", [False, True])
+def test_delivery_delay_updates_request_and_creates_downstream_risk(
+    notifications_disabled: bool,
+) -> None:
     store = _store()
     store.repository(Project).create(
         Project(
@@ -383,8 +389,19 @@ def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
         actor_id=FOREMAN_ID,
     )
 
-    gateway = FakeProjectNotificationGateway()
-    status, result_ref = _deliver(store, event, notification_gateway=gateway)
+    gateway = None if notifications_disabled else FakeProjectNotificationGateway()
+    runtime = Settings(
+        _env_file=None,
+        oga_env="test",
+        use_fake_model=True,
+        notification_provider="disabled" if notifications_disabled else "logging",
+    )
+    status, result_ref = _deliver(
+        store,
+        event,
+        notification_gateway=gateway,
+        settings=runtime,
+    )
 
     request = store.repository(MaterialRequest).require(PROJECT_ID, "mrq_cement123")
     issue = next(
@@ -409,9 +426,17 @@ def test_delivery_delay_updates_request_and_creates_downstream_risk() -> None:
     assert issue.task_ids == ["tsk_blockwork123", "tsk_slab123"]
     assert follow_up.source is TaskSource.WORKFLOW
     assert notification.payload["follow_up_task_id"] == follow_up.id
-    assert notification.provider == "google_chat"
-    assert notification.provider_message_id is not None
-    assert len(gateway.logical_sends) == 1
+    if notifications_disabled:
+        assert notification.status is OutboxStatus.SKIPPED
+        assert notification.provider == "disabled"
+        assert notification.provider_message_id is None
+        assert notification.attempts == 0
+    else:
+        assert notification.status is OutboxStatus.COMPLETED
+        assert notification.provider == "google_chat"
+        assert notification.provider_message_id is not None
+        assert gateway is not None
+        assert len(gateway.logical_sends) == 1
     assert (
         sum(event.event_id in task.source_refs for task in store.repository(Task).list(PROJECT_ID))
         == 1

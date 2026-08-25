@@ -84,11 +84,13 @@ RETRYABLE_DEPENDENCY_FAILURE
 Delivery-delay notifications use a persisted outbox claim and the typed
 `NotificationService` depends on the narrow `NotificationProvider` contract.
 `LoggingNotificationProvider` is development/test only.
+`DisabledNotificationProvider` performs no network call and persists a terminal
+skipped external-delivery outcome in preview/staging.
 `GoogleChatNotificationProvider` is the sole production
 `RealExternalNotificationProvider`; `ProjectNotificationGateway` remains a
 compatibility alias for existing workflow injection points.
 Deterministic provider request/message IDs make retries replay-safe; test fakes
-exist only under `tests/`. Missing deployed configuration fails closed.
+exist only under `tests/`. Production missing its real provider fails closed.
 
 ## Contract Test Matrix
 

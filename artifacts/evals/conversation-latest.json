@@ -3,8 +3,8 @@
   "prompt_version": "intent-router-v1",
   "adapter": "conversation-fixture",
   "model_id": null,
-  "commit_sha": "ae18aa269b4cf71dc9a1aee0eaf7b4de7082062f",
-  "generated_at": "2026-08-15T10:34:39.575223Z",
+  "commit_sha": "4b757b0d257a5eea97b3cba54493f0a7d0762310",
+  "generated_at": "2026-08-25T10:37:09.217979Z",
   "passed": true,
   "metrics": {
     "routing_accuracy": 1.0,

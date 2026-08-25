@@ -46,8 +46,9 @@ export GEMINI_MODEL_ID=gemini-3.6-flash
 export GEMINI_LOCATION=global
 export ADK_AGENT_ENGINE_ID=your-agent-engine-id
 export CONVERSATION_PROPOSAL_SIGNING_SECRET=oga-conversation-proposal-signing-key-staging
-export NOTIFICATION_PROVIDER=google_chat
-export GOOGLE_CHAT_WEBHOOK_SECRET=oga-google-chat-webhook-staging
+export NOTIFICATION_PROVIDER=disabled
+# Set these only when NOTIFICATION_PROVIDER=google_chat:
+# export GOOGLE_CHAT_WEBHOOK_SECRET=oga-google-chat-webhook-staging
 export PUBLIC_APP_BASE_URL=https://oga-staging.web.app
 export AUTH_ISSUER=https://securetoken.google.com/oga-staging
 export AUTH_AUDIENCE=oga-staging
@@ -60,11 +61,14 @@ grants only the API and worker service accounts access and mounts it as
 `CONVERSATION_PROPOSAL_SIGNING_KEY`; the secret value must never be placed in
 the deploy `.env` file.
 
-Create the Google Chat secret separately with the complete incoming webhook URL
-as its current value. The URL contains credentials and must never appear in the
-repository, deploy environment file, logs, screenshots, or submission video.
-`NOTIFICATION_PROVIDER=google_chat` is explicit and mandatory for the reviewed
-staging/production deployment; `logging` is restricted to local development and tests.
+Preview/staging may use `NOTIFICATION_PROVIDER=disabled`. In that mode the deploy
+does not grant access to or mount a Google Chat secret, and delivery-delay runs
+persist a skipped external outcome. Production requires
+`NOTIFICATION_PROVIDER=google_chat`. For Chat deployments, create the secret
+separately with the complete incoming webhook URL as its current value. The URL
+contains credentials and must never appear in the repository, deploy environment
+file, logs, screenshots, or submission video. `logging` remains restricted to
+local development and tests.
 
 `FIRESTORE_LOCATION` is mandatory because the database location cannot be
 changed after creation. Choose it explicitly before the first real deployment;
@@ -105,7 +109,8 @@ configurable through `CHECK_RUNTIME_TIMEOUT_SECONDS`.
 
 This is an ADK runtime and durable-session smoke. It does not exercise Firestore,
 the authenticated approval API, supplier actions, delivery-delay intake, or
-Google Chat; the full staging Golden Scenario remains the proof for those paths.
+external notification delivery; staging may instead prove the explicit skipped
+outcome while production retains the live Google Chat gate.
 
 ## Verify the production container
 

@@ -135,9 +135,11 @@ Only these workflows are core V1 scope:
 
 - Routine in-app notifications are generated for assignments, approvals, delay risks, and workflow failures.
 - Duplicate retries do not send duplicate notifications.
-- Delivery delays send one replay-safe external notification to a configured
-  Google Chat space. Staging and production explicitly select `google_chat` and
-  cannot start with the local/test logging provider or a missing destination.
+- Delivery delays always persist their risk, follow-up, in-app activity, and a
+  replay-safe external-delivery outcome. Staging may temporarily select the
+  explicit `disabled` provider and record that outcome as skipped; it must never
+  represent a skipped delivery as sent. Production requires a configured real
+  external provider. The local/test `logging` provider remains development-only.
 
 ### FR-12 Reporting
 

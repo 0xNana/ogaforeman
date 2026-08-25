@@ -95,6 +95,17 @@ def test_complete_production_configuration_is_valid() -> None:
     assert settings.notification_provider is NotificationProviderName.GOOGLE_CHAT
 
 
+def test_staging_allows_explicitly_disabled_notifications_without_webhook() -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config.update(oga_env="staging", notification_provider="disabled")
+    config.pop("google_chat_webhook_url")
+
+    settings = Settings(_env_file=None, firestore_emulator_host=None, **config)
+
+    assert settings.notification_provider is NotificationProviderName.DISABLED
+    assert settings.google_chat_webhook_url is None
+
+
 def test_deployed_environment_rejects_local_adk_database_sessions() -> None:
     config = dict(PRODUCTION_CONFIG)
     config["adk_session_backend"] = "database"
@@ -173,7 +184,6 @@ def test_production_rejects_missing_cloud_model_and_auth_configuration() -> None
         "gemini_model_id",
         "gemini_location",
         "conversation_proposal_signing_key",
-        "google_chat_webhook_url",
         "public_app_base_url",
         "adk_agent_engine_id",
         "auth_issuer",
@@ -243,6 +253,17 @@ def test_deployed_environment_rejects_logging_notification_provider() -> None:
     config["notification_provider"] = "logging"
 
     with pytest.raises(ValidationError, match="NOTIFICATION_PROVIDER=google_chat"):
+        Settings(_env_file=None, **config)
+
+
+def test_production_rejects_disabled_notification_provider() -> None:
+    config = dict(PRODUCTION_CONFIG)
+    config["notification_provider"] = "disabled"
+    config.pop("google_chat_webhook_url")
+
+    with pytest.raises(
+        ValidationError, match="Production requires NOTIFICATION_PROVIDER=google_chat"
+    ):
         Settings(_env_file=None, **config)
 
 

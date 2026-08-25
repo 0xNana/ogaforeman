@@ -41,6 +41,7 @@ class ChatSession(Protocol):
 
 class GoogleChatNotificationProvider(RealExternalNotificationProvider):
     provider = "google_chat"
+    is_enabled = True
     is_external = True
 
     def __init__(

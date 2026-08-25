@@ -5,6 +5,7 @@ from app.domain.notifications import (
     DeliveryDelayNotification,
     DeliveryDelayTaskReference,
 )
+from app.infrastructure.disabled_notification import DisabledNotificationProvider
 from app.infrastructure.google_chat import GoogleChatNotificationProvider
 from app.infrastructure.logging_notification import LoggingNotificationProvider
 from app.infrastructure.notification_gateway import (
@@ -76,6 +77,22 @@ def test_logging_provider_satisfies_contract_without_claiming_external_delivery(
     assert provider.is_external is False
     assert first == replay
     assert first.provider == "logging"
+
+
+def test_disabled_provider_satisfies_contract_but_cannot_send() -> None:
+    provider = DisabledNotificationProvider()
+
+    assert isinstance(provider, NotificationProvider)
+    assert not isinstance(provider, RealExternalNotificationProvider)
+    assert provider.is_enabled is False
+    assert provider.is_external is False
+
+    try:
+        provider.send_delivery_delay(_payload(), idempotency_key="contract-key")
+    except RuntimeError as exc:
+        assert str(exc) == "disabled notification provider cannot send"
+    else:
+        raise AssertionError("disabled provider unexpectedly represented a send")
 
 
 def test_google_chat_provider_satisfies_real_external_contract_idempotently() -> None:

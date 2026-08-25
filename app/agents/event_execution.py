@@ -24,6 +24,7 @@ from app.domain.events import ProjectEvent
 from app.domain.authorization import ProjectAccessContext
 from app.repositories.interfaces import RepositoryStore
 from app.infrastructure.google_chat import GoogleChatNotificationProvider
+from app.infrastructure.disabled_notification import DisabledNotificationProvider
 from app.infrastructure.logging_notification import LoggingNotificationProvider
 from app.infrastructure.notification_gateway import NotificationProvider
 from app.services.delivery_notifications import NotificationService
@@ -318,6 +319,9 @@ class DeliveryDelayEventExecutor:
 
     def _provider(self) -> NotificationProvider:
         if self._notification_provider is not None:
+            return self._notification_provider
+        if self._settings.notification_provider is NotificationProviderName.DISABLED:
+            self._notification_provider = DisabledNotificationProvider()
             return self._notification_provider
         if self._settings.notification_provider is NotificationProviderName.LOGGING:
             self._notification_provider = LoggingNotificationProvider()

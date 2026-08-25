@@ -15,6 +15,7 @@ logger = logging.getLogger("ogaforeman.notifications.logging_provider")
 class LoggingNotificationProvider:
     provider = "logging"
     destination_key = "0" * 24
+    is_enabled = True
     is_external = False
 
     def send_delivery_delay(

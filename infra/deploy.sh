@@ -69,7 +69,7 @@ load_deploy_env "${DEPLOY_ENV_FILE}"
 : "${AUTH_AUDIENCE:?Set AUTH_AUDIENCE}"
 : "${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS as a JSON origin list}"
 : "${PUBLIC_APP_BASE_URL:?Set PUBLIC_APP_BASE_URL to the deployed web origin}"
-: "${NOTIFICATION_PROVIDER:?Set NOTIFICATION_PROVIDER=google_chat}"
+: "${NOTIFICATION_PROVIDER:?Set NOTIFICATION_PROVIDER=disabled or google_chat}"
 : "${NEXT_PUBLIC_API_BASE_URL:?Set NEXT_PUBLIC_API_BASE_URL}"
 : "${NEXT_PUBLIC_FIREBASE_API_KEY:?Set NEXT_PUBLIC_FIREBASE_API_KEY}"
 : "${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:?Set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}"
@@ -117,6 +117,10 @@ SCHEDULE_CRON="${SCHEDULE_CRON:-0 6 * * *}"
 SCHEDULE_JOB="${SCHEDULE_JOB:-oga-daily-brief-${DEPLOY_ENVIRONMENT}}"
 CONVERSATION_PROPOSAL_SIGNING_SECRET="${CONVERSATION_PROPOSAL_SIGNING_SECRET:-oga-conversation-proposal-signing-key-${DEPLOY_ENVIRONMENT}}"
 GOOGLE_CHAT_WEBHOOK_SECRET="${GOOGLE_CHAT_WEBHOOK_SECRET:-oga-google-chat-webhook-${DEPLOY_ENVIRONMENT}}"
+RUN_SECRETS="CONVERSATION_PROPOSAL_SIGNING_KEY=${CONVERSATION_PROPOSAL_SIGNING_SECRET}:latest"
+if [[ "${NOTIFICATION_PROVIDER}" == "google_chat" ]]; then
+  RUN_SECRETS+=",GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_SECRET}:latest"
+fi
 
 API_SERVICE_ACCOUNT_EMAIL="${API_SERVICE_ACCOUNT}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
 WORKER_SERVICE_ACCOUNT_EMAIL="${WORKER_SERVICE_ACCOUNT}@${GOOGLE_CLOUD_PROJECT}.iam.gserviceaccount.com"
@@ -129,8 +133,12 @@ if [[ "${FIRESTORE_DATABASE}" != "(default)" ]]; then
   printf 'infra/deploy.sh currently deploys Firebase rules for the (default) Firestore database only.\n' >&2
   exit 2
 fi
-if [[ "${NOTIFICATION_PROVIDER}" != "google_chat" ]]; then
-  printf 'Staging and production require NOTIFICATION_PROVIDER=google_chat.\n' >&2
+if [[ "${DEPLOY_ENVIRONMENT}" == "production" && "${NOTIFICATION_PROVIDER}" != "google_chat" ]]; then
+  printf 'Production requires NOTIFICATION_PROVIDER=google_chat.\n' >&2
+  exit 2
+fi
+if [[ "${NOTIFICATION_PROVIDER}" != "disabled" && "${NOTIFICATION_PROVIDER}" != "google_chat" ]]; then
+  printf 'Preview/staging require NOTIFICATION_PROVIDER=disabled or google_chat.\n' >&2
   exit 2
 fi
 if [[ "${DEPLOY_DRY_RUN}" != "true" && "${ALLOW_DIRTY_DEPLOY}" != "true" ]] && \
@@ -297,12 +305,16 @@ for service_account in "${API_SERVICE_ACCOUNT_EMAIL}" "${WORKER_SERVICE_ACCOUNT_
     --member "serviceAccount:${service_account}" \
     --role roles/secretmanager.secretAccessor \
     --quiet
-  run gcloud secrets add-iam-policy-binding "${GOOGLE_CHAT_WEBHOOK_SECRET}" \
-    --project "${GOOGLE_CLOUD_PROJECT}" \
-    --member "serviceAccount:${service_account}" \
-    --role roles/secretmanager.secretAccessor \
-    --quiet
 done
+if [[ "${NOTIFICATION_PROVIDER}" == "google_chat" ]]; then
+  for service_account in "${API_SERVICE_ACCOUNT_EMAIL}" "${WORKER_SERVICE_ACCOUNT_EMAIL}"; do
+    run gcloud secrets add-iam-policy-binding "${GOOGLE_CHAT_WEBHOOK_SECRET}" \
+      --project "${GOOGLE_CLOUD_PROJECT}" \
+      --member "serviceAccount:${service_account}" \
+      --role roles/secretmanager.secretAccessor \
+      --quiet
+  done
+fi
 
 run_with_transient_retry gcloud iam service-accounts add-iam-policy-binding "${API_SERVICE_ACCOUNT_EMAIL}" \
   --project "${GOOGLE_CLOUD_PROJECT}" \
@@ -439,7 +451,7 @@ run gcloud run deploy "${WORKER_SERVICE}" \
   --command uvicorn \
   --args app.worker_http:app,--host,0.0.0.0,--port,8080 \
   --env-vars-file "${ENV_FILE}" \
-  --set-secrets "CONVERSATION_PROPOSAL_SIGNING_KEY=${CONVERSATION_PROPOSAL_SIGNING_SECRET}:latest,GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_SECRET}:latest" \
+  --set-secrets "${RUN_SECRETS}" \
   --ingress internal \
   --no-allow-unauthenticated \
   --execution-environment gen2 \
@@ -523,7 +535,7 @@ run gcloud run deploy "${API_SERVICE}" \
   --image "${IMAGE_URI}" \
   --service-account "${API_SERVICE_ACCOUNT_EMAIL}" \
   --env-vars-file "${ENV_FILE}" \
-  --set-secrets "CONVERSATION_PROPOSAL_SIGNING_KEY=${CONVERSATION_PROPOSAL_SIGNING_SECRET}:latest,GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_SECRET}:latest" \
+  --set-secrets "${RUN_SECRETS}" \
   --ingress all \
   --allow-unauthenticated \
   --execution-environment gen2 \

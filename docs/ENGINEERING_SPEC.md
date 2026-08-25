@@ -230,13 +230,18 @@ Requirements:
   normalized `DELIVERY_DELAYED` event; production code contains no delay generator.
 - The dedicated ADK graph loads the authorized project, canonical material
   request, material, and affected tasks before calculating dependency impact.
-- Google Chat is the single V1 external destination. Its incoming webhook URL
-  is a Secret Manager value, is never logged, and is mandatory in deployed environments.
+- Google Chat remains the implemented V1 external destination. Its incoming
+  webhook URL is a Secret Manager value and is never logged. Preview and staging
+  may temporarily select the explicit `disabled` provider without mounting that
+  secret; production still requires a configured real external provider.
 - `NotificationService` owns the durable delivery lifecycle. It accepts the
   `NotificationProvider` contract: `LoggingNotificationProvider` is restricted
-  to development/tests, while `GoogleChatNotificationProvider` is the sole
-  `RealExternalNotificationProvider`. Staging and production require the
-  explicit `NOTIFICATION_PROVIDER=google_chat` setting.
+  to development/tests, `DisabledNotificationProvider` records no delivery
+  attempt, and `GoogleChatNotificationProvider` is the sole
+  `RealExternalNotificationProvider`. `NOTIFICATION_PROVIDER=disabled` creates a
+  terminal skipped outbox outcome with an atomic activity and no network I/O;
+  it is allowed only in preview/staging. Production requires
+  `NOTIFICATION_PROVIDER=google_chat`.
 - A typed allowlisted payload is persisted to the outbox before network I/O.
   It contains project/event identity, the canonical material request, affected
   work, risk severity, OG's completed action summary, and an optional safe link.
@@ -248,6 +253,10 @@ Requirements:
 - Transient HTTP/network failures use bounded exponential backoff. Permanent
   failures are dead-lettered, remain observable, and prevent `AgentRun` success
   without rolling back or corrupting the already-valid project risk and follow-up.
+- A disabled external destination does not fail delivery-delay processing. The
+  workflow retains the valid request, risk, follow-up, and activity mutations,
+  persists the external outcome as `skipped`, and may complete without claiming
+  that an external message was sent.
 
 ### Workflow Audit Contract
 

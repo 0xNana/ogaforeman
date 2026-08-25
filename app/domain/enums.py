@@ -173,5 +173,6 @@ class OutboxStatus(StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    SKIPPED = "skipped"
     FAILED = "failed"
     DEAD_LETTERED = "dead_lettered"

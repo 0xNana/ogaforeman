@@ -33,8 +33,9 @@ current Google Cloud revision.
 - Run the complete rehearsal once. Record only when every item in
   [SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md) is satisfied.
 - Confirm the deployed worker configuration visibly reports
-  `NOTIFICATION_PROVIDER=google_chat`; the local/test logging provider is not
-  acceptable competition evidence.
+  `NOTIFICATION_PROVIDER=disabled` for the temporary staging scope and that its
+  outbox outcome is `skipped`; the local/test logging provider is not acceptable
+  competition evidence.
 - Run the billed Vertex Golden operational evaluator from the exact deployed
   commit. Do not record unless it passes 8/8 with 100% canonical resolution.
 - Run the backed-service approval restart test, then repeat it against staging
@@ -119,7 +120,7 @@ wrong, stop and fix the product; do not hide the failure with editing.
 is waiting and no supplier commitment exists. Approve it with the demo
 approver and show the original run complete. Then use the authenticated operator
 delivery-delay action to report the revised date and supplier-stated reason.
-Keep the resulting project risk and Google Chat message visible together.
+Keep the resulting project risk and skipped external-delivery activity visible together.
 
 **Narration:**
 
@@ -129,8 +130,8 @@ Keep the resulting project risk and Google Chat message visible together.
 > A real operator report now enters through the authenticated external boundary.
 > Nobody prompted OG: the project changed, ADK loaded the request, material, and
 > affected tasks, expanded the dependency impact, and continued with an audited
-> risk, follow-up, and one Google Chat notification. V1 never sends money or
-> places a binding order.
+> risk, follow-up, and one honestly recorded skipped external-delivery outcome.
+> V1 never sends money or places a binding order.
 
 ### 2:42-3:12 - Prove durable state and observability
 

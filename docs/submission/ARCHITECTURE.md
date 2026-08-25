@@ -19,8 +19,9 @@ mutation. Consequential actions persist an approval and pause the same logical
 ADK execution until an authenticated decision triggers native continuation.
 Firestore remains the source of truth, while ActivityEvent, AgentRun, Cloud
 Logging, and Cloud Trace provide the audit trail. Delivery delays autonomously
-update project risk and use a durable outbox to send one real Google Chat
-notification.
+update project risk and use a durable outbox to persist one truthful external
+outcome: sent through Google Chat when configured, or skipped when staging
+explicitly disables delivery.
 
 ## Truthful boundaries
 
@@ -80,12 +81,13 @@ reconstructed callback as durable continuation.
 ### External production systems
 
 The real inbound boundary is an authenticated supplier/operator delivery-delay
-report. The real outbound destination is one configured Google Chat webhook.
-Notification intent is persisted before sending, claimed outside the Firestore
-transaction, retried with bounded backoff, and completed only after the provider
-outcome is durable. Supplier simulators, in-memory gateways, and logging-only
-providers are test/development fakes and are explicitly excluded from deployed
-wiring and from the production path in the diagram.
+report. The production outbound destination is one configured Google Chat
+webhook; preview/staging may explicitly disable it. Enabled notification intent
+is persisted before sending, claimed outside the Firestore transaction, retried
+with bounded backoff, and completed only after the provider outcome is durable.
+Disabled intent becomes a terminal skipped record with no network attempt.
+Supplier simulators, in-memory gateways, and logging-only providers are
+test/development fakes and are excluded from deployed wiring.
 
 ### Observability
 
@@ -123,7 +125,7 @@ Prompts, secrets, unrestricted model output, and chain-of-thought are excluded.
 24. The authenticated decision is persisted and emitted as a replay-safe continuation event.
 25. Google ADK natively continues the same logical application/session/invocation/workflow execution.
 26. The approved typed action executes once; rejection completes without the external commitment.
-27. The delivery workflow persists and claims one deterministic outbox item, sends one Google Chat message, records the provider result, and only then completes its notification node.
+27. The delivery workflow persists one deterministic outbox item, then either claims and sends through Google Chat or atomically records staging delivery as skipped before completing its notification node.
 
 ## Golden Scenario visual key
 
@@ -139,7 +141,7 @@ The diagram describes the implemented production boundaries; it is not proof
 that the final revision passed them. Submission evidence must still show the
 same deployed Git SHA across `/api/v1/version`, Cloud Run revisions, the live
 Gemini Golden run, native approval continuation after worker replacement,
-Firestore state, one external Google Chat outcome, ActivityEvent history,
+Firestore state, one truthful external sent-or-skipped outcome, ActivityEvent history,
 AgentRun terminal state, and correlated Logging/Trace identifiers.
 
 ## References

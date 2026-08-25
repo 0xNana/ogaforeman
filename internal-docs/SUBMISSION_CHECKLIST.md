@@ -88,12 +88,12 @@ current submitted commit and deployed revision have direct evidence.
   progress/blocker/material analysis, merge, policy, tools, and interruption;
   delivery delay has impact, risk, follow-up, and notification nodes; project
   conversation has conditional reason/tool branches.
-- [x] Staging and production explicitly select the single Google Chat external
-  provider and reject the development/test logging provider. `DELIVERY_DELAYED`
-  enters through authenticated operator intake and cannot use the logging path
-  in competition evidence.
-- [ ] Live Google Chat gate records one real external message plus its persisted
-  outbox/provider outcome without exposing the webhook URL.
+- [x] Staging explicitly selects the temporary disabled provider and production
+  retains the single Google Chat external provider; both reject the
+  development/test logging provider. `DELIVERY_DELAYED` enters through
+  authenticated operator intake and cannot use logging in competition evidence.
+- [ ] Staging evidence records one terminal skipped outbox/provider outcome with
+  zero attempts; the live Google Chat gate remains required before production.
 - [ ] Final evidence proves those nodes executed, delivery outcomes
   occurred once, and a live project answer came from Gemini over authorized
   context rather than a deterministic response template.

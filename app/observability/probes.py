@@ -42,6 +42,8 @@ def configuration_probe(settings: Settings) -> Probe:
 
 def external_notification_configuration_probe(settings: Settings) -> Probe:
     def check() -> tuple[bool, str]:
+        if settings.notification_provider is NotificationProviderName.DISABLED:
+            return True, "external_notifications_disabled"
         if settings.notification_provider is NotificationProviderName.GOOGLE_CHAT:
             if settings.google_chat_webhook_url is not None:
                 return True, "google_chat_configured"

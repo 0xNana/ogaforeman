@@ -12,6 +12,7 @@ from app.infrastructure.notification_gateway import NotificationGatewayError
 class FakeNotificationProvider:
     provider = "google_chat"
     destination_key = "a" * 24
+    is_enabled = True
     is_external = True
 
     def __init__(self, outcomes: Iterable[NotificationGatewayError | None] = ()) -> None:

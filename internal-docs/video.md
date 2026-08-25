@@ -20,8 +20,8 @@ full narration and shot list are in [`Demo script`](DEMO_SCRIPT.md).
   multi-step workflow through UI, database, and/or log changes.
 - Show the actual submitted deployment with real Gemini. The deterministic
   `/demo`, fake model, emulator, screenshots, and stale evidence do not qualify.
-- Show staging configured with `NOTIFICATION_PROVIDER=google_chat`; a logging
-  provider result is development evidence only.
+- Show staging configured with `NOTIFICATION_PROVIDER=disabled` and a persisted
+  skipped outcome; a logging provider result is development evidence only.
 - Do not show secrets, tokens, passwords, raw private media, personal data,
   billing details, prompts, or chain-of-thought.
 
@@ -130,9 +130,9 @@ consequential external action.
 ### 2:20-2:55 - Autonomous delivery-delay reaction [READY]
 
 **Screen:** Authenticated external event boundary, then OG Activity/risk/follow-
-up and Google Chat. **Action:** Submit `DELIVERY_DELAYED` externally; do not
-prompt OG. Show the dedicated ADK workflow, one risk, one follow-up, and one
-real notification. Hide webhook secrets.
+up and the skipped delivery audit. **Action:** Submit `DELIVERY_DELAYED`
+externally; do not prompt OG. Show the dedicated ADK workflow, one risk, one
+follow-up, and one terminal skipped notification outcome.
 
 ### 2:55-3:20 - Activity and conversation [READY]
 
@@ -185,7 +185,7 @@ and continues follow-through when the project changes.”
 - Canonical approver decision and continuation of the original run, followed by
   a separately authenticated operator delivery-delay report.
 - Delivery delay produces one risk, one source-linked follow-up task, and one
-  externally visible Google Chat notification through its dedicated ADK graph.
+  explicit skipped external-delivery outcome through its dedicated ADK graph.
 - Structured logs visibly identify the Daily Site Update context,
   interpretation, resolution, parallel progress/blocker/material, merge,
   policy, tool, and continuation nodes for the same run.
@@ -207,8 +207,8 @@ and continues follow-through when the project changes.”
 - [ ] No hidden prompt, model scratchpad, chain-of-thought, or unrestricted
   signed media URL appears.
 - [ ] Claims match what the current application visibly does.
-- [ ] The Google Chat message is visibly real, while its webhook URL, key, and
-  token remain hidden; no purchase/payment claim is made.
+- [ ] The outbox and activity visibly report external delivery as skipped, with
+  zero attempts and no provider message ID; no purchase/payment claim is made.
 - [ ] No reliability, restart, backup, alert, or model-quality gate is claimed
   unless its current evidence is visible or linked.
 

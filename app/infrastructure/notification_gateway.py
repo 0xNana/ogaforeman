@@ -29,6 +29,7 @@ class PermanentNotificationGatewayError(NotificationGatewayError):
 class NotificationProvider(Protocol):
     provider: str
     destination_key: str
+    is_enabled: bool
     is_external: bool
 
     def send_delivery_delay(
@@ -45,6 +46,7 @@ class RealExternalNotificationProvider(ABC):
 
     provider: str
     destination_key: str
+    is_enabled: Literal[True] = True
     is_external: Literal[True] = True
 
     @abstractmethod

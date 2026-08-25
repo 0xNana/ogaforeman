@@ -244,6 +244,25 @@ bounded allowlist of observable IDs, counts, statuses, quantities, and reason
 codes; prompts, transcripts, raw media, signed URLs, credentials, and hidden model
 reasoning are not valid workflow-audit fields.
 
+### OutboxMessage
+
+```text
+id: string
+project_id: string
+message_type: string
+provider: string
+destination_key: string
+status: pending | processing | completed | skipped | failed | dead_lettered
+attempts: integer
+provider_message_id: string | null
+processed_at: datetime | null
+```
+
+`skipped` is a terminal external-delivery outcome used only by the explicit
+disabled provider. It has zero delivery attempts and no provider message ID; an
+atomic `external_notification.skipped` activity prevents it from being mistaken
+for a successful send.
+
 ### ProcessedEvent
 
 ```text

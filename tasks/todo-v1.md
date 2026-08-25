@@ -8,6 +8,17 @@ Legend: `[x]` implemented and verified locally; `[~]` partially implemented
 or unstable; `[ ]` implementation/evidence missing; `[!]` blocked only on a
 real cloud environment, live model credential/billing, or human release gate.
 
+## Temporary staging notification disablement
+
+- [x] SN-01 Preview/staging can explicitly select `NOTIFICATION_PROVIDER=disabled`
+  without mounting a Google Chat webhook. Delivery-delay workflow mutations still
+  complete, while one replay-safe outbox record and atomic activity report external
+  delivery as skipped with zero attempts and never as sent. Production continues
+  to require `google_chat`; local/test logging behavior remains development-only.
+  All specified static, focused, non-backing, backing-service, readiness,
+  evaluation, capacity, documentation, and disabled-deployment dry-run gates
+  passed on 2026-08-25.
+
 ## ADK execution authority migration
 
 ## Project initialization
@@ -144,17 +155,18 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
   context, Gemini interpretation, canonical resolution, parallel branch
   analysis, merge, policy, tools, and interruption in ADK; Delivery Delay owns
   canonical request/material/task retrieval, dependency impact, risk, follow-up,
-  and a real Google Chat notification in a dedicated ADK graph that cannot fall back to the legacy
+  and a durable sent-or-skipped external outcome in a dedicated ADK graph that cannot fall back to the legacy
   route map. `TASK_OVERDUE` remains on the generic adapter;
   `MATERIAL_RECEIVED` is not a registered V1 event. Focused Ruff/compile pass;
   runtime, once-only replay, and backed evidence are pending.
 - [~] P1 external coordination no longer uses the supplier simulator or a
   logging provider in staging/production. `NotificationService` supports the
-  explicit local/test `LoggingNotificationProvider` and the sole real
-  `GoogleChatNotificationProvider`; authenticated operator intake persists one
-  normalized delay event, and durable claims, provider-side deterministic IDs,
-  bounded retry, terminal failure, and recorded outcomes protect delivery.
-  Focused runtime tests and the separately gated live Chat send remain owner-run gates.
+  explicit local/test `LoggingNotificationProvider`, preview/staging
+  `DisabledNotificationProvider`, and production `GoogleChatNotificationProvider`;
+  authenticated operator intake persists one normalized delay event, and skipped
+  audit state or durable claims, deterministic IDs, bounded retry, terminal
+  failure, and recorded outcomes protect delivery truth. Focused runtime tests
+  and the separately gated production Chat send remain owner-run gates.
 - [~] P2 Project queries and actions enter the conditional
   `agentic_project_conversation` ADK graph. Live project answers use the Gemini
   conversation agent over authorized context; mutations retain existing typed
@@ -373,8 +385,8 @@ ADK migration Phase 16–19 release gates:
   approval finalizes the request workflow without placing an order or fabricating
   supplier state.
 - [x] M-04 An authenticated operator delay is an audited guarded transition; one
-  event updates the request, creates downstream risk and follow-up, delivers one
-  external Google Chat notification, and suppresses replay.
+  event updates the request, creates downstream risk and follow-up, persists one
+  external sent-or-skipped outcome, and suppresses replay.
 - [x] B-01 Dependency impact calculation passes focused tests.
 - [x] B-02 Safety stops persist inside site-update processing, and standalone
   blocker, overdue, and delivery-delay events execute repository-backed workflows.

@@ -18,6 +18,7 @@ class RuntimeEnvironment(StrEnum):
 
 
 class NotificationProviderName(StrEnum):
+    DISABLED = "disabled"
     LOGGING = "logging"
     GOOGLE_CHAT = "google_chat"
 
@@ -246,7 +247,6 @@ class Settings(BaseSettings):
                 "gemini_model_id",
                 "gemini_location",
                 "conversation_proposal_signing_key",
-                "google_chat_webhook_url",
                 "public_app_base_url",
                 "adk_agent_engine_id",
                 "auth_issuer",
@@ -260,8 +260,22 @@ class Settings(BaseSettings):
             ]
             if missing_fields:
                 raise ValueError("Deployed environments require: " + ", ".join(missing_fields))
-            if self.notification_provider is not NotificationProviderName.GOOGLE_CHAT:
-                raise ValueError("Deployed environments require NOTIFICATION_PROVIDER=google_chat")
+            if (
+                self.oga_env is RuntimeEnvironment.PRODUCTION
+                and self.notification_provider is not NotificationProviderName.GOOGLE_CHAT
+            ):
+                raise ValueError("Production requires NOTIFICATION_PROVIDER=google_chat")
+            if self.notification_provider is NotificationProviderName.LOGGING:
+                raise ValueError(
+                    "Deployed environments require NOTIFICATION_PROVIDER=disabled or google_chat"
+                )
+            if (
+                self.notification_provider is NotificationProviderName.GOOGLE_CHAT
+                and self.google_chat_webhook_url is None
+            ):
+                raise ValueError(
+                    "google_chat_webhook_url is required when NOTIFICATION_PROVIDER=google_chat"
+                )
         if self.adk_session_backend not in {"auto", "database", "vertex_ai"}:
             raise ValueError("ADK_SESSION_BACKEND must be auto, database, or vertex_ai")
 

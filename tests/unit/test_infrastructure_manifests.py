@@ -48,12 +48,17 @@ def test_deploy_script_contains_release_critical_resources() -> None:
     assert "monitoring/apply.sh" in source
     assert "identitytoolkit.googleapis.com" in source
     assert "secretmanager.googleapis.com" in source
-    # Both API and worker identities need access to both deployed secrets.
-    assert source.count("roles/secretmanager.secretAccessor") == 2
-    assert source.count("GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_SECRET}:latest") == 2
+    # The Chat secret and its IAM grant are conditional when staging disables delivery.
+    assert 'if [[ "${NOTIFICATION_PROVIDER}" == "google_chat" ]]; then' in source
+    assert 'RUN_SECRETS="CONVERSATION_PROPOSAL_SIGNING_KEY=' in source
+    assert 'RUN_SECRETS+=",GOOGLE_CHAT_WEBHOOK_URL=${GOOGLE_CHAT_WEBHOOK_SECRET}:latest"' in source
+    assert source.count('--set-secrets "${RUN_SECRETS}"') == 2
     assert "NOTIFICATION_PROVIDER: '${NOTIFICATION_PROVIDER}'" in source
-    assert ': "${NOTIFICATION_PROVIDER:?Set NOTIFICATION_PROVIDER=google_chat}"' in source
-    assert "Staging and production require NOTIFICATION_PROVIDER=google_chat" in source
+    assert (
+        ': "${NOTIFICATION_PROVIDER:?Set NOTIFICATION_PROVIDER=disabled or google_chat}"' in source
+    )
+    assert "Production requires NOTIFICATION_PROVIDER=google_chat" in source
+    assert "Preview/staging require NOTIFICATION_PROVIDER=disabled or google_chat" in source
     assert "CONVERSATION_PROPOSAL_SIGNING_KEY:" not in source
     assert "firebaserules.googleapis.com" in source
     assert "gcloud firestore databases update" in source
@@ -117,7 +122,7 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
                 "GEMINI_MODEL_ID=gemini-3.6-flash",
                 "GEMINI_LOCATION=global",
                 "ADK_AGENT_ENGINE_ID=agent-engine-dotenv",
-                "NOTIFICATION_PROVIDER=google_chat",
+                "NOTIFICATION_PROVIDER=disabled",
                 "PUBLIC_APP_BASE_URL=https://dotenv.example",
                 "AUTH_ISSUER=https://securetoken.google.com/dotenv-project",
                 "AUTH_AUDIENCE=dotenv-project",
@@ -180,6 +185,8 @@ def test_deploy_script_safely_loads_dotenv_with_shell_overrides(tmp_path: Path) 
     assert completed.returncode == 0, completed.stderr
     assert "override-region-docker.pkg.dev/dotenv-project" in completed.stdout
     assert "dotenv-region-docker.pkg.dev" not in completed.stdout
+    assert "GOOGLE_CHAT_WEBHOOK_URL" not in completed.stdout
+    assert "oga-google-chat-webhook" not in completed.stdout
     assert not marker.exists()
 
 

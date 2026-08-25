@@ -69,15 +69,16 @@ authenticated text / voice / photo
 -> native continuation of the same logical ADK execution
 -> later authenticated DELIVERY_DELAYED event
 -> delivery_delay_workflow
--> delayed request, dependency risk, follow-up, and one durable Google Chat send
+-> delayed request, dependency risk, follow-up, and one durable external-delivery outcome
 -> terminal AgentRun and complete ActivityEvent history
 ```
 
-The deterministic `/demo`, fake model, logging notification provider, and
-test-only gateways do not satisfy this scenario. Release evidence is accepted
-only from a clean, committed, production-backed staging revision with matching
-Git provenance, durable approval continuation, live Gemini evaluation, and a
-real Google Chat destination.
+The deterministic `/demo`, fake model, and test-only gateways do not satisfy
+this scenario. Release evidence is accepted only from a clean, committed,
+production-backed staging revision with matching Git provenance, durable
+approval continuation, live Gemini evaluation, and a truthful persisted
+external-delivery outcome. Staging may temporarily record `skipped` through the
+explicit disabled provider; production still requires a real destination.
 
 ## How autonomy works
 
@@ -131,7 +132,8 @@ Next.js PWA / authenticated integration
 ```
 
 Private media is uploaded to Cloud Storage and verified before worker/model
-use. Delivery notifications use a persisted outbox and one Google Chat adapter.
+use. Delivery notifications use a persisted outbox, an explicit disabled mode,
+and one Google Chat adapter.
 Cloud Logging and Cloud Trace correlate allowlisted request, event, run,
 workflow, node, tool, and provider identifiers without prompts, secrets, or
 chain-of-thought.
@@ -158,8 +160,8 @@ deployment configuration:
 - **Cloud Storage** for private verified media.
 - **Pub/Sub** for authenticated asynchronous delivery, retry, and dead letters.
 - **Cloud Scheduler** for configured daily-brief delivery.
-- **Google Chat incoming webhook** as the sole production external-notification
-  destination.
+- **Google Chat incoming webhook** as the implemented production
+  external-notification destination; preview/staging may explicitly disable it.
 - **Firebase Authentication and Hosting** for browser identity and hosted entry.
 - **Cloud Build and Artifact Registry** for container builds and images.
 - **Secret Manager** for deployed signing and Google Chat credentials.
@@ -194,9 +196,9 @@ action once.
   version checks, and bounded claim leases prevent silent last-write-wins and
   expose conflicts for retry or review.
 - **External failure isolation:** Google Chat delivery occurs outside the domain
-  transaction through a durable outbox. Notification failure remains visible
-  without rolling back already-valid project mutations or falsely completing
-  the notification node.
+  transaction through a durable outbox. Failure remains visible, and explicit
+  staging disablement is persisted as skipped, without rolling back valid
+  project mutations or falsely reporting a send.
 
 ## Evaluation
 
@@ -323,7 +325,8 @@ Deployment prerequisites and IAM details are documented in
 [infra/README.md](infra/README.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 Staging and production require Vertex model configuration, Firestore, Storage,
 Pub/Sub, Firebase identity, authorized origins, a durable ADK session backend,
-Secret Manager values, and `NOTIFICATION_PROVIDER=google_chat`.
+and Secret Manager values. Staging may set `NOTIFICATION_PROVIDER=disabled`;
+production requires `NOTIFICATION_PROVIDER=google_chat` and its webhook secret.
 
 Verify that the configured numeric Agent Engine ID resolves in the selected
 Google Cloud project and region:

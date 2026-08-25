@@ -460,6 +460,30 @@ suite stays green, and the canonical mobile Golden Scenario passes.
 
 Status: complete locally on 2026-08-13.
 
+## Temporary Staging Notification Disablement
+
+### SN-01: Persist an explicit disabled external-delivery outcome
+
+Acceptance: preview/staging accept `NOTIFICATION_PROVIDER=disabled` without a
+Google Chat webhook; delivery-delay processing still persists its request, risk,
+follow-up, and activities; the outbox records one replay-safe terminal `skipped`
+outcome with provider `disabled`, zero attempts, no provider message ID, and no
+`external_notification.sent` activity. Production continues to require the real
+Google Chat provider, and local/test logging semantics remain unchanged.
+
+Verify: settings/readiness unit tests, provider contract tests, notification
+service replay/audit integration tests, routed workflow regression, and
+infrastructure manifest tests.
+
+Dependencies: M-04, K-02, K-06.
+
+Files: `app/config/settings.py`, `app/domain/enums.py`,
+`app/domain/models.py`, `app/infrastructure/disabled_notification.py`,
+`app/services/delivery_notifications.py`, `app/agents/event_execution.py`,
+`infra/deploy.sh`, affected tests and normative documentation.
+
+Scope: M.
+
 ## How to Use This Plan
 
 Work top to bottom. A task is one focused session and should normally touch no more than five files. Keep the repository runnable after every task. Mark the matching item in `tasks/todo-v1.md`, update `internal-docs/STATUS.md`, and record contract changes before starting dependent work.
@@ -1072,14 +1096,14 @@ Scope: M.
 
 Superseded by PR-15: approval never fabricates supplier status. Authenticated
 operator intake persists a real delivery event, and the dedicated ADK workflow
-sends one claimed Google Chat notification.
+persists one claimed external delivery or one explicit skipped outcome.
 
 Provider selection is explicit: `NotificationService` accepts the shared
-provider contract, local/test may select `logging`, and every deployed
-environment requires the sole real provider `google_chat`.
+provider contract, local/test may select `logging`, preview/staging may select
+`disabled`, and production requires the sole real provider `google_chat`.
 
-Verify: authenticated intake, outbox crash/retry, permanent failure, worker
-replay, and gated live Google Chat tests.
+Verify: authenticated intake, disabled skipped-audit behavior, outbox crash/retry,
+permanent failure, worker replay, and gated production Google Chat tests.
 
 Dependencies: M-03, K-01, K-06.
 

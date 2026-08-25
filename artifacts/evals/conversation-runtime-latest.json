@@ -1,0 +1,63 @@
+{
+  "suite": "phase17-conversation-runtime-v1",
+  "generated_at": "2026-08-25T10:37:14.606539+00:00",
+  "adapter": "production-api-typed-services",
+  "passed": true,
+  "cases": [
+    {
+      "id": "grounded_query_no_mutation",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "material_typed_mutation",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "task_and_issue_typed_mutations",
+      "passed": true,
+      "executed_test_count": 2
+    },
+    {
+      "id": "schedule_pending_no_mutation",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "schedule_confirm_and_duplicate",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "purchase_approval_no_external_action",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "stale_proposal",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "cancelled_proposal",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "unauthorized_command",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "ambiguous_entity",
+      "passed": true,
+      "executed_test_count": 1
+    },
+    {
+      "id": "expired_proposal",
+      "passed": true,
+      "executed_test_count": 1
+    }
+  ]
+}

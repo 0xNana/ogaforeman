@@ -95,14 +95,16 @@ parallel progress/blocker/material analysis, merge, policy, typed tools,
 approval interruption, continuation, reporting, and completion. Delivery delay
 has a dedicated replay-safe ADK graph that loads the canonical material and
 affected tasks, expands dependency impact, and creates the delayed-request
-activity, risk, source-linked follow-up task, and one externally delivered
-Google Chat notification. `NotificationService` selects logging only for
-local/test and requires explicit `google_chat` configuration when deployed.
+activity, risk, source-linked follow-up task, and one durable external-delivery
+outcome. `NotificationService` selects logging only for local/test, supports an
+explicit skipped `disabled` outcome in preview/staging, and requires
+`google_chat` in production.
 Delivery delay enters through authenticated operator
 intake; the production supplier simulator and logging notifier have been removed.
-The external send persists queue, claim, attempt, terminal state, provider
+An enabled external send persists queue, claim, attempt, terminal state, provider
 message ID, and atomic activities, and uses deterministic provider idempotency.
-Deployed configuration requires the Secret Manager-backed webhook. The generic
+Disabled staging persists skipped with zero attempts and no message ID. Production
+requires the Secret Manager-backed webhook. The generic
 routed-event map no longer accepts `DELIVERY_DELAYED`. `TASK_OVERDUE` remains on
 the generic adapter, and `MATERIAL_RECEIVED` is not currently a registered V1
 `ProjectEvent`; neither is part of the recorded Taskmaster path. Authenticated project

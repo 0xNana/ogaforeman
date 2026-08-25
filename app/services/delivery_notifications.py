@@ -71,7 +71,9 @@ class NotificationService:
         self._store = store
         self._provider = provider
         self.message_type = (
-            self.external_message_type if provider.is_external else self.development_message_type
+            self.external_message_type
+            if provider.is_external or not provider.is_enabled
+            else self.development_message_type
         )
         self._max_attempts = max_attempts
         self._base_backoff_seconds = base_backoff_seconds
@@ -91,13 +93,13 @@ class NotificationService:
     ) -> OutboxMessage:
         payload = self._payload(event, context, assessment, issue, follow_up)
         message = self._queue(event, run_id, payload)
-        if message.status is OutboxStatus.COMPLETED:
+        if message.status in {OutboxStatus.COMPLETED, OutboxStatus.SKIPPED}:
             return message
 
         while message.attempts < self._max_attempts:
             claim = self._claim(event, run_id, message.id)
             message = claim.message
-            if message.status is OutboxStatus.COMPLETED:
+            if message.status in {OutboxStatus.COMPLETED, OutboxStatus.SKIPPED}:
                 return message
             if message.status is OutboxStatus.DEAD_LETTERED:
                 break
@@ -176,6 +178,7 @@ class NotificationService:
         run_id: str,
         payload: DeliveryDelayNotification,
     ) -> OutboxMessage:
+        now = self._clock()
         digest = sha256(
             (
                 f"{event.idempotency_key}\x00{self._provider.provider}\x00"
@@ -197,18 +200,38 @@ class NotificationService:
                 ):
                     raise RuntimeError("delivery notification idempotency conflict")
                 return existing
-            message = outbox.create(
-                OutboxMessage(
-                    id=message_id,
-                    project_id=event.project_id,
-                    message_type=self.message_type,
-                    deduplication_key=deduplication_key,
-                    payload=payload.model_dump(mode="json"),
-                    provider=self._provider.provider,
-                    destination_key=self._provider.destination_key,
-                    created_at=self._clock(),
-                )
+            disabled = not self._provider.is_enabled
+            message = OutboxMessage(
+                id=message_id,
+                project_id=event.project_id,
+                message_type=self.message_type,
+                deduplication_key=deduplication_key,
+                payload=payload.model_dump(mode="json"),
+                provider=self._provider.provider,
+                destination_key=self._provider.destination_key,
+                status=OutboxStatus.SKIPPED if disabled else OutboxStatus.PENDING,
+                created_at=now,
+                processed_at=now if disabled else None,
             )
+            if disabled:
+                # Firestore transactions require every read before the first
+                # write. Activity replay validation reads by deterministic ID,
+                # so perform it before creating the outbox document.
+                self._record_activity(
+                    session,
+                    event,
+                    run_id,
+                    message,
+                    phase="skipped",
+                    action="external_notification.skipped",
+                    summary="Skipped external delivery because notifications are disabled.",
+                    metadata={
+                        "provider": self._provider.provider,
+                        "status": "skipped",
+                        "reason": "notifications_disabled",
+                    },
+                )
+                return outbox.create(message)
             self._record_activity(
                 session,
                 event,
@@ -227,10 +250,17 @@ class NotificationService:
                 ),
                 metadata={"provider": self._provider.provider, "status": "pending"},
             )
-            return message
+            return outbox.create(message)
 
         message = self._store.run_transaction(queue)
-        self._log(message, "delivery_notification_queued")
+        self._log(
+            message,
+            (
+                "delivery_notification_skipped"
+                if message.status is OutboxStatus.SKIPPED
+                else "delivery_notification_queued"
+            ),
+        )
         return message
 
     def _claim(self, event: ProjectEvent, run_id: str, message_id: str) -> _ClaimResult:
@@ -239,7 +269,11 @@ class NotificationService:
         def claim(session: RepositorySession) -> _ClaimResult:
             repo = session.repository(OutboxMessage)
             message = repo.require(event.project_id, message_id)
-            if message.status in {OutboxStatus.COMPLETED, OutboxStatus.DEAD_LETTERED}:
+            if message.status in {
+                OutboxStatus.COMPLETED,
+                OutboxStatus.SKIPPED,
+                OutboxStatus.DEAD_LETTERED,
+            }:
                 return _ClaimResult(message, False)
             if (
                 message.status is OutboxStatus.PROCESSING
@@ -485,7 +519,11 @@ class NotificationService:
             (
                 "external delivery-delay notification state changed"
                 if self._provider.is_external
-                else "development-only delivery-delay notification state changed"
+                else (
+                    "external delivery-delay notification is disabled"
+                    if not self._provider.is_enabled
+                    else "development-only delivery-delay notification state changed"
+                )
             ),
             provider=self._provider.provider,
             outbox_item_id=message.id,

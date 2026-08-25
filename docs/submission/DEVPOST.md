@@ -95,8 +95,9 @@ typed action. Later, an authenticated operator reports the supplier delay for
 the canonical material request. Nobody prompts OG in chat: the dedicated
 Delivery Delay ADK workflow retrieves the request, material, directly affected
 tasks, and downstream dependencies; marks the request delayed; updates risk;
-creates follow-up; and uses a durable outbox to send one Google Chat
-notification before its notification node completes.
+creates follow-up; and uses a durable outbox to persist one external-delivery
+outcome before its notification node completes. Temporary staging records that
+outcome as explicitly skipped; production retains Google Chat delivery.
 
 The value shown is operational state change: one field update becomes linked,
 auditable work across the project instead of a message someone must manually
@@ -189,7 +190,7 @@ private media, unrestricted model output, and chain-of-thought are excluded.
 - Explicit ADK Daily Site Update, Delivery Delay, conversation, and compatibility
   workflow roots.
 - Typed mutation services, approval state, ActivityEvents, AgentRun projection,
-  durable notification outbox, and Google Chat adapter.
+  durable notification outbox, explicit disabled provider, and Google Chat adapter.
 - Clean-source build metadata, `/api/v1/version`, Cloud Run revision/digest
   verification, and machine-readable deployment evidence generation.
 - Unit, contract, workflow, integration, browser, production-readiness, and
@@ -208,7 +209,7 @@ and `/demo` are orientation or regression tools, not operational proof.
 3. Show the human decision and native continuation of the same run after the
    rehearsed worker replacement.
 4. Submit the later authenticated delivery delay and show the autonomous risk,
-   follow-up, Daily Log/activity, terminal run, and real Google Chat outcome.
+   follow-up, Daily Log/activity, terminal run, and explicit skipped external outcome.
 5. Refresh, sign out/in, and show the same Firestore-backed state plus correlated
    Cloud Logging or Trace identifiers.
 
@@ -224,8 +225,8 @@ the video is published.
 - **Google Cloud:** Cloud Run, Firestore, Cloud Storage, Pub/Sub, Cloud
   Scheduler, Cloud Build, Artifact Registry, Secret Manager, Firebase
   Authentication and Hosting, Cloud Logging, Cloud Trace, and Cloud Monitoring.
-- **External destination:** one Google Chat incoming webhook, configured through
-  Secret Manager in deployed environments.
+- **External destination:** one Google Chat incoming webhook for production,
+  configured through Secret Manager; staging may temporarily disable delivery.
 
 No proprietary external dataset is required. The authorized project team
 provides site text, voice, photos, project documents, task/dependency data,

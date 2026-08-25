@@ -611,7 +611,11 @@ class OutboxMessage(DomainModel):
 
     @model_validator(mode="after")
     def validate_outbox(self) -> Self:
-        terminal_statuses = {OutboxStatus.COMPLETED, OutboxStatus.DEAD_LETTERED}
+        terminal_statuses = {
+            OutboxStatus.COMPLETED,
+            OutboxStatus.SKIPPED,
+            OutboxStatus.DEAD_LETTERED,
+        }
         if self.status in terminal_statuses and self.processed_at is None:
             raise ValueError("processed_at is required for terminal outbox statuses")
         if self.status not in terminal_statuses and self.processed_at is not None:

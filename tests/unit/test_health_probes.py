@@ -1,4 +1,4 @@
-from app.config.settings import Settings
+from app.config.settings import NotificationProviderName, Settings
 from google.api_core.exceptions import NotFound
 from app.observability.probes import (
     configuration_probe,
@@ -105,4 +105,15 @@ def test_configuration_probe_reports_local_and_deployed_contracts() -> None:
     assert external_notification_configuration_probe(deployed)() == (
         True,
         "google_chat_configured",
+    )
+
+    disabled = deployed.model_copy(
+        update={
+            "notification_provider": NotificationProviderName.DISABLED,
+            "google_chat_webhook_url": None,
+        }
+    )
+    assert external_notification_configuration_probe(disabled)() == (
+        True,
+        "external_notifications_disabled",
     )

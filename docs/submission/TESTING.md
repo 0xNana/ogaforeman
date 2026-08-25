@@ -35,7 +35,7 @@ site data.
    the approved action occurs once.
 7. Submit an authenticated delivery-delay event for the canonical material
    request. Do not send OG a conversational prompt. Confirm the autonomous risk,
-   follow-up, delayed request, and Google Chat notification.
+   follow-up, delayed request, and terminal skipped external-delivery outcome.
 8. Refresh the browser and sign out/in. Confirm the same Firestore-backed state
    remains visible.
 
