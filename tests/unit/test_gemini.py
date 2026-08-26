@@ -266,6 +266,7 @@ async def test_gemini_conversation_agent_generates_only_authorized_grounded_cita
     call = generate_content.await_args.kwargs
     assert call["config"].response_schema is not None
     assert "Ridge House" in call["contents"][0].text
+    assert "never include record IDs" in call["contents"][0].text
 
 
 @pytest.mark.asyncio

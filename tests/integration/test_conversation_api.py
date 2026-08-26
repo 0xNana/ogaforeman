@@ -518,6 +518,58 @@ async def test_project_answer_is_generated_from_authorized_live_context() -> Non
 
 
 @pytest.mark.asyncio
+async def test_project_answer_keeps_internal_record_ids_out_of_user_facing_text() -> None:
+    app, _store = make_app()
+    app.state.intent_classifier._responses.update(
+        {
+            "what's the immediate schedule?": IntentDecision(
+                intent=IntentType.PROJECT_QUERY,
+                confidence=0.99,
+                requires_project_context=True,
+                reason_code="schedule_query",
+            )
+        }
+    )
+
+    class LeakingConversationAgent:
+        async def respond(
+            self,
+            message: str,
+            *,
+            intent: IntentType,
+            context: ConversationalProjectContext,
+        ) -> AgenticConversationAnswer:
+            assert message == "what's the immediate schedule?"
+            assert intent is IntentType.PROJECT_QUERY
+            project = context.project
+            task = context.tasks[0]
+            assert project is not None
+            return AgenticConversationAnswer(
+                text=(
+                    f"Project {project.name} ({project.id}) is active. "
+                    f"The first task, {task.title} ({task.id}), starts next."
+                ),
+                cited_record_ids=(project.id, task.id),
+            )
+
+    app.state.conversation_agent = LeakingConversationAgent()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/projects/{PROJECT_ID}/conversations/messages",
+            json={"message": "what's the immediate schedule?"},
+            headers={"Idempotency-Key": "conversation:no-public-ids:1"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["text"] == (
+        "Project Ridge House is active. The first task, Plastering, starts next."
+    )
+    assert response.json()["cited_record_ids"] == [PROJECT_ID, "tsk_plaster123"]
+
+
+@pytest.mark.asyncio
 async def test_project_status_follow_up_returns_grounded_entity_state() -> None:
     app, store = make_app()
     store.repository(Task).create(

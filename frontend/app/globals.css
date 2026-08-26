@@ -1064,8 +1064,6 @@ p { font-size: 1.05rem; }
 .app-sidebar-footer { gap: 6px; margin-top: 16px; padding: 14px 0 0; }
 .ask-og-button { display: flex; min-height: 44px; width: 100%; align-items: center; justify-content: center; gap: 9px; padding: 0 12px; color: var(--white); background: var(--ink); border-radius: 7px; font-weight: 800; cursor: pointer; }
 .ask-og-button:hover { background: #25322d; }
-.needs-you-link { border: 1px solid var(--line); }
-.notification-badge { display: inline-flex; min-width: 20px; height: 20px; align-items: center; justify-content: center; margin-left: auto; padding: 0 5px; color: var(--white); background: var(--red); border-radius: 10px; font-size: 0.66rem; font-weight: 800; }
 .project-topbar { position: sticky; z-index: 15; top: 0; display: grid; grid-template-columns: minmax(260px, 560px) auto; align-items: center; justify-content: space-between; gap: 20px; min-height: 68px; padding: 10px 32px; background: rgba(255, 255, 255, 0.97); border-bottom: 1px solid var(--line); }
 .mobile-project-identity { display: none; }
 .project-search { position: relative; display: flex; width: min(100%, 560px); min-height: 42px; align-items: center; gap: 9px; padding: 0 13px; color: var(--ink-faint); background: var(--paper); border: 1px solid var(--line); border-radius: 7px; }

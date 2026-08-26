@@ -226,6 +226,11 @@ imported/cancelled outcomes to refreshed overview/setup destinations.
 - [x] C-20 Product help works without populated project state; project setup/readiness comes from
   authorized persisted state; assistant turns render as OG without exposing internal route labels;
   conversational and Golden Scenario regression gates pass.
+- [x] C-21 OG keeps canonical database IDs out of user-facing conversation text while retaining
+  typed grounding citations, and the project shell exposes Needs You only through the header bell.
+  API-boundary and shell regression coverage, the 770-test non-backing backend suite, the
+  100-test frontend suite, and the production-build manager browser journey pass locally on
+  2026-08-26.
 
 ## Audit findings requiring implementation
 
@@ -491,7 +496,7 @@ ADK migration Phase 16–19 release gates:
 
 ## Latest local evidence
 
-- [x] Backend without backing services: 305 passed, 23 explicitly deselected.
+- [x] Backend without backing services: 770 passed, 32 explicitly deselected.
 - [x] Durable backing services: 23 passed against Firestore and Storage emulators,
   with no skips.
 - [x] P0.1 multimodal API/worker/storage/model-shape coverage: 79 passed, with
@@ -540,7 +545,7 @@ ADK migration Phase 16–19 release gates:
   activities with the original run/source causality, rejects non-allowlisted workflow
   metadata, suppresses replay duplicates, and exposes stable `updated_at` plus the
   full public run contract.
-- [x] Frontend: normal `npm ci`, lint, typecheck, 15 unit tests, and build pass.
+- [x] Frontend: normal `npm ci`, lint, typecheck, 100 unit tests, and build pass.
 - [x] Playwright: 18 passed, 14 intentional cross-device skips, including a real
   Firestore-backed approval/resume journey with no workflow request interception.
 - [x] Production dependency audit: `npm audit --omit=dev` reports zero

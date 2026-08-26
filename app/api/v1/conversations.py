@@ -55,7 +55,10 @@ from app.services.conversation_action_execution import ConversationActionExecuti
 from app.services.conversation_advice import ConversationAdviceService, plan_advice_query
 from app.services.conversation_context import ProjectContextService, plan_context_query
 from app.services.conversation_confirmation import ConversationConfirmationService
-from app.services.conversation_responses import ConversationResponseService
+from app.services.conversation_responses import (
+    ConversationResponseService,
+    sanitize_public_conversation_text,
+)
 from app.services.conversation_site_update_routing import ConversationSiteUpdateRouter
 from app.services.conversation_entity_resolution import ConversationEntityResolver
 from app.services.conversation_memory import ConversationMemoryService
@@ -645,6 +648,9 @@ async def send_message(
                     recommendation=answer.recommendation,
                     intent=route.decision.intent.value,
                 )
+            response = response.model_copy(
+                update={"text": sanitize_public_conversation_text(response.text, snapshot)}
+            )
             _remember_citations(memory_service, access, response.cited_record_ids)
         return {"_conversation_result": True, **response.model_dump(mode="json")}
 

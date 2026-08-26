@@ -2,7 +2,22 @@
 
 ## Status date
 
-2026-08-25
+2026-08-26
+
+## Conversation presentation correction
+
+OG project answers now keep canonical project, task, issue, material, request,
+approval, report, activity, and user IDs out of user-facing prose. The versioned
+conversation prompt confines IDs to typed citations, while a deterministic API
+boundary removes parenthesized IDs, replaces known bare IDs with authorized
+display labels, and neutralizes unexpected canonical-looking IDs. Typed
+`cited_record_ids` remain available for grounding and conversational memory.
+The duplicate Needs You link has been removed from the desktop sidebar; the
+existing header bell remains the single persistent approvals entry point.
+Focused backend and shell regressions pass locally. The complete non-backing
+backend suite passes 770 tests, the frontend suite passes 100 tests, and the
+production-build desktop manager Playwright journey passes against the local
+API plus Firestore/Auth emulators.
 
 ## P0 release stop - managed ADK session compatibility
 

@@ -157,11 +157,6 @@ export function AppShell({ children, project, pendingApprovalCount = 0 }: Readon
           <button ref={askOgButton} className="ask-og-button" type="button" onClick={showAskOg}>
             <Sparkles size={17} aria-hidden="true" /> Ask OG
           </button>
-          <Link className="app-nav-link needs-you-link" href={`/projects/${projectId}/approvals`}>
-            <Bell size={17} aria-hidden="true" />
-            <span>Needs you</span>
-            {pendingApprovalCount > 0 && <span className="notification-badge" aria-label={`${pendingApprovalCount} pending`}>{pendingApprovalCount}</span>}
-          </Link>
         </div>
       </aside>
 

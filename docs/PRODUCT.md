@@ -129,6 +129,7 @@ Only these workflows are core V1 scope:
 
 - The user can inspect each run from trigger through interpretation, tools, approval waits, retries, and completion.
 - User-facing activity describes business actions, not raw chain-of-thought.
+- User-facing OG prose uses project and record names, never canonical database IDs; IDs remain available only in typed grounding and audit metadata.
 - Technical trace IDs link the UI run to Cloud Logging and Cloud Trace.
 
 ### FR-11 Notifications

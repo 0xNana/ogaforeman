@@ -278,6 +278,15 @@ Requirements:
   status, step, attempt, trace ID, start/update/completion timestamps, and bounded
   error fields while retaining the existing `id` field for compatibility.
 
+### Conversation Presentation Contract
+
+- Authorized canonical record IDs may be supplied to Gemini for grounding and retained in the
+  typed `cited_record_ids` response field, but they must never appear in user-facing OG prose.
+- The conversation prompt confines IDs to typed citations, and the API response boundary applies
+  deterministic context-aware sanitization so model or adapter regressions cannot expose them.
+- The project shell exposes the Needs You approvals destination once in the persistent header;
+  the sidebar footer remains dedicated to the global Ask OG entry point.
+
 ### Always Do
 
 - read `PRODUCT.md`, `SECURITY_SAFETY.md`, and the active task before coding;

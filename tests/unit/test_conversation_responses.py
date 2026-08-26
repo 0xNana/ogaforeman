@@ -22,12 +22,16 @@ from app.domain.conversation import (
     MaterialContextItem,
     MaterialRequirementContextItem,
     MemberContextItem,
+    ProjectContextItem,
     ReplyKind,
     ProjectSetupStatus,
     ProjectReadinessState,
     TaskContextItem,
 )
-from app.services.conversation_responses import ConversationResponseService
+from app.services.conversation_responses import (
+    ConversationResponseService,
+    sanitize_public_conversation_text,
+)
 
 
 NOW = datetime(2026, 8, 13, 12, tzinfo=UTC)
@@ -60,6 +64,38 @@ def task(
     }
     values.update(overrides)
     return TaskContextItem.model_validate(values)
+
+
+def test_public_conversation_text_removes_known_and_unexpected_internal_ids() -> None:
+    snapshot = context(
+        ContextQuery(domains=(ContextDomain.PROJECT, ContextDomain.TASKS)),
+        project=ProjectContextItem(
+            id="prj_context123",
+            name="Ridge House",
+            location="Accra",
+            timezone="Africa/Accra",
+            status="active",
+        ),
+        tasks=(task("tsk_blockwork123", "Blockwork", "planned"),),
+    )
+
+    text = sanitize_public_conversation_text(
+        "Ridge House (prj_context123) is active. tsk_blockwork123 starts after "
+        "run_deadbeef1234 completes; evt_abc is also internal.",
+        snapshot,
+    )
+
+    assert text == (
+        "Ridge House is active. Blockwork starts after record completes; record is also internal."
+    )
+
+
+def test_public_conversation_text_never_becomes_empty_after_id_removal() -> None:
+    snapshot = context(ContextQuery(domains=(ContextDomain.PROJECT,)))
+
+    text = sanitize_public_conversation_text("(prj_context123)", snapshot)
+
+    assert text == "I found a matching project record, but I don't have a useful summary yet."
 
 
 def test_casual_reply_is_short_and_does_not_require_project_context() -> None:

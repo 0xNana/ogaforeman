@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from decimal import Decimal
 
@@ -17,6 +18,13 @@ from app.domain.conversation import (
     ProjectSetupStatus,
 )
 from app.services.product_knowledge import ProductKnowledgeService
+
+
+_INTERNAL_RECORD_ID_PATTERN = re.compile(
+    r"(?<![a-z0-9_-])(?:act|app|apr|att|cpr|evt|imp|iss|led|mat|mreq|mrq|msg|obx|"
+    r"phs|prj|rpt|run|src|sup|tsk|upd|usr|wrk)_[a-z0-9][a-z0-9_-]{2,127}"
+    r"(?![a-z0-9_-])"
+)
 
 
 class ConversationResponseService:
@@ -126,6 +134,64 @@ class ConversationResponseService:
         if context.query.search_terms:
             return _entity_status(context)
         return _overview(context)
+
+
+def sanitize_public_conversation_text(
+    text: str,
+    context: ConversationalProjectContext,
+) -> str:
+    """Keep canonical record IDs in typed citations, never user-facing prose."""
+
+    public_text = " ".join(text.split())
+    labels = _conversation_record_labels(context)
+    for record_id in sorted(labels, key=len, reverse=True):
+        escaped_id = re.escape(record_id)
+        public_text = re.sub(rf"\s*\(\s*{escaped_id}\s*\)", "", public_text)
+    public_text = re.sub(
+        rf"\s*\(\s*{_INTERNAL_RECORD_ID_PATTERN.pattern}\s*\)",
+        "",
+        public_text,
+    )
+    for record_id, label in sorted(labels.items(), key=lambda item: len(item[0]), reverse=True):
+        public_text = re.sub(
+            rf"(?<![a-z0-9_-]){re.escape(record_id)}(?![a-z0-9_-])",
+            label,
+            public_text,
+        )
+    public_text = _INTERNAL_RECORD_ID_PATTERN.sub("record", public_text)
+    public_text = re.sub(r"\s+([,.;:!?])", r"\1", public_text)
+    public_text = " ".join(public_text.split())[:1000]
+    return (
+        public_text or "I found a matching project record, but I don't have a useful summary yet."
+    )
+
+
+def _conversation_record_labels(context: ConversationalProjectContext) -> dict[str, str]:
+    labels = {
+        context.project_id: context.project.name if context.project is not None else "project"
+    }
+    if context.project is not None:
+        labels[context.project.id] = context.project.name
+    for task_item in (*context.tasks, *context.schedule):
+        labels[task_item.id] = task_item.title
+    for issue_item in context.issues:
+        labels[issue_item.id] = issue_item.description
+    material_names = {material_item.id: material_item.name for material_item in context.materials}
+    labels.update(material_names)
+    for requirement_item in context.material_requirements:
+        labels[requirement_item.id] = "material requirement"
+    for request_item in context.material_requests:
+        material_name = material_names.get(request_item.material_id, "material")
+        labels[request_item.id] = f"{material_name} request"
+    for approval_item in context.approvals:
+        labels[approval_item.id] = "approval"
+    for log_item in context.daily_logs:
+        labels[log_item.id] = f"daily log for {log_item.report_date.isoformat()}"
+    for activity_item in context.recent_activity:
+        labels[activity_item.id] = activity_item.summary
+    for member_item in context.members:
+        labels[member_item.user_id] = member_item.display_name
+    return labels
 
 
 def _overview(context: ConversationalProjectContext) -> ConversationReply:

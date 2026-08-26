@@ -58,6 +58,9 @@ describe('AppShell', () => {
     ]);
     expect(screen.getByRole('searchbox', { name: 'Search project' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Ask OG' })).toBeVisible();
+    const needsYouLinks = screen.getAllByRole('link', { name: 'Needs you' });
+    expect(needsYouLinks).toHaveLength(1);
+    expect(needsYouLinks[0]).toHaveAttribute('href', '/projects/prj_ridge/approvals');
     expect(screen.getByRole('link', { name: 'Skip to project content' })).toHaveAttribute('href', '#project-content');
     expect(screen.getByRole('main')).toHaveAttribute('id', 'project-content');
   });

@@ -84,7 +84,7 @@ test('manager views render task, material, report, and approval resources', asyn
   });
   await expect(materialsSection.getByText('Cement stock is low')).toBeVisible();
 
-  await page.locator('.needs-you-link').click();
+  await page.getByRole('link', { name: 'Needs you' }).click();
   await expect(page.getByRole('heading', { name: 'Needs you' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Approve desktop access sequence' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Why OG prepared this' }).first()).toBeVisible();
