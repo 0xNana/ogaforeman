@@ -17,7 +17,7 @@ site data.
 ## Golden Scenario
 
 1. Download
-   [`ridge-house-plan.md`](../../internal-docs/projects/ridge-house-plan.md),
+   [`ridge-house-plan.md`](ridge-house-plan.md),
    select **New Project**, and upload the file.
 2. Review the extracted draft before confirmation. It must contain First-floor
    blockwork, Electrical rough-in, First-floor plastering, their dependency

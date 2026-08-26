@@ -4,9 +4,8 @@ Before changing code, read:
 
 1. `docs/PRODUCT.md`
 2. `docs/ENGINEERING_SPEC.md`
-3. `internal-docs/PRODUCTION_READINESS.md`
-4. the active section of `tasks/plan.md`
-5. `tasks/todo-v1.md`
+3. `docs/SECURITY_SAFETY.md`
+4. any affected public contracts and architecture decisions under `docs/`
 
 ## Build Rules
 
@@ -28,6 +27,6 @@ Before changing code, read:
 
 ## Verification
 
-Run the task's verification commands before marking its checkbox complete. Use `uv sync --all-extras --locked` for Python and `npm ci` for the frontend. If a required tool is missing, install the documented development dependencies or report the exact environment blocker; do not claim tests passed.
+Run the relevant verification commands before reporting a task complete. Use `uv sync --all-extras --locked` for Python and `npm ci` for the frontend. If a required tool is missing, install the documented development dependencies or report the exact environment blocker; do not claim tests passed.
 
-At phase boundaries update `internal-docs/STATUS.md`, `tasks/todo-v1.md`, and any affected contracts/ADRs.
+At phase boundaries update any affected public contracts and ADRs. Keep private status and task notes in the ignored workspace directories.

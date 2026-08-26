@@ -1,4 +1,4 @@
-"""Validate local Markdown links and release-command file references."""
+"""Validate public Markdown links and release-command file references."""
 
 from __future__ import annotations
 
@@ -27,21 +27,13 @@ REQUIRED_RELEASE_PATHS = (
     "docs/submission/architecture-diagram.svg",
     "docs/submission/AGENT_INVENTORY.md",
     "docs/submission/DEVPOST.md",
-    "internal-docs/PRESENTATION.md",
-    "internal-docs/DEMO_SCRIPT.md",
     "docs/submission/TESTING.md",
-    "internal-docs/SUBMISSION_CHECKLIST.md",
-    "internal-docs/video.md",
+    "docs/submission/ridge-house-plan.md",
 )
 
 
 def find_broken_links(root: Path = ROOT) -> tuple[str, ...]:
-    markdown_files = (
-        [root / "README.md"]
-        + sorted((root / "docs").rglob("*.md"))
-        + sorted((root / "internal-docs").rglob("*.md"))
-        + sorted((root / "tasks").glob("*.md"))
-    )
+    markdown_files = [root / "README.md"] + sorted((root / "docs").rglob("*.md"))
     broken: list[str] = []
     for document in markdown_files:
         source = document.read_text(encoding="utf-8")

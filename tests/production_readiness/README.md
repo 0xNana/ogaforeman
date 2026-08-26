@@ -1,7 +1,8 @@
 # Production-readiness suite
 
-`test_controls.py` maps directly to PR-01 through PR-13 in
-`internal-docs/PRODUCTION_READINESS.md`.
+`test_controls.py` groups the production-readiness safeguards as PR-01 through
+PR-13. The public reliability and verification contract is maintained in
+[`docs/ENGINEERING_SPEC.md`](../../docs/ENGINEERING_SPEC.md).
 
 - Passing tests are locally verified controls.
 - Strict `xfail` tests are known release blockers caused by missing prerequisite

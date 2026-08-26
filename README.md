@@ -77,7 +77,7 @@ create duplicate tasks, requests, or actions.
 
 For readers who want the technical design and reliability controls, see the
 [submission architecture](docs/submission/ARCHITECTURE.md) and
-[production-readiness controls](internal-docs/PRODUCTION_READINESS.md).
+[engineering specification](docs/ENGINEERING_SPEC.md).
 
 ## How autonomy works
 

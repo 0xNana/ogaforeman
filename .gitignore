@@ -43,12 +43,7 @@ tmp/
 *.local.json
 
 # Local working documentation and task notes
-/internal-docs/*
-!/internal-docs/video.md
-!/internal-docs/PRESENTATION.md
-!/internal-docs/projects/
-/internal-docs/projects/*
-!/internal-docs/projects/ridge-house-plan.md
+/internal-docs/
 /tasks/
 
 # Editors and operating systems
