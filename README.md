@@ -42,43 +42,42 @@ can proceed automatically. Purchases, external commitments, financial actions,
 task cancellation, major schedule changes, and safety-critical actions require
 a human decision.
 
-## Golden Scenario
+## See OG in action
 
-The release scenario starts with a real initialized project containing
-canonical tasks, dependencies, a 100-bag plastering cement requirement, and 10
-bags in inventory. The foreman submits:
+A project manager starts by uploading the project plan. OG proposes the tasks,
+dependencies, and material needs it finds, and the manager reviews them before
+they become the working project. On site, the foreman can then send a text or
+voice update such as:
 
 ```text
 First-floor blockwork is complete. The electrician did not come today. We have
 10 bags of cement left. Plastering starts tomorrow.
 ```
 
-The competition-critical path is:
+From that one update, OG:
 
-```text
-authenticated text / voice / photo
--> event intake and Pub/Sub
--> daily_site_update_workflow through Google ADK Runner
--> Gemini evidence interpretation
--> deterministic canonical entity resolution
--> parallel progress, blocker, and material branches
--> typed task, issue, inventory, material-request, and Daily Log mutations
--> 90-bag request waiting for approval
--> durable approval pause
--> authenticated human decision
--> native continuation of the same logical ADK execution
--> later authenticated DELIVERY_DELAYED event
--> delivery_delay_workflow
--> delayed request, dependency risk, follow-up, and one durable external-delivery outcome
--> terminal AgentRun and complete ActivityEvent history
-```
+1. marks First-floor blockwork complete;
+2. records the electrician's absence as a blocker without inventing progress;
+3. updates cement stock to 10 bags;
+4. sees that plastering needs 100 bags and identifies the 90-bag shortfall;
+5. prepares a material request and asks the manager to approve it;
+6. updates the Daily Log and activity history so the whole team can see what changed.
 
-The deterministic `/demo`, fake model, and test-only gateways do not satisfy
-this scenario. Release evidence is accepted only from a clean, committed,
-production-backed staging revision with matching Git provenance, durable
-approval continuation, live Gemini evaluation, and a truthful persisted
-external-delivery outcome. Staging may temporarily record `skipped` through the
-explicit disabled provider; production still requires a real destination.
+OG stops at the decision that matters. It does not place an order or claim that
+a supplier has accepted one. When the manager approves the request, OG continues
+the paused work without asking the team to submit the update again. If the
+delivery is later reported as delayed, OG flags the affected schedule, creates a
+follow-up, and records whether the external alert was delivered.
+
+The result is the product promise in one flow: the foreman reports what happened,
+OG handles the coordination, and the manager keeps control of consequential
+decisions. The demo uses the same saved project records and product screens the
+team uses—it is not a scripted animation. Replaying the same update does not
+create duplicate tasks, requests, or actions.
+
+For readers who want the technical design and reliability controls, see the
+[submission architecture](docs/submission/ARCHITECTURE.md) and
+[production-readiness controls](internal-docs/PRODUCTION_READINESS.md).
 
 ## How autonomy works
 
